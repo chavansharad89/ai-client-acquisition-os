@@ -28,8 +28,14 @@ export interface LeadResearchRow {
   observedAt: Date;
 }
 
-/** Maps a result field onto the source kind the scorer weights. */
-const FIELD_KIND: Record<string, ResearchSourceKind> = {
+/**
+ * Maps a result field onto the source kind the scorer weights.
+ *
+ * Exported for ./mapping's toNewResearchSignals() — the persistence
+ * adapter reuses this table rather than redefining it, so a signal's
+ * `kind` is derived identically regardless of which adapter runs.
+ */
+export const FIELD_KIND: Record<string, ResearchSourceKind> = {
   companySummary: 'WEBSITE',
   businessModel: 'WEBSITE',
   targetCustomers: 'WEBSITE',

@@ -12,6 +12,9 @@
   },
   "dependencies": {
     "@acos/core-acquisition": "workspace:*",
+    "@acos/core-discovery": "workspace:*",
+    "@acos/core-entitlements": "workspace:*",
+    "@acos/core-identity": "workspace:*",
     "@anthropic-ai/sdk": "^0.125.0",
     "zod": "^3.23.0"
   },

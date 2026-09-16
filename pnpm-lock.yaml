@@ -312,6 +312,15 @@ importers:
       '@acos/core-acquisition':
         specifier: workspace:*
         version: link:../core-acquisition
+      '@acos/core-discovery':
+        specifier: workspace:*
+        version: link:../core-discovery
+      '@acos/core-entitlements':
+        specifier: workspace:*
+        version: link:../core-entitlements
+      '@acos/core-identity':
+        specifier: workspace:*
+        version: link:../core-identity
       '@anthropic-ai/sdk':
         specifier: ^0.125.0
         version: 0.125.0(zod@3.25.76)
@@ -458,6 +467,9 @@ importers:
       '@acos/core-reconciliation':
         specifier: workspace:*
         version: link:../packages/core-reconciliation
+      '@acos/core-research':
+        specifier: workspace:*
+        version: link:../packages/core-research
       '@acos/core-search':
         specifier: workspace:*
         version: link:../packages/core-search

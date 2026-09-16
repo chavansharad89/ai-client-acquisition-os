@@ -72,6 +72,10 @@ export function fakeProspectRepository(
     async listBySearch(userId: string, searchId: string) {
       return rows.filter((row) => row.userId === userId && row.searchId === searchId);
     },
+
+    async getById(userId: string, id: string) {
+      return rows.find((row) => row.id === id && row.userId === userId) ?? null;
+    },
   };
 }
 

@@ -107,6 +107,15 @@ export function createPgProspectRepository(sql: SqlExecutor): ProspectRepository
       );
       return (rows as ProspectRow[]).map(mapProspectRow);
     },
+
+    async getById(userId: string, id: string): Promise<StoredProspect | null> {
+      const { rows } = await sql.query(
+        `SELECT ${PROSPECT_COLUMNS} FROM prospects WHERE id = $1 AND user_id = $2`,
+        [id, userId],
+      );
+      const row = rows[0] as ProspectRow | undefined;
+      return row ? mapProspectRow(row) : null;
+    },
   };
 }
 

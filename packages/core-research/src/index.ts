@@ -61,3 +61,33 @@ export {
   researchInputSchema,
 } from './schema';
 export type { Classification, Evidence, LeadResearch, Observation, ResearchInput } from './schema';
+
+// ---- Research Foundation: ResearchSignal persistence (migration 0016) ----
+// Owned by this same package (Research), but a distinct boundary from the
+// AI engine above: this is where a validated LeadResearch result actually
+// gets written down. See ./mapping's module note for why this is NOT
+// ./persist.ts's toResearchRows().
+
+export { toNewResearchSignals } from './mapping';
+
+export type { ResearchProvider, ResearchProviderInput } from './provider';
+
+export { createPgResearchSignalRepository } from './pgRepository';
+export type { ResearchSignalRepository } from './repository';
+
+export { ResearchProspectNotFoundError, RunResearchValidationError } from './signalErrors';
+export type { RunResearchValidationReason } from './signalErrors';
+
+export { PROSPECT_ID_MAX_LENGTH, validateRunResearchInput } from './validation';
+
+export { listResearchSignals, runResearch } from './service';
+export type { ResearchDeps } from './service';
+
+export type {
+  NewResearchSignalInput,
+  ResearchRunResult,
+  ResearchSignalSourceInput,
+  RunResearchInput,
+  StoredResearchSignal,
+  StoredResearchSignalSource,
+} from './types';

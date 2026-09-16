@@ -42,4 +42,13 @@ export interface ProspectRepository {
 
   /** Only this user's prospects for this Search — never a global lookup. */
   listBySearch(userId: string, searchId: string): Promise<readonly StoredProspect[]>;
+
+  /**
+   * Only this user's row for this id — never a global lookup. Added for
+   * @acos/core-research's service.ts: Research resolves ownership
+   * through Prospect (DEC-008), so it needs to look one up directly by
+   * id rather than only by Search, mirroring CompanyRepository.getById
+   * above.
+   */
+  getById(userId: string, id: string): Promise<StoredProspect | null>;
 }
