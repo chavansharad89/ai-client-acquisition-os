@@ -17,10 +17,12 @@ import {
   createPgResearchSignalRepository,
   listResearchSignals,
   runResearch,
+  scoreResearchedProspect,
   ResearchProspectNotFoundError,
   type LeadResearch,
   type ResearchDeps,
   type ResearchProvider,
+  type ScoreResearchedProspectInput,
 } from '@acos/core-research';
 import {
   createPgSearchRepository,
@@ -336,5 +338,103 @@ describe('Research execution', () => {
     await expect(runResearch(d, a.token, { prospectId: 'does-not-exist' })).rejects.toBeInstanceOf(
       ResearchProspectNotFoundError,
     );
+  });
+});
+
+describe('scoreResearchedProspect (Phase 8 — scoring foundation)', () => {
+  // Real PostgreSQL: proves the persisted ResearchSignal rows (migration
+  // 0016) round-trip through @acos/core-research's scoringAdapter into
+  // @acos/core-acquisition's unmodified scoreProspect(), with the same
+  // ownership boundary runResearch/listResearchSignals already enforce.
+
+  const unestablished: ScoreResearchedProspectInput = {
+    icp: {
+      industryMatch: { value: null, basis: 'UNKNOWN' },
+      sizeMatch: { value: null, basis: 'UNKNOWN' },
+      geoMatch: { value: null, basis: 'UNKNOWN' },
+    },
+    abilityToPay: { value: null, basis: 'UNKNOWN' },
+    urgency: { value: null, basis: 'UNKNOWN' },
+    serviceFit: { value: null, basis: 'UNKNOWN' },
+    contact: { hasEmail: true, hasLinkedIn: false, hasPhone: false, unsubscribed: false },
+  };
+
+  it("scores the caller's own Prospect from its persisted signals", async () => {
+    const a = await createUserAndSession('a');
+    const base = repos();
+    const { prospectId } = await createProspect(base, a.token);
+    const d = researchDeps(base, sampleResearch());
+    await runResearch(d, a.token, { prospectId });
+
+    const result = await scoreResearchedProspect(d, a.token, prospectId, unestablished);
+
+    expect(result.score.score).toBeGreaterThanOrEqual(0);
+    expect(result.score.score).toBeLessThanOrEqual(100);
+    expect(result.score.factors).toHaveLength(7);
+  });
+
+  it('reads confidence raw from the database — INFERRED is discounted once by the adapter, not at persistence', async () => {
+    const a = await createUserAndSession('a');
+    const base = repos();
+    const { prospectId } = await createProspect(base, a.token);
+    const d = researchDeps(base, sampleResearch());
+    await runResearch(d, a.token, { prospectId });
+
+    const { db } = suite.require();
+    const { rows } = await db.client.query(
+      `SELECT confidence FROM research_signals WHERE prospect_id = $1 AND field = 'businessModel'`,
+      [prospectId],
+    );
+    expect(rows[0].confidence).toBe(65); // sampleResearch()'s raw, undiscounted value
+
+    const result = await scoreResearchedProspect(d, a.token, prospectId, unestablished);
+    expect(result.score.score).toBeGreaterThanOrEqual(0); // discount applied downstream, not on the row
+  });
+
+  it('counts UNKNOWN persisted signals rather than silently discarding them', async () => {
+    const a = await createUserAndSession('a');
+    const base = repos();
+    const { prospectId } = await createProspect(base, a.token);
+    const d = researchDeps(base, sampleResearch());
+    await runResearch(d, a.token, { prospectId });
+
+    const result = await scoreResearchedProspect(d, a.token, prospectId, unestablished);
+
+    // sampleResearch()'s targetCustomers field is UNKNOWN.
+    expect(result.unknownSignalCount).toBe(1);
+  });
+
+  it('rejects an unauthenticated request before touching the repository', async () => {
+    const d = researchDeps(repos(), sampleResearch());
+    await expect(
+      scoreResearchedProspect(d, null, 'irrelevant', unestablished),
+    ).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+
+  it("a different authenticated user cannot score another user's Prospect — treated as not found", async () => {
+    const a = await createUserAndSession('a');
+    const b = await createUserAndSession('b');
+    const base = repos();
+    const { prospectId } = await createProspect(base, a.token);
+    const d = researchDeps(base, sampleResearch());
+    await runResearch(d, a.token, { prospectId });
+
+    await expect(
+      scoreResearchedProspect(d, b.token, prospectId, unestablished),
+    ).rejects.toBeInstanceOf(ResearchProspectNotFoundError);
+  });
+
+  it('is deterministic across repeated reads of the same persisted signals', async () => {
+    const a = await createUserAndSession('a');
+    const base = repos();
+    const { prospectId } = await createProspect(base, a.token);
+    const d = researchDeps(base, sampleResearch());
+    await runResearch(d, a.token, { prospectId });
+    const now = new Date('2026-07-01T09:00:00.000Z');
+
+    const first = await scoreResearchedProspect(d, a.token, prospectId, unestablished, now);
+    const second = await scoreResearchedProspect(d, a.token, prospectId, unestablished, now);
+
+    expect(second).toEqual(first);
   });
 });

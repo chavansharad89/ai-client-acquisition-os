@@ -1,9 +1,11 @@
+import { scoreProspect, type ProspectInput, type ProspectScore } from '@acos/core-acquisition';
 import type { CompanyRepository, ProspectRepository } from '@acos/core-discovery';
 import { requireUser, type IdentityRepository } from '@acos/core-identity';
 
 import { toNewResearchSignals } from './mapping';
 import type { ResearchProvider } from './provider';
 import type { ResearchSignalRepository } from './repository';
+import { toScoringSignals } from './scoringAdapter';
 import { ResearchProspectNotFoundError } from './signalErrors';
 import type { ResearchRunResult, RunResearchInput, StoredResearchSignal } from './types';
 import { validateRunResearchInput } from './validation';
@@ -92,4 +94,50 @@ export async function listResearchSignals(
   if (!prospect) throw new ResearchProspectNotFoundError(validated);
 
   return deps.signals.listByProspect(userId, prospect.id);
+}
+
+/**
+ * Every part of {@link ProspectInput} except `signals` — this phase
+ * supplies signals from persisted ResearchSignal rows (see
+ * ./scoringAdapter); ICP fit, ability to pay, urgency, service fit and
+ * contact channels are produced by systems this phase does not build
+ * (ServiceProfile matching, Offer, Opportunity), so the caller still
+ * supplies them.
+ */
+export type ScoreResearchedProspectInput = Omit<ProspectInput, 'signals'>;
+
+export interface ResearchedProspectScore {
+  /** Unmodified output of @acos/core-acquisition's scoreProspect(). */
+  score: ProspectScore;
+  /** Persisted signals classified UNKNOWN for this Prospect — excluded from scoring but not discarded. */
+  unknownSignalCount: number;
+}
+
+/**
+ * Scores one of the caller's own Prospects (R-14/R-17) using its
+ * persisted, currently-active ResearchSignals. Reuses
+ * listResearchSignals for authentication and ownership — the same
+ * requireUser() + Prospect-ownership check runResearch relies on — so
+ * this never accepts a caller-supplied userId.
+ *
+ * The seven-factor algorithm itself is @acos/core-acquisition's
+ * scoreProspect(), unmodified (PRD V2.1 "SEVEN-FACTOR SCORING —
+ * AUTHORITATIVE MODEL": no replacement scoring framework); this only
+ * adapts `signals` from research_signals via ./scoringAdapter, which
+ * applies the inference discount exactly once, by classification.
+ */
+export async function scoreResearchedProspect(
+  deps: Pick<ResearchDeps, 'identity' | 'prospects' | 'signals'>,
+  rawToken: string | undefined | null,
+  prospectId: string,
+  input: ScoreResearchedProspectInput,
+  now: Date = new Date(),
+): Promise<ResearchedProspectScore> {
+  const storedSignals = await listResearchSignals(deps, rawToken, prospectId, now);
+  const { signals, unknownCount } = toScoringSignals(storedSignals);
+
+  return {
+    score: scoreProspect({ ...input, signals }, now),
+    unknownSignalCount: unknownCount,
+  };
 }

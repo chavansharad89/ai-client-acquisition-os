@@ -80,8 +80,20 @@ export type { RunResearchValidationReason } from './signalErrors';
 
 export { PROSPECT_ID_MAX_LENGTH, validateRunResearchInput } from './validation';
 
-export { listResearchSignals, runResearch } from './service';
-export type { ResearchDeps } from './service';
+export { listResearchSignals, runResearch, scoreResearchedProspect } from './service';
+export type {
+  ResearchDeps,
+  ResearchedProspectScore,
+  ScoreResearchedProspectInput,
+} from './service';
+
+// ---- Scoring foundation: persisted ResearchSignal -> scoring contract ----
+// Owned by this package (the persisted shape), adapting onto
+// @acos/core-acquisition's existing, unmodified scoreProspect() — see
+// ./scoringAdapter's module note.
+
+export { toScoringSignals } from './scoringAdapter';
+export type { ScoringSignalAdaptation } from './scoringAdapter';
 
 export type {
   NewResearchSignalInput,

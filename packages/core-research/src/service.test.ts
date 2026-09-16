@@ -1,3 +1,4 @@
+import type { ProspectInput } from '@acos/core-acquisition';
 import type {
   CompanyRepository,
   ProspectRepository,
@@ -14,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import { toNewResearchSignals } from './mapping';
 import { leadResearchSchema, type LeadResearch } from './schema';
-import { listResearchSignals, runResearch } from './service';
+import { listResearchSignals, runResearch, scoreResearchedProspect } from './service';
 import { ResearchProspectNotFoundError, RunResearchValidationError } from './signalErrors';
 import { fakeResearchProvider, fakeResearchSignalRepository } from './testSupport';
 
@@ -260,5 +261,114 @@ describe('listResearchSignals', () => {
     await expect(listResearchSignals(d, null, 'prospect_1')).rejects.toBeInstanceOf(
       UnauthenticatedError,
     );
+  });
+});
+
+// ============================== scoreResearchedProspect ================
+// Phase 8 — scoring foundation: adapts persisted ResearchSignal rows onto
+// @acos/core-acquisition's unmodified scoreProspect().
+
+const unestablished = (): ProspectInput['icp'] => ({
+  industryMatch: { value: null, basis: 'UNKNOWN' },
+  sizeMatch: { value: null, basis: 'UNKNOWN' },
+  geoMatch: { value: null, basis: 'UNKNOWN' },
+});
+
+function restOfInput(overrides: Partial<Omit<ProspectInput, 'signals'>> = {}) {
+  return {
+    icp: unestablished(),
+    abilityToPay: { value: null, basis: 'UNKNOWN' as const },
+    urgency: { value: null, basis: 'UNKNOWN' as const },
+    serviceFit: { value: null, basis: 'UNKNOWN' as const },
+    contact: { hasEmail: true, hasLinkedIn: false, hasPhone: false, unsubscribed: false },
+    ...overrides,
+  };
+}
+
+describe('scoreResearchedProspect', () => {
+  it("scores the caller's own Prospect from its persisted signals, unchanged shape", async () => {
+    const d = deps([seedCompany()], [seedProspect()]);
+    await runResearch(d, 'token-a', { prospectId: 'prospect_1' });
+
+    const result = await scoreResearchedProspect(d, 'token-a', 'prospect_1', restOfInput());
+
+    expect(result.score.factors.map((f) => f.factor)).toEqual([
+      'icpFit',
+      'visibleProblem',
+      'abilityToPay',
+      'urgency',
+      'serviceFit',
+      'evidenceQuality',
+      'contactability',
+    ]);
+    expect(result.score.score).toBeGreaterThanOrEqual(0);
+    expect(result.score.score).toBeLessThanOrEqual(100);
+  });
+
+  it('counts UNKNOWN persisted signals rather than silently discarding them', async () => {
+    const d = deps([seedCompany()], [seedProspect()]);
+    const research = await runResearch(d, 'token-a', { prospectId: 'prospect_1' });
+    const expectedUnknown = research.signals.filter((s) => s.classification === 'UNKNOWN').length;
+    expect(expectedUnknown).toBeGreaterThan(0);
+
+    const result = await scoreResearchedProspect(d, 'token-a', 'prospect_1', restOfInput());
+
+    expect(result.unknownSignalCount).toBe(expectedUnknown);
+  });
+
+  it('is deterministic — repeated calls score the same', async () => {
+    const d = deps([seedCompany()], [seedProspect()]);
+    await runResearch(d, 'token-a', { prospectId: 'prospect_1' });
+    const now = new Date('2026-07-01T09:00:00.000Z');
+
+    const first = await scoreResearchedProspect(d, 'token-a', 'prospect_1', restOfInput(), now);
+    const second = await scoreResearchedProspect(d, 'token-a', 'prospect_1', restOfInput(), now);
+
+    expect(JSON.stringify(second)).toBe(JSON.stringify(first));
+  });
+
+  it('a Prospect owned by another user is treated as not found', async () => {
+    const d = deps([seedCompany()], [seedProspect()]);
+    await runResearch(d, 'token-a', { prospectId: 'prospect_1' });
+
+    await expect(
+      scoreResearchedProspect(d, 'token-b', 'prospect_1', restOfInput()),
+    ).rejects.toBeInstanceOf(ResearchProspectNotFoundError);
+  });
+
+  it('rejects an unauthenticated call', async () => {
+    const d = deps([seedCompany()], [seedProspect()]);
+    await runResearch(d, 'token-a', { prospectId: 'prospect_1' });
+
+    await expect(
+      scoreResearchedProspect(d, null, 'prospect_1', restOfInput()),
+    ).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+
+  it('a representative multi-signal Prospect scores using every live signal', async () => {
+    const d = deps([seedCompany()], [seedProspect()]);
+    await runResearch(d, 'token-a', { prospectId: 'prospect_1' });
+
+    const result = await scoreResearchedProspect(
+      d,
+      'token-a',
+      'prospect_1',
+      restOfInput({
+        icp: {
+          industryMatch: { value: true, basis: 'OBSERVED', note: 'stated on their site' },
+          sizeMatch: { value: true, basis: 'INFERRED' },
+          geoMatch: { value: null, basis: 'UNKNOWN' },
+        },
+        abilityToPay: { value: 'moderate', basis: 'INFERRED' },
+        urgency: { value: 'this-quarter', basis: 'OBSERVED' },
+        serviceFit: { value: 70, basis: 'OBSERVED' },
+      }),
+    );
+
+    const visibleProblem = result.score.factors.find((f) => f.factor === 'visibleProblem')!;
+    // companySummary was OBSERVED confidence 90 -> feeds visibleProblem as
+    // a live signal via ./scoringAdapter, unchanged from raw confidence.
+    expect(visibleProblem.basis).toBe('OBSERVED');
+    expect(visibleProblem.points).toBeGreaterThan(0);
   });
 });
