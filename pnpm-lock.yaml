@@ -304,6 +304,25 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.20.2)
 
+  packages/core-service-profile:
+    dependencies:
+      '@acos/core-entitlements':
+        specifier: workspace:*
+        version: link:../core-entitlements
+      '@acos/core-identity':
+        specifier: workspace:*
+        version: link:../core-identity
+    devDependencies:
+      '@types/node':
+        specifier: ^22.5.0
+        version: 22.20.2
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.20.2)
+
   packages/db:
     dependencies:
       '@prisma/adapter-pg':
@@ -383,12 +402,18 @@ importers:
       '@acos/core-entitlements':
         specifier: workspace:*
         version: link:../packages/core-entitlements
+      '@acos/core-identity':
+        specifier: workspace:*
+        version: link:../packages/core-identity
       '@acos/core-payments':
         specifier: workspace:*
         version: link:../packages/core-payments
       '@acos/core-reconciliation':
         specifier: workspace:*
         version: link:../packages/core-reconciliation
+      '@acos/core-service-profile':
+        specifier: workspace:*
+        version: link:../packages/core-service-profile
       '@acos/db':
         specifier: workspace:*
         version: link:../packages/db
