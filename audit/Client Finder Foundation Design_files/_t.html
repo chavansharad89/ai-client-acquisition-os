@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<!-- saved from url=(0092)https://74869ced-1932-46fa-884f-b9a7c4ea0145.frame.claudeusercontent.com/_f/1789533345-f300/ -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"cred":"cookie","capabilities":{"artifact":"artifact.O-h4mzdy.js","assets":"assets.DhQw8DTi.js","comments":"comments.DcGvuXoo.js","db":"db.DL2sIJ17.js","downloads":"downloads.axDW2QAi.js","embed":"embed.swQslL0W.js","endpoints":"endpoints.BPfoKaE1.js","mcp":"mcp.C8qKIFvQ.js","network":"network.B5UA9Su4.js","permissions":"permissions.DWFFeHI0.js","room":"room.BF1j0KPr.js","sample":"sample.C7KQQdQj.js","self":"artifact.O-h4mzdy.js","user":"user.CCh6oTS_.js"},"transforms":"_transforms.BXjPs0fy.js","comments":"_comments.CoT-GWno.js","translate":"_translate.DqxC5ek1.js","ldx":"_ldx.CqNtBrkk.js"}                                                                                                                                                                                                                                                                                                                                                                                                             </script><script>(function(){"use strict";var Rn=3e5;function tr(t,e){try{const n=t("navigation")[0],o=[n.responseStart,n.redirectEnd-n.redirectStart,n.domContentLoadedEventStart,e()];for(let a=0;a<o.length;a++){if(!(o[a]>=0&&o[a]<=3e5))return;o[a]=o[a]|0}return o}catch{return}}var rr=["light","dark","system"],nr=/^[A-Za-z0-9_-]{1,64}$/,wt=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,or=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function ar(t){const e=t.toLowerCase();return e.startsWith("data-")||e.startsWith("aria-")||or.has(e)}var bt="data-ldx-props";function sr(t,e){if(e.toLowerCase()===bt)return!0;const n=t.getAttribute(bt);if(n===null)return!1;try{const o=JSON.parse(n);if(o===null||typeof o!="object"||Array.isArray(o))return!0;const a=e.toLowerCase();return Object.keys(o).some(s=>s.toLowerCase()===a)}catch{return!0}}var Tn="http://www.w3.org/1999/xhtml",lr="http://www.w3.org/2000/svg",ir=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),cr=new Set(["script","style"]);function ur(t){const e=t.localName.toLowerCase();return t.namespaceURI==="http://www.w3.org/1999/xhtml"?!ir.has(e):t.namespaceURI===lr?!cr.has(e):!1}function Ve(t,e){return t===e||(t===160||t===32)&&(e===160||e===32)}function fr(t,e){const n=t.length,o=e.length;let a=0;for(;a<n&&a<o&&Ve(t.charCodeAt(a),e.charCodeAt(a));)a++;let s=0;for(;s<n-a&&s<o-a&&Ve(t.charCodeAt(n-1-s),e.charCodeAt(o-1-s));)s++;return{p:a,s}}function dr(t,e){const n=t.firstChild;if(t.childNodes.length!==1||n===null||n.nodeType!==Node.TEXT_NODE){t.textContent=e;return}const o=n.data,a=o.length,s=e.length,{p:c,s:d}=fr(o,e);c===a&&d===0&&a===s||n.replaceData(c,a-c-d,e.slice(c,s-d));const O=n.data,S=t.ownerDocument.getSelection?.()??null,P=S!==null&&S.rangeCount>0&&(S.anchorNode===n||S.focusNode===n)?{anchor:S.anchorNode,anchorOffset:S.anchorOffset,focus:S.focusNode,focusOffset:S.focusOffset}:null;let v=-1,T=-1;for(let h=0;h<O.length&&h<e.length;h++){const I=O.charCodeAt(h),$=e.charCodeAt(h);I!==$&&Ve(I,$)&&(v<0&&(v=h),T=h)}const m=v>=0;if(m&&n.replaceData(v,T-v+1,e.slice(v,T+1)),m&&P!==null&&P.anchor!==null&&P.focus!==null)try{S.setBaseAndExtent(P.anchor,P.anchorOffset,P.focus,P.focusOffset)}catch{}}var hr=new Set(["html","head","body","frameset"]);function pr(t){return t.namespaceURI==="http://www.w3.org/1999/xhtml"&&hr.has(t.localName)}function mr(t){if(t===null||typeof t!="object")return!1;const e=t;if(typeof e.target!="string"||!nr.test(e.target)||e.text!==void 0&&typeof e.text!="string")return!1;if(e.attrsSet!==void 0){if(e.attrsSet===null||typeof e.attrsSet!="object")return!1;for(const[n,o]of Object.entries(e.attrsSet))if(!wt.test(n)||typeof o!="string")return!1}if(e.attrsRemoved!==void 0){if(!Array.isArray(e.attrsRemoved))return!1;for(const n of e.attrsRemoved)if(typeof n!="string"||!wt.test(n))return!1}return!0}function vr(t,e){if(t===null||typeof t!="object")return!1;const{seq:n,elements:o}=t;if(typeof n!="number"||!Number.isSafeInteger(n)||!Array.isArray(o)||o.length===0||o.length>64)return!1;for(let a=0;a<o.length;a++)if(!e(o[a]))return!1;return!0}function _r(t){return t===null||typeof t!="object"?!1:vr(t.__frame_patch,mr)}function yr(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_init;return e!==null&&typeof e=="object"}function gr(t){return t!==null&&typeof t=="object"&&t.__frame_size_poke===!0}function wr(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_host_visible;return e!==null&&typeof e=="object"&&typeof e.visible=="boolean"}function br(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_theme;if(e===null||typeof e!="object")return!1;const n=e.theme;return typeof n=="string"&&rr.includes(n)}var Er=["ok","empty","snapshot_error","snapshot_timeout","unclonable","oversize","unavailable","restore_error","withheld"],Sr=["TypeError","RangeError","ReferenceError","SyntaxError","DataCloneError","QuotaExceededError","AbortError","TimeoutError","SecurityError","Error","other"];function kr(t){return typeof t=="string"&&Sr.includes(t)?t:"other"}var Ar=Object.freeze({until:null,now:!1}),Rr="__claude_hot",Tr="__claude_hot_in",Or=/^__claude_hot(?:_in)?(?::|$)/,Et=/^[0-9a-z]{1,32}$/,We=t=>t===void 0?Rr:"__claude_hot:"+t,ye=t=>t===void 0?Tr:"__claude_hot_in:"+t;function Lr(t,e){const n=[];for(let o=0;o<t.length;o++){const a=t.key(o);a!==null&&a!==e&&Or.test(a)&&n.push(a)}for(const o of n)t.removeItem(o)}function Mr(t){let e=null;try{e=B(JSON.parse(t)?.hot)}catch{return null}return e===null||typeof e.k!="string"||!Et.test(e.k)?null:ae(e.g)?{k:e.k,g:e.g}:{k:e.k}}var On=262144,Pr=3e3,Nr=5e3,St=/^[a-z0-9._:-]{1,64}$/,Cr=["none","hot-restart","hard-reload"],jr=["asset","doc","added","removed"],Ir=1500,Fr=/^[0-9a-f]{64}$/;function B(t){return t!==null&&typeof t=="object"?t:null}function ae(t){return typeof t=="number"&&Number.isInteger(t)&&t>=0&&t<2**31}function kt(t){return t===void 0||typeof t=="number"&&Number.isFinite(t)}function xr(t){return t===void 0||typeof t=="string"&&St.test(t)}function At(t){const e=B(t);return e!==null&&(e.until===null||typeof e.until=="number"&&Number.isFinite(e.until))&&typeof e.now=="boolean"}function Xe(t){const e=B(t);return e!==null&&typeof e.ver=="string"&&e.ver.length<=128&&kt(e.seq)&&typeof e.handoff=="string"&&Er.includes(e.handoff)&&xr(e.note)}function Dr(t){const e=B(t);return e!==null&&ae(e.gen)&&(e.phase==="final"||e.phase==="pending")&&(e.from===null||Xe(e.from))}function Hr(t){const e=B(t);return e!==null&&e.kv===1&&ae(e.gen)&&Xe(e.from)&&Object.hasOwn(e,"data")}function qr(t){const e=B(t);return e!==null&&e.__frame_hot_snapshot===!0&&ae(e.gen)&&typeof e.timeoutMs=="number"&&e.timeoutMs>=0&&e.timeoutMs<=6e4&&(e.handoff===void 0||typeof e.handoff=="boolean")&&(e.deadline===void 0||At(e.deadline))&&kt(e.seq)&&(e.note===void 0||typeof e.note=="string")&&(e.key===void 0||typeof e.key=="string")}function Br(t){const e=B(t);return e!==null&&e.__frame_hot_start===!0&&ae(e.gen)&&Xe(e.from)}function Ur(t){return typeof t=="string"&&t.length>=1&&t.length<=128}function Rt(t){return B(t)!==null&&!Array.isArray(t)}function Gr(t){const e=B(t);return e!==null&&e.__frame_cap_grant===!0&&typeof e.cap=="string"&&Ur(e.ver)&&(e.grant===void 0||Rt(e.grant))&&(e.budgets===void 0||Rt(e.budgets)&&Object.values(e.budgets).every(Number.isFinite))&&(e.brokerGen===void 0||ae(e.brokerGen))}function zr(t){const e=B(t);return e!==null&&e.__frame_cap_rewired===!0&&(e.caps===void 0||Array.isArray(e.caps)&&e.caps.every(n=>typeof n=="string"))&&(e.brokerGen===void 0||ae(e.brokerGen))}function Tt(t){const e=B(t);return e!==null&&typeof e.ver=="string"&&e.ver.length<=128&&Number.isFinite(e.seq)}function Ot(t){if(t==null||typeof t=="string")return!0;const e=B(t);return e!==null&&typeof e.doc=="string"&&typeof e.profile=="string"}function Kr(t){const e=B(t);return e!==null&&typeof e.path=="string"&&jr.includes(e.kind)&&Ot(e.from)&&Ot(e.to)}function $r(t){return t===null?null:Object.freeze(t.filter(Kr))}function Vr(t){const e=B(t);return e!==null&&e.__frame_hot_update===!0&&Number.isFinite(e.id)&&Tt(e.from)&&Tt(e.to)&&(e.changed===null||Array.isArray(e.changed))&&Cr.includes(e.required)&&At(e.deadline)&&typeof e.verdictTimeoutMs=="number"&&e.verdictTimeoutMs>=0&&e.verdictTimeoutMs<=6e4&&(e.preflight===void 0||typeof e.preflight=="string"&&Fr.test(e.preflight))}var se=/^[\w.-]+\.js$/;function Wr(t,e,n){return n?"inert":typeof e=="string"&&se.test(e)?t?[e]:"inert":t?"inert":"framed"}var Lt=Object.freeze({[Symbol("claude.hot.restart")]:!0});function Mt(t,e){let n;try{n=t??sessionStorage}catch{return null}const o=We(e?.k),a=ye(e?.k);let s=null;try{s=n.getItem(o)}catch{}try{n.removeItem(o)}catch{}try{Lr(n,a)}catch{}let c=null;if(s!==null&&!(e!==null&&e.g===void 0))try{const d=JSON.parse(s);Hr(d)&&(e===null||d.gen===e.g)&&(c=d)}catch{}if(c===null)try{n.removeItem(a)}catch{}return c}function Xr(){const t=/^\/_f\/([^/]{1,128})\//.exec(location.pathname);return t?t[1]:""}var Yr=/^[^/\\?#]{1,128}$/,Pt=t=>Yr.test(t)&&t!=="."&&t!=="..";function Nt(t,e,n){const o=new URL(t),a="/_f/"+e+"/";if(!e||!o.pathname.startsWith(a)||!Pt(n))return null;const s=o.search.slice(1).split("&").filter(c=>!/^__frame_t(?:=|$)/.test(c)).join("&");return o.origin+"/_f/"+n+"/"+o.pathname.slice(a.length)+(s?"?"+s:"")+o.hash}var Ce="{}";function ge(t){if(!t)return null;const e={ver:t.ver,handoff:t.handoff};return t.seq!==void 0&&(e.seq=t.seq),t.note!==void 0&&(e.note=t.note),e}function Ct(t,e){return t!==null&&t.note===void 0&&e?.note!==void 0?{...t,note:e.note}:t}function jt(t){const e=t?.k;return e!==null&&typeof e=="object"?e:void 0}function Jr(t,e,n,o=null){const a=setTimeout,s=clearTimeout,c=queueMicrotask,d=performance.now.bind(performance),O=new TextEncoder;let S=null,P=null;try{S=history,P=S.replaceState.bind(S)}catch{}const v=(...r)=>{try{console.warn(...r)}catch{}};let T=Xr(),m=null;try{m=sessionStorage}catch{}const h={storage:m,fetch:typeof fetch=="function"?fetch.bind(globalThis):null,entry:location.origin+location.pathname+location.search,ver:T,key:o?.k};let I=o?.k;const $=typeof requestAnimationFrame=="function"?requestAnimationFrame:r=>a(()=>r(d()),16);let y=e?.data??{},N=ge(e?.from),A=e?.gen??0,F=e!==null,V=!1,Q=!1,W=null,Se=!1;const ke=new AbortController;let Ae=null,q=null,Re=null,Te=!1,i=()=>{};const p=new Promise(r=>{i=r});let g=!1,x=!1,C=!1,D,L=null,ce=!1,De=!1,re=!1,Oe=!1,ne=!1,de=!1;const oe=r=>{for(const u of[We(r),ye(r)])try{m?.removeItem(u)}catch{}},H=(r,u)=>{try{u!==null&&n.post(r,u)}catch{}},he=()=>ne||=re&&(q===null||Oe),X=()=>{const r={__frame_hot:!0,ready:q!==null,accept:Re!==null,demand:!0};de=!ne,de&&(r.booting=!0),g&&(r.readData=!0),C&&(r.threw=!0),L?.assess&&(r.preflight=!0),H(r,W)};let Le=!1,Me=!1,l=!1,w=!1;const _=()=>{Le||!Se||l||(Le=!0,H({__frame_reveal_hold:!0},"*"))},M=()=>new Promise(r=>{let u,f=0;const b=j=>{if(u===void 0)u=j;else if(j!==u||++f>=8){r();return}try{$(b)}catch{r()}};try{$(b)}catch{r()}}),Y=()=>{l=!0,H({__frame_reveal_ready:!0},"*")},K=r=>{Me||(Me=!0,r.then(u=>{if(u===!1)return;let f=null;try{f=L?.settle?.()??null}catch{}return(f===null?M():new Promise(b=>{a(b,50),Promise.resolve(f).then(b,b)}).then(M)).then(Y)}))},Pe=()=>{if(w||!l)return;w=!0;const r=()=>{try{L?.afterReveal?.()}catch{}};r(),M().then(()=>{r(),Y()})},He=(r=!1)=>{if(Te||q===null||!F||!Q)return;Te=!0;const u=q,f=y;c(()=>{let b;try{b=u(f)}catch(U){throw i(!1),U}let j=!1;try{j=typeof b?.then=="function"}catch{}if(!j){i(!0);return}Promise.resolve(b).then(()=>i(!0),U=>{i(!1),c(()=>{throw U})})}),K(r?p:n.dcl.then(()=>p))},qe=r=>typeof r=="string"&&St.test(r)?r:void 0,ct=r=>{const u={__frame_hot_restart:!0},f=qe(r?.note);f!==void 0&&(u.note=f),r?.required==="hard-reload"&&(u.required="hard-reload"),H(u,W)},Vt=Object.freeze({get data(){return Q||(x=!0),!F&&!g&&(g=!0,Q&&X()),y},get from(){return N},get gen(){return A},signal:ke.signal,snapshot(r){typeof r=="function"&&(Ae=r)},ready(r){typeof r!="function"||q!==null||(q=r,_(),X(),V&&H({__frame_hot_ready:!0,gen:A},W),He())},accept(r){typeof r=="function"&&(Re=r,X())},restart(r){const u={note:r?.note,required:r?.required};if(Q){ct(u);return}const f=D;D={note:qe(f?.note)??u.note,required:f?.required==="hard-reload"||u.required==="hard-reload"?"hard-reload":void 0}}});let Be=null,Wt=()=>{};const yn=new Promise(r=>{Wt=r});let gn=null;const Xt=()=>gn??=n.dcl.then(()=>{let r=!1;try{r=Be!==null&&Be.expect()}catch{}if(!r)return;const u=Be.maxMs;return new Promise(f=>{yn.then(f),a(f,u)})}),Yt=()=>{if(!ce||De||L===null)return;De=!0;const r=L;Xt().then(()=>{try{l||r.afterStart(jt(e),!1)}catch{}})},Jt=r=>{e!==null&&x&&(g=!0),y={},N=null,A=0;try{m?.removeItem(ye(o?.k))}catch{}e!==null&&!r&&K(n.dcl.then(()=>q!==null?p:void 0))},wn=()=>{ce=!0,K(Xt().then(()=>q!==null?p:void 0)),Yt()};try{addEventListener("error",()=>{C||q!==null||(C=!0,X())})}catch{}const Zt=()=>{a(()=>{!ne&&he()&&de&&X()},0)};try{re=document.readyState==="complete",re||addEventListener("load",()=>{re=!0,Zt()},{once:!0})}catch{re=!0}he(),p.then(()=>{Oe=!0,Zt()});let ue=-1,ut,ft,Ne=!0,dt=!1,ht,Ue=null;const pt=r=>{const u=Ue===null;Ue=Ne&&r[0]!=="withheld"?r:["withheld",r[1],Ce];let f=r[0];if(Ne&&f!=="withheld"){const j={ver:T,handoff:f};ut!==void 0&&(j.seq=ut),ft!==void 0&&(j.note=ft);try{if(m===null)throw new Error("no storage");m.setItem(We(I),'{"kv":1,"gen":'+ue+',"from":'+JSON.stringify(j)+(ht!==void 0?',"k":'+JSON.stringify(ht):"")+',"data":'+(f==="ok"?r[2]:Ce)+"}")}catch{f="unavailable"}}else{f="withheld",oe(I);try{L?.release?.()}catch{}}const b={__frame_hot_snapshotted:!0,gen:ue,handoff:f,bytes:r[1]};r[3]!==void 0&&(b.errName=r[3]),H(b,W),u&&(f==="snapshot_error"||f==="unclonable"||f==="oversize")&&v("claude.hot: snapshot",f,r[3])},pe=r=>{try{return kr(r?.name)}catch{return"other"}},me=(r,u,f=0)=>pt(u===void 0?[r,f,Ce]:[r,f,Ce,pe(u)]),bn=r=>{if(r.gen<=ue)return;const u=ue>=0;if(ue=r.gen,ut=r.seq,ft=qe(r.note),typeof r.key=="string"&&Et.test(r.key)&&r.key!==I&&(oe(I),I=r.key),Ne&&=r.handoff!==!1,u){Ue!==null?pt(Ue):dt&&H({__frame_hot_held:!0,gen:ue},W);return}ke.abort();const f=Object.freeze({handoff:Ne,timeoutMs:r.timeoutMs,deadline:r.deadline??Ar}),b=Ae,j=()=>{if(Ne)try{ht=L?.capture()}catch{}if(b===null){me("empty");return}let k=!1;const G=a(()=>{k||(k=!0,me("snapshot_timeout"))},Math.max(0,f.timeoutMs));Promise.resolve().then(()=>b(f)).then(ve=>{if(k)return;k=!0,s(G);let ee;try{ee=JSON.stringify(ve)}catch(mt){me("unclonable",mt);return}if(typeof ee!="string"){me("unclonable");return}let te=ee.length;try{te=O.encode(ee).length}catch{}if(te>262144){me("oversize",void 0,te);return}pt(["ok",te,ee])},ve=>{k||(k=!0,s(G),me("snapshot_error",ve))})};let U=null;try{U=L?.holdForIme()??null}catch{}if(U===null)j();else{dt=!0,H({__frame_hot_held:!0,gen:ue},W);const k=()=>{dt=!1,j()};U.then(k,k)}},En=r=>{if(!V||F||q===null||r.gen!==A)return;let u=null;try{u=Mt(m,o&&{k:o.k,g:r.gen})}catch{}if(u!==null&&u.gen!==r.gen){u=null;try{m?.removeItem(ye(o?.k))}catch{}}y=u?.data??{},N=Ct(ge(u?.from??r.from),ge(r.from)),u!==null&&(A=u.gen),F=!0,V=!1;const f=jt(u);p.then(b=>{try{b&&L?.afterStart(f,!0)}catch{}}),He(!0)};let Ge=0;const Sn=r=>{const u=Re;if(u===null||r.id<=Ge)return;Ge=r.id;const f=L?.assess;if(r.preflight===void 0||f===void 0){Qt(r,u);return}let b=!1;const j=G=>{b||(b=!0,s(k),r.id===Ge&&Qt(r,u,G))},U=()=>j(f.timeout(r)),k=a(U,Ir+100);f.run(r,window).then(j,U)},Qt=(r,u,f)=>{let b,j=!1,U=!1,k,G,ve=null;const ee=E=>{if(U)return!1;if(k!==void 0&&k!==E)return v(`claude.hot: u.${E}() ignored - u.${k}() was called first`),!1;const Z=k===void 0;return k=E,Z},te=E=>{k="restart",v(`claude.hot: ${E} - restarting`)},mt=()=>{if(!ee("adopt")||r.id!==Ge)return;const E=r.to.ver;if(ze.required!=="none"){te(`u.adopt() needs required 'none', it is '${ze.required}'`);return}if(!Pt(E)){te("u.adopt() cannot address this version");return}if(!T||E===T)return;const Z=T,J=h.entry;let Ke="",_t,_e=null,$e;try{Ke=location.href,_t=S.state,_e=Nt(Ke,Z,E),_e!==null&&(P(_t,"",_e),location.pathname.startsWith("/_f/"+E+"/")?_e=location.href:$e="navigate event canceled")}catch(gt){$e=pe(gt)}if($e!==void 0){G="adopt_failed",te(`adopt_failed ${$e}; URL not changed`);return}_e===null?(G="adopt_skipped",v(`claude.hot: adopt_skipped - page already left /_f/${Z}/; URL not changed, update still applied`)):G="adopted",T=h.ver=E;try{h.entry=Nt(J,Z,E)??J}catch{}const yt=_e;ve=()=>{if(T===E){if(yt!==null)try{if(location.href!==yt)v("claude.hot: adopt_revert_skipped - update not applied; URL left where the page navigated");else{if(P(_t,"",Ke),location.href!==Ke){v("claude.hot: adopt_revert_failed navigate event canceled - URL still at the new version");return}G="adopt_reverted",v("claude.hot: adopt_reverted - adopt() was called but the handler threw; URL restored")}}catch(gt){v(`claude.hot: adopt_revert_failed ${pe(gt)} - URL still at the new version`);return}T=h.ver=Z,h.entry=J,yt===null&&(G=void 0)}}},ze=Object.freeze({from:{ver:r.from.ver,seq:r.from.seq},to:{ver:r.to.ver,seq:r.to.seq},changed:$r(r.changed),required:r.required,deadline:r.deadline,adopt:mt,defer(){return ee("defer")&&ze.deadline.now&&te("u.defer() past the deadline"),Lt},restart(E){return ee("restart"),k==="restart"&&!U&&(b??=qe(E?.note),j||=E?.required==="hard-reload"),Lt},...f?.update}),kn=(E,Z)=>{U=!0,E==="threw"?(ve?.(),b??=pe(Z).toLowerCase()):k===void 0&&v(E==="timeout"?"claude.hot: accept handler did not answer in time - restarting":"claude.hot: accept handler settled without defer/restart/adopt - restarting");const J={__frame_hot_verdict:!0,id:r.id};J.verdict=E==="threw"||k===void 0||k==="restart"?"restart":k==="adopt"?"applied":"deferred",J.verdict==="restart"&&(j&&(J.required="hard-reload"),b!==void 0&&(J.note=b)),G!==void 0&&(J.verdict==="applied"||G!=="adopted")&&(J.adopt=G),H(Object.assign(J,f?.verdict),W)};let er=!1;const vt=(E,Z)=>er?!1:(er=!0,s(An),kn(E,Z),!0),An=a(()=>vt("timeout"),r.verdictTimeoutMs);Promise.resolve().then(()=>u(ze)).then(()=>vt("settled"),E=>{!vt("threw",E)&&k==="adopt"&&ct({note:pe(E).toLowerCase()}),v("claude.hot: accept",pe(E))})};try{t.hot===void 0&&Object.defineProperty(t,"hot",{value:Vt,writable:!1,configurable:!1,enumerable:!1})}catch{}return{hot:Vt,boot:h,afterConnect(){Se=!0,(e!==null||q!==null)&&_()},onInit(r,u){W=u,Q=!0;const f=Dr(r)?r:null;f?.phase==="final"&&e!==null&&e.gen===f.gen?(F=!0,N=Ct(N,ge(f.from)),wn()):(V=f?.phase==="pending",Jt(V),F=!V,A=f?.gen??0,N=ge(f?.from)),X(),de&&a(()=>{ne||(ne=!0,X())},Nr),V&&q!==null&&H({__frame_hot_ready:!0,gen:A},u),D!==void 0&&(ct(D),D=void 0),He()},onNoInit(){Q=!0,Jt(!1),F=!0,He()},onShell(r){return r?.__frame_revealed===!0?(Pe(),!1):qr(r)?(bn(r),!0):Br(r)?(En(r),!0):Vr(r)?(Sn(r),!0):!1},attachExtras(r){L=r,Yt(),r.assess&&X()},inSlot:()=>ye(I),hydration(r,u){Be??={expect:r,maxMs:u}},hydrated(){Wt()},carried(){return F?y:{}},presented:()=>l}}var Ln="frame_ldx_runtime",Zr="frame_ldx_build",Mn="script#an-form",Qr=256;function It(t,e,n){for(const o of t)n(o)&&t.delete(o);t.size>=Qr&&!t.has(e)&&t.delete(t.values().next().value),t.add(e)}function Ye(t,e,n){try{const o=t[e];if(typeof o!="function")return;t[e]=function(...a){const s=o.apply(this,a);try{n(this)}catch{}return s}}catch{}}var Je;function en(){if(Je)return Je;const t={media:new Set,contexts:new Set,onStart:null,onPause:null};Je=t;const e=window.HTMLMediaElement?.prototype;e&&(Ye(e,"play",a=>{It(t.media,a,s=>s.paused),t.onStart?.(a)}),Ye(e,"pause",a=>t.onPause?.(a)));const n=window.AudioContext,o=window.AudioNode?.prototype;return n&&o&&Ye(o,"connect",a=>{const s=a.context;s instanceof n&&(It(t.contexts,s,c=>c.state==="closed"),t.onStart?.(s))}),t}function tn(t){let e=window;for(let n=0;e.parent&&e.parent!==e&&n<8;n++)if(e=e.parent,t(e))return!0;return!1}function rn(){let t=null;const e=()=>t??parent,n=o=>t?o===t:tn(a=>a===o);return{post(o,a){if(t){e().postMessage(o,a);return}let s=parent;for(let c=0;c<8&&(s.postMessage(o,a),!(!s.parent||s.parent===s));c++)s=s.parent},on(o){const a=s=>{const c=s.source;n(c)&&o(s.data,s.origin,s.isTrusted,()=>{t??=c})};return addEventListener("message",a),()=>removeEventListener("message",a)},port:o=>({post(a,s){if(s?.activation){e().postMessage(a,{targetOrigin:o,includeUserActivation:!0});return}if(s?.transfer){e().postMessage(a,o,s.transfer);return}e().postMessage(a,o)},on(a,s){const c=d=>{n(d.source)&&d.origin===o&&a(d.data,d)};return addEventListener("message",c,s),()=>removeEventListener("message",c,s)}})}}function nn(){const t={post:()=>{},on:()=>()=>{}};return{...t,port:()=>t}}var Ze="__frame_scroll",on=150,an=310,sn=160,ln=3e4;function cn(){let t=0,e=!1,n=!1,o=!1,a=0,s=null;const c=y=>{try{sessionStorage.setItem(Ze,JSON.stringify({y}))}catch{}},d=()=>{if(clearTimeout(t),s===null)return;const y=s;s=null,c(y)},O=()=>{if(e){e=!1;return}n=!0,s=scrollY,clearTimeout(t),t=setTimeout(d,on)};try{addEventListener("scroll",O,{passive:!0}),addEventListener("pagehide",d)}catch{}const S=()=>{let y;try{y=sessionStorage.getItem(Ze)}catch{return null}if(y===null)return null;let N;try{N=JSON.parse(y)}catch{N=null}const A=N?.y;if(!(typeof A=="number"&&Number.isFinite(A)&&A>=0)){try{sessionStorage.removeItem(Ze)}catch{}return null}return A};let P=!1;const v=y=>{try{const N=scrollY;scrollTo({top:y,left:0,behavior:"instant"}),a=y,o=!0,clearTimeout(t),s=null,c(y);const A=scrollY;A!==N&&(e=!0),A!==y&&!P&&(P=!0,addEventListener("load",()=>{try{if(scrollY===A){const F=S();v(F!==null?F:a)}}catch{}},{once:!0}))}catch{}},T=()=>{try{return!!location.hash}catch{return!0}};let m=!1;const h=()=>{try{if(m||innerWidth>an||innerHeight>sn)return;m=!0;const y=Date.now(),N=()=>{try{removeEventListener("resize",N)}catch{}if(Date.now()-y>ln||n||T())return;const A=S();v(A!==null?A:a)};addEventListener("resize",N)}catch{}};let I=!1,$=!1;return{restore(){if(I||(I=!0,T()))return;const y=S();y!==null&&(v(y),h())},promoted(){if($||($=!0,T()))return;const y=S();y!==null?(v(y),h()):o&&v(a)}}}function un(t,e,n,o){let a=null;try{a=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:O=>O})??null}catch{}const s=window.Worker,c=s?.prototype,d=Object.freeze({Worker:s,workerOn:c?.addEventListener,workerPost:c?.postMessage,workerTerminate:c?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,now:Date.now,policy:a,origins:e});n(t).then(O=>O?.bootTopLevel?O.bootTopLevel(d,o):o.settle()).catch(()=>o.settle())}var Pn="modulepreload",Nn=function(t){return"/"+t},Cn={},fn=function(e,n,o){let a=Promise.resolve();function s(c){const d=new Event("vite:preloadError",{cancelable:!0});if(d.payload=c,window.dispatchEvent(d),!d.defaultPrevented)throw c}return a.then(c=>{for(const d of c||[])d.status==="rejected"&&s(d.reason);return e().catch(s)})},dn=window===top,Ft=Object.getOwnPropertyDescriptor(window,"claude"),je=Wr(dn,window.__FRAME_PREAMBLE?.topLevel,Ft?.writable===!1),Qe=typeof je=="object"&&je[0],R=Qe?nn():rn();(function(){const t=Object.defineProperty,e=globalThis,n=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let o=0;for(let a=0;a<n.length;a++){const s=n[a];try{t(e,s,{value:void 0,writable:!1,configurable:!1})}catch{try{delete e[s]}catch{}try{t(e,s,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof e[s]=="function"&&o++}if(o&&je==="framed")try{R.post({__frame_rtc_lockdown_failed:o},"*")}catch{}})();var xt=1e4,hn=2e3,et=2e3,Dt=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function Ht(t){for(const e of Dt)if(e.endsWith(":*"))try{const n=new URL(t);if(`${n.protocol}//${n.hostname}:*`===e)return!0}catch{}else if(t===e)return!0;return!1}var we=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),Ie=window.__FRAME_PREAMBLE?.transforms,tt=window.__FRAME_PREAMBLE?.comments,rt=window.__FRAME_PREAMBLE?.translate,be=window.__FRAME_PREAMBLE?.ldx;function qt(t){return fn(()=>import("/_runtime/"+t),void 0)}var Ee=new Set,pn=setTimeout,mn=800+800*Math.random();function le(t){return qt(t).catch(()=>new Promise(e=>pn(e,mn)).then(()=>qt(t+"?r=1")).then(e=>(e!==void 0&&Ee.add(t),e)))}function Bt(t,e,n){return{contract:t.contract,changes:new Set(t.changes??[]),flags:new Set(t.flags??[]),capabilities:t.capabilities??{},capBudgets:t.capBudgets??{},brokerGen:t.brokerGen,transforms:new Map,shellOrigin:e,shell:n,mount:it,hooks:Fe,pipe:()=>({wrap:(o,a)=>(...s)=>{try{return a(...s)}catch(c){return Promise.reject(c)}}})}}var fe=null,z=null;function Ut(t,e,n){try{Object.defineProperty(t,e,{value:n,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(t,e,{value:n,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var nt=!1,Fe={editBefore:null,edit:null};function vn(t,e,n=!1){const o=[];let a;if(n)try{Fe.editBefore?.(t)}catch{}for(const s of t.elements){const c=document.querySelector(`[data-id="${s.target}"]`);if(!c){a=s.target;break}if([...Object.keys(s.attrsSet??{}),...s.attrsRemoved??[]].some(d=>!ar(d)||sr(c,d))){a=s.target;break}if(s.text!==void 0&&(!ur(c)||pr(c))){a=s.target;break}for(const[d,O]of Object.entries(s.attrsSet??{}))if(!zt(c,d)){try{c.setAttribute(d,O)}catch{}Gt(c,d,O)}for(const d of s.attrsRemoved??[])zt(c,d)||(c.removeAttribute(d),Gt(c,d,null));typeof s.text=="string"&&dr(c,s.text),o.push(s.target)}if(n)try{Fe.edit?.(t.seq,o,a)}catch{}if(a!==void 0){R.post({__frame_patch_miss:{seq:t.seq}},e);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:t.seq,targets:o}}))}catch{}}function Gt(t,e,n){if(!(t instanceof HTMLInputElement))return;const o=e.toLowerCase();o==="checked"?t.checked=n!==null:o==="value"&&t.type!=="file"&&(t.value=n??"")}function zt(t,e){const n=e.toLowerCase(),o=t;return n==="data-id"||(n==="value"||n==="checked")&&(o.__artifactSecret===!0||/^(password|hidden|file)$/.test(o.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${t.getAttribute("autocomplete")??""} ${o.autocomplete??""}`))}function Kt(t){const e=document.documentElement;t==="light"||t==="dark"?(e.dataset.theme=t,e.style.colorScheme=t,nt=!0):nt&&(delete e.dataset.theme,e.style.colorScheme="",nt=!1)}var ie=new Map,ot=null;function at(){let t;const e={u:new Promise(n=>{t=n}),r:n=>{e.done=!0,t(n)},done:!1,nulled:!1};return e}function xe(t,e){t.nulled=!0,t.ver=e,t.r(null)}function st(t,e){for(const[n,o]of ie)o.done||(e&&o.asked?e(n,o):xe(o,t))}var _n=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),lt=!1,it=(t,e)=>{let n=ie.get(t);if(n?.nulled&&lt)n=at(),ie.set(t,n);else if(!n||n.done){n?.nulled&&z&&R.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:t,phase:"install"}},z);return}const o=typeof e=="function"?Object.setPrototypeOf(e,_n):Object.assign(Object.create(null),e);typeof o.then=="function"&&delete o.then,n.want=void 0,n.r(Object.freeze(o))};function $t(){const t=Ft?.value??{};Ut(window,"claude",t);for(const e of Object.keys(we)){if(t[e]!==void 0){Ut(t,e,t[e]);continue}ie.set(e,at())}if(t.use===void 0){const e=n=>{if(typeof n!="string"||!Object.hasOwn(we,n))return Promise.resolve(null);let o=ie.get(n);return o?(ot&&(o.nulled||o.want!==void 0)&&(o=ot(n,o)),o.asked=!0,o.u):Promise.resolve(t[n]??null)};try{Object.defineProperty(t,"use",{value:e,writable:!0,configurable:!0,enumerable:!1})}catch{}}return t}if(je==="framed"){const t=Ie&&se.test(Ie)?le(Ie).catch(()=>{}):Promise.resolve(void 0),e=i=>{if(i.type==="auxclick"&&i.button!==1)return;const p=i.target,g=p&&p.closest?p.closest("a[href],area[href]"):null;if(!g)return;const x=g.getAttribute("href");if(!x)return;let C;try{C=new URL(x,document.baseURI)}catch{return}if((C.protocol==="http:"||C.protocol==="https:")&&C.origin!==location.origin){i.preventDefault();const D=(g.getAttribute("target")??"").toLowerCase(),L=i.type==="auxclick"||i.metaKey||i.ctrlKey||i.shiftKey||i.altKey||!["","_self","_top","_parent"].includes(D);R.post({__frame_nav:!0,url:C.href,newTab:L},"*")}};addEventListener("click",e,!0),addEventListener("auxclick",e,!0);const n={},o=i=>{i.isTrusted&&(n.pointer=!0)},a=i=>{i.isTrusted&&(n.click=!0)};addEventListener("pointermove",o,{capture:!0,passive:!0}),addEventListener("click",a,{capture:!0,passive:!0});const s={cb:null};addEventListener("keydown",i=>s.cb?.(i),!0);const c={cb:null};addEventListener("keydown",i=>c.cb?.(i));const d=en();t.then(i=>i?.installEscapeForward?.(s,p=>{z&&R.post(p,z)})),t.then(i=>{try{i?.installFocusKeep?.()}catch{}}),t.then(i=>{if(!i?.wireNav)return;const p=R.port("*");i.wireNav(p),removeEventListener("click",e,!0),removeEventListener("auxclick",e,!0),removeEventListener("pointermove",o,!0),removeEventListener("click",a,!0),i.wireEngagement?.(n,p,d)});let O=null;try{O=cn()}catch{}const S=document.readyState==="loading"?new Promise(i=>document.addEventListener("DOMContentLoaded",()=>i(),{once:!0})):Promise.resolve();let P=null,v=null;try{v=Mr(window.name),P=Mt(null,v)}catch{}const T=$t();let m=null;try{m=Jr(T,P,{post:(i,p)=>R.post(i,p),dcl:S},v)}catch{}t.then(i=>{try{m&&i?.installHotExtras?.(m)}catch{}});let h=null;const I=()=>Array.isArray(h?.flags)&&h.flags.includes("frame_ldx_runtime")&&!!be&&se.test(be)&&document.querySelector("script#an-form")!==null;try{m?.hydration(I,Pr)}catch{}let $=null,y=0;const N=R.on((i,p,g,x)=>{Ht(p)&&yr(i)&&(x(),h=i.__frame_init,z=p,N(),clearTimeout(y),$?.())});R.post({__frame_connect:!0},"*");try{m?.afterConnect()}catch{}const A=setTimeout,F=clearTimeout;let V=()=>NaN,Q=()=>[];try{V=performance.now.bind(performance),Q=performance.getEntriesByType.bind(performance)}catch{}let W=0;const Se=()=>{try{R.post({__frame_alive:!0},"*")}catch{}W=A(Se,hn)},ke=()=>F(W);Se(),addEventListener("load",ke,{once:!0});const Ae=new Promise(i=>{$=i,y=setTimeout(()=>{N(),i()},xt)}),q=new WeakSet;addEventListener("error",i=>{i.target&&q.add(i.target)},!0);const Re=()=>{let i=[];try{i=[...document.querySelectorAll("link[rel~=stylesheet]:not([rel~=alternate])")].filter(g=>!g.sheet&&!g.disabled&&!q.has(g)&&g.getAttribute("href")&&URL.canParse(g.href)&&(!g.media||matchMedia(g.media).matches))}catch{}let p=i.length;return p===0?Promise.resolve():new Promise(g=>{try{const x=et-V(),C=A(g,x>0?x<et?x:et:0),D=()=>{--p===0&&(F(C),g())};for(const L of i)L.addEventListener("load",D,{once:!0}),L.addEventListener("error",D,{once:!0})}catch{g()}})};S.then(()=>{try{O?.restore()}catch{}}),Promise.all([Ae,S,t]).then(([,,i])=>{if(h?.hostOverlays!==!0||!z)return;let p=!1;try{p=i?.declaresCover?.()===!0}catch{}R.post({__frame_layout:{cover:p}},z)});const Te={cb:null};R.on((i,p)=>{if(Ht(p)&&gr(i)){try{O?.promoted()}catch{}Te.cb?.()}}),Ae.then(async()=>{if(!h||!z){st();try{m?.onNoInit()}catch{}return}if(Kt(h.theme),h.hostVisible===!1&&t.then(l=>l?.applyHostVisible?.(!1,d)),h.hostKeys!==void 0){const l=z,w=h.hostKeys;t.then(_=>_?.installHostKeyForward?.(c,w,M=>R.post(M,l)))}try{m?.onInit(h.hot,z)}catch{}const i=z,p=R.port(i),g=(l,w)=>R.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:l,phase:w}},i),x=l=>R.post({__frame_cap_recovered:{cap:l}},i);let C=h.brokerGen;const D=()=>m?.boot.ver??"",L=D(),ce=(l,w)=>{const _=D();F(w.t),w.want=_,w.t=A(()=>{w.done||xe(w,_)},xt),R.post({__frame_cap_want:!0,cap:l,ver:_},i)},De=(l,w)=>{const _=ie.get(l.cap),M=we[l.cap];if(!w||!_||_.done||_.want!==l.ver||!se.test(M))return;if(F(_.t),_.want=void 0,C=l.brokerGen??C,l.ver!==D()){ce(l.cap,_);return}if(!l.grant||l.cap==="network"){xe(_,l.ver);return}const Y=fe,K=fe={...Y,capabilities:{...Y.capabilities,[l.cap]:l.grant},capBudgets:{...Y.capBudgets,[l.cap]:{...Y.capBudgets[l.cap],...l.budgets}}};le(M).then(Pe=>{Ee.has(M)&&x(l.cap),K.brokerGen=C,lt=!0;try{Pe?.install?.(K)}catch{g(l.cap,"install")}finally{lt=!1}},()=>g(l.cap)).then(()=>{_.done||xe(_,l.ver)})};let re=!1,Oe=!1;R.on((l,w,_)=>{if(w!==i)return;try{if(m?.onShell(l))return}catch{}if(br(l)&&Kt(l.__frame_theme.theme),Gr(l)&&De(l,_),_&&zr(l)&&(C=l.brokerGen??C),wr(l)){const K=l.__frame_host_visible.visible;t.then(Pe=>Pe?.applyHostVisible?.(K,d))}_r(l)&&vn(l.__frame_patch,i,_);const M=l?.__fc_mode;M&&typeof M=="object"&&!re&&tt&&se.test(tt)&&(re=!0,le(tt).then(K=>K.install?.(i,M.on===!0,p)).catch(()=>{}));const Y=l?.__ft_cmd;Y&&typeof Y=="object"&&!Oe&&rt&&se.test(rt)&&(Oe=!0,le(rt).then(K=>K.install?.(i,Y,p)).catch(()=>{}))});const ne=Object.keys(h.capabilities??{}).filter(l=>Object.hasOwn(we,l)).map(l=>[l,we[l]]).filter(l=>typeof l[1]=="string"&&se.test(l[1])),de=await Promise.allSettled(ne.map(([,l])=>le(l))),oe=await t,H=i;if(oe?.buildBoot||g("_transforms"),oe?.buildBoot)try{fe=oe.buildBoot(h,oe.TRANSFORMS??{},{shellOrigin:H,mount:it,hooks:Fe,shell:p},l=>R.post({__frame_cap_telemetry:l},H))}catch{g("_transforms","install"),fe=Bt(h,H,p)}else fe=Bt(h,H,p);oe?.buildBoot&&Ee.has(Ie??"")&&x("_transforms");const he=fe;he.brokerGen=C,de.forEach((l,w)=>{const[_,M]=ne[w];if(l.status!=="fulfilled"){g(_);return}Ee.has(M)&&x(_);try{l.value?.install?.(he)}catch{g(_,"install")}});const X=h.capWants===!0;X&&(ot=(l,w)=>{const _=D();if(!_)return w;if(!w.nulled)return w.want!==_&&ce(l,w),w;if(_===w.ver)return w;const M=at();return ie.set(l,M),ce(l,M),M}),st(L,X&&D()!==L?ce:void 0),await S,await Re(),ke();const Le=tr(Q,V);R.post(Le?{__frame_ready:!0,nav:Le}:{__frame_ready:!0},z),t.then(l=>l?.installSizeReporter?.(H,Te,p));let Me=!1;try{Me=I()}catch{}be&&Me?le(be).then(l=>l?.boot?.({shellOrigin:i,build:he.flags.has(Zr),hot:m?.hot??null,carried:m?.carried(),presented:()=>m?.presented()??!0})).catch(()=>!1).then(l=>{m?.hydrated(),l!==!0?g("_ldx"):Ee.has(be)&&x("_ldx")}):m?.hydrated()})}else Qe&&($t(),un(Qe,Dt,le,{settle:st,mount:it}))})();</script><!-- /frame-runtime --><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>Client Finder Foundation Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+<link rel="stylesheet" href="./css2">
+
+<style>
+  :root{
+    --paper:#F6F7F9;--card:#FFFFFF;--ink:#131820;--muted:#5B6673;--faint:#8A939F;
+    --rule:#DDE2E8;--rule-soft:#EAEEF2;--accent:#1F5FA8;--accent-soft:#E8F0F9;
+    --p0:#B3261E;--p1:#A65B00;--p2:#1F5FA8;--p3:#6B7784;--ok:#1B6B4A;
+    --ok-soft:#E6F2EC;--warn-soft:#FBF0E0;--bad-soft:#FAE9E8;
+    --shadow:0 1px 2px rgba(19,24,32,.05),0 8px 24px -12px rgba(19,24,32,.12);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --paper:#0F1216;--card:#161B21;--ink:#E6E9ED;--muted:#9AA5B1;--faint:#6F7A86;
+    --rule:#262D36;--rule-soft:#1E242B;--accent:#7FB0E8;--accent-soft:#16222F;
+    --p0:#F08078;--p1:#E0A33F;--p2:#7FB0E8;--p3:#8A939F;--ok:#62BD94;
+    --ok-soft:#12241C;--warn-soft:#251C0E;--bad-soft:#2A1614;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }}
+  :root[data-theme="dark"]{
+    --paper:#0F1216;--card:#161B21;--ink:#E6E9ED;--muted:#9AA5B1;--faint:#6F7A86;
+    --rule:#262D36;--rule-soft:#1E242B;--accent:#7FB0E8;--accent-soft:#16222F;
+    --p0:#F08078;--p1:#E0A33F;--p2:#7FB0E8;--p3:#8A939F;--ok:#62BD94;
+    --ok-soft:#12241C;--warn-soft:#251C0E;--bad-soft:#2A1614;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);margin:0;font-size:15.5px;line-height:1.6;
+    font-family:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:76rem;margin:0 auto;padding:0 1.5rem 6rem}
+  .prose{max-width:60rem}
+  h1,h2,h3,h4{font-family:Fraunces,Georgia,serif;font-weight:600;text-wrap:balance;margin:0}
+  h1{font-size:clamp(2rem,4.5vw,3rem);line-height:1.05;letter-spacing:-.02em}
+  h2{font-size:clamp(1.3rem,2.3vw,1.7rem);letter-spacing:-.01em}
+  h3{font-size:1.05rem}
+  h4{font-size:.96rem}
+  p{margin:0 0 1rem}
+  a{color:var(--accent)}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.87em}
+  code{background:var(--rule-soft);padding:.1em .38em;border-radius:3px;word-break:break-word}
+  pre{background:var(--rule-soft);border:1px solid var(--rule);border-radius:6px;padding:.7rem .85rem;
+    overflow-x:auto;margin:.5rem 0;font-size:.79rem;line-height:1.5}
+  pre code{background:none;padding:0}
+
+  header.mast{border-bottom:1px solid var(--rule);padding:4.5rem 0 2rem;margin-bottom:2.25rem}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:1rem}
+  .stand{font-size:1.08rem;color:var(--muted);max-width:45rem;margin-top:1.1rem}
+
+  .lanes{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);
+    border:1px solid var(--rule);border-radius:12px;overflow:hidden;margin-top:2.25rem}
+  .lanes>div{background:var(--card);padding:1.25rem 1.3rem}
+  .lanes .n{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--faint)}
+  .lanes .t{font-family:Fraunces,serif;font-size:1.22rem;font-weight:600;margin:.35rem 0 .1rem;line-height:1.15}
+  .lanes .q{font-size:.85rem;color:var(--muted);font-style:italic;margin-bottom:.6rem}
+  .lanes .m{font-family:"IBM Plex Mono",monospace;font-size:.76rem;background:var(--rule-soft);
+    padding:.4rem .55rem;border-radius:4px;line-height:1.6}
+  @media(max-width:820px){.lanes{grid-template-columns:1fr}}
+
+  section{margin:3rem 0 0;scroll-margin-top:1rem}
+  .sh{display:flex;align-items:baseline;gap:.75rem;border-bottom:1px solid var(--rule);
+    padding-bottom:.5rem;margin-bottom:1.3rem}
+  .sn{font-family:"IBM Plex Mono",monospace;font-size:.8rem;color:var(--faint);flex:none}
+
+  .chip{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.06em;
+    text-transform:uppercase;padding:.2em .55em;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+  .c-yes{color:var(--ok);background:var(--ok-soft)}
+  .c-no{color:var(--p0);background:var(--bad-soft)}
+  .c-part{color:var(--p1);background:var(--warn-soft)}
+  .c-new{color:var(--accent);background:var(--accent-soft)}
+  .c-fact{color:var(--ok);background:var(--ok-soft)}
+
+  .scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:.87rem}
+  th,td{text-align:left;padding:.6rem .8rem;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+  th{font-family:"IBM Plex Mono",monospace;font-size:.67rem;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--faint);font-weight:500;white-space:nowrap;background:var(--card)}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono{font-family:"IBM Plex Mono",monospace;font-size:.79rem}
+
+  .callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:.85rem 1rem;
+    border-radius:0 8px 8px 0;margin:1.2rem 0}
+  .callout.bad{border-left-color:var(--p0);background:var(--bad-soft)}
+  .callout.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+  .callout.warn{border-left-color:var(--p1);background:var(--warn-soft)}
+
+  .model{border:1px solid var(--rule);border-radius:10px;background:var(--card);padding:1.05rem 1.2rem;
+    margin-bottom:.8rem;box-shadow:var(--shadow)}
+  .model .mh{display:flex;flex-wrap:wrap;align-items:center;gap:.55rem;margin-bottom:.5rem}
+  .model .mn{font-family:"IBM Plex Mono",monospace;font-weight:500;font-size:.95rem;color:var(--accent)}
+  .model dl{display:grid;grid-template-columns:7.5rem 1fr;gap:.28rem .9rem;margin:0;font-size:.87rem}
+  .model dt{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--faint);padding-top:.25em}
+  .model dd{margin:0}
+  .model dd.k{font-family:"IBM Plex Mono",monospace;font-size:.78rem;background:var(--rule-soft);
+    padding:.4rem .6rem;border-radius:5px;line-height:1.65}
+  @media(max-width:640px){.model dl{grid-template-columns:1fr;gap:.1rem}.model dd{margin-bottom:.45rem}}
+
+  .graph{font-family:"IBM Plex Mono",monospace;font-size:.81rem;line-height:1.75;
+    background:var(--rule-soft);border:1px solid var(--rule);border-radius:8px;padding:1rem 1.15rem;overflow-x:auto}
+
+  .steps{counter-reset:s;list-style:none;padding:0;margin:0}
+  .steps>li{counter-increment:s;position:relative;padding-left:2.6rem;margin-bottom:1rem}
+  .steps>li::before{content:counter(s);position:absolute;left:0;top:.05rem;width:1.75rem;height:1.75rem;
+    border-radius:50%;background:var(--accent);color:var(--card);display:grid;place-items:center;
+    font-family:"IBM Plex Mono",monospace;font-size:.78rem}
+  .steps h4{margin-bottom:.25rem}
+
+  .tri{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);
+    border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+  .tri>div{background:var(--card);padding:1.1rem 1.2rem}
+  .tri .hd{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.09em;
+    text-transform:uppercase;margin-bottom:.65rem}
+  .tri .fact .hd{color:var(--ok)}
+  .tri .rec .hd{color:var(--accent)}
+  .tri .open .hd{color:var(--p1)}
+  .tri ul{margin:0;padding-left:1.05rem;font-size:.86rem}
+  .tri li{margin-bottom:.35rem}
+  @media(max-width:860px){.tri{grid-template-columns:1fr}}
+
+  ul,ol{margin:0 0 1rem;padding-left:1.2rem}
+  li{margin-bottom:.32rem}
+  footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--rule);color:var(--faint);font-size:.82rem}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">Final foundation design · Design only, no files modified</div>
+  <h1>Client Finder Foundation Design</h1>
+  <p class="stand">
+    The two unresolved decisions, closed on repository evidence — plus the final data model,
+    ownership rules and migration plan for <code>0012</code>.
+  </p>
+
+  <div class="lanes">
+    <div>
+      <div class="n">Concept 1</div>
+      <div class="t">User identity</div>
+      <div class="q">“Who is this?”</div>
+      <div class="m">users<br>access_tokens.user_id</div>
+    </div>
+    <div>
+      <div class="n">Concept 2</div>
+      <div class="t">Feature access</div>
+      <div class="q">“May they use Client Finder?”</div>
+      <div class="m">users.client_finder_enabled_at</div>
+    </div>
+    <div>
+      <div class="n">Concept 3</div>
+      <div class="t">Product entitlement</div>
+      <div class="q">“What did they buy?”</div>
+      <div class="m">entitlements ← orders ← payments</div>
+    </div>
+  </div>
+</header>
+
+<section id="a">
+  <div class="sh"><span class="sn">A</span><h2>Final identity decision</h2></div>
+  <div class="callout ok">
+    <strong>Adopt <code>IDENTITY ≠ ENTITLEMENT ≠ PAYMENT</code>. Repository evidence not only
+    permits it — the code already implements it.</strong>
+  </div>
+  <p class="prose"><code>resolveAccess</code> is two independent steps, and only the second touches
+    entitlements:</p>
+  <pre><code>// 1. IDENTITY — consults the token row alone
+const stored  = await repository.findAccessToken(hashAccessToken(rawToken));
+const verdict = evaluateAccessToken(stored, now);   // existence · revoked · expired
+if (!verdict.valid) return { granted: false, … };
+
+// 2. ENTITLEMENT — a separate lookup, a separate concern
+const entitlements = await repository.listActive(normaliseEmail(verdict.customerEmail));
+return { granted: true, context: { …, purchased }, … };</code></pre>
+  <p class="prose">
+    <code>evaluateAccessToken</code> returns an identity without reading a single entitlement, and
+    <code>granted: true</code> is returned <strong>even when <code>purchased</code> is empty</strong>.
+    A valid token already means “we know who you are”, not “you have bought something”.
+  </p>
+
+  <h3 style="margin:1.6rem 0 .6rem">The two couplings to remove</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Coupling</th><th>Where</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr><td>Identity keyed on email, not an opaque id</td><td class="mono">access_tokens.customer_email</td><td>Add nullable <code>user_id</code>; email stays for existing entitlement tokens</td></tr>
+        <tr><td>Token issuance gated on owning something</td><td class="mono">reissue.ts:88 — <code>if (entitlements.length === 0)</code></td><td>Leave it. That function issues an <em>entitlement</em> credential and should keep its gate. Session issuance is a separate function with no such gate.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin:1.6rem 0 .6rem">Minimum schema and code boundary</h3>
+  <div class="graph">IDENTITY        users(id, email, name, …)
+                access_tokens(user_id → users.id)        ← session when user_id IS NOT NULL
+                resolveSession(token) → userId           ← new; wraps evaluateAccessToken
+
+FEATURE         users.client_finder_enabled_at           ← nullable timestamp
+                requireClientFinder(userId) → void|throw ← new
+
+ENTITLEMENT     entitlements(customer_email, product_slug, order_id)   ← unchanged
+                resolveAccess(token) → purchased[]                     ← unchanged
+
+PAYMENT         orders → payments                                       ← unchanged, untouched</div>
+  <p class="prose">
+    One credential table, two credential kinds, distinguished by whether <code>user_id</code> is
+    null. Same minting, same hash-only storage, same revocation, same expiry evaluation — all of it
+    already written and tested.
+  </p>
+
+  <h3 style="margin:1.6rem 0 .6rem">Provisioning without email infrastructure</h3>
+  <div class="callout">
+    <strong>An operator-run provisioning script, not a signup flow.</strong> It inserts a
+    <code>users</code> row, calls the existing <code>mintAccessToken()</code>, stores the hash with
+    <code>user_id</code> set, and prints the plaintext token <strong>once</strong> to the operator's
+    terminal. The operator hands that link to the validator out of band.
+    <ul style="margin:.6rem 0 0">
+      <li>No email transport, no SMTP credential, no deliverability problem.</li>
+      <li>Reuses the exact issuance path magic-link will later use.</li>
+      <li>Appropriate to the controlled scenario — one service, one city, a known handful of validators.</li>
+    </ul>
+  </div>
+  <div class="callout ok">
+    <strong>Magic-link later requires no redesign of Client Finder ownership.</strong> Ownership is
+    anchored on <code>users.id</code>, which is independent of how that row came to exist. Adding
+    magic-link adds a login route that calls the same issuance and sets the same cookie. Every
+    <code>user_id</code> foreign key, every repository filter and every ownership test is unaffected.
+  </div>
+</section>
+
+<section id="b">
+  <div class="sh"><span class="sn">B</span><h2>Final entitlement decision</h2></div>
+  <div class="callout bad">
+    <strong>Existing architecture makes the separation unavoidable — this is not a preference.</strong>
+    <code>entitlements.order_id</code> is <code>TEXT NOT NULL</code> with a foreign key to
+    <code>orders</code>. There is <strong>no way to express “this user may use Client Finder”</strong>
+    in that table without either fabricating an order or making <code>order_id</code> nullable — and
+    the column exists specifically so support can answer “why does this person have access?”.
+    Weakening it to model a non-purchased grant would damage a payment invariant to solve an
+    identity problem.
+  </div>
+
+  <h3 style="margin:1.4rem 0 .6rem">Minimum entitlement boundary</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Question</th><th>Answered by</th><th>Mechanism</th><th>New?</th></tr></thead>
+      <tbody>
+        <tr><td>Who is this?</td><td>Session</td><td class="mono">access_tokens.user_id → users.id</td><td><span class="chip c-new">Column</span></td></tr>
+        <tr><td>May they use Client Finder?</td><td>Feature access</td><td class="mono">users.client_finder_enabled_at IS NOT NULL</td><td><span class="chip c-new">Column</span></td></tr>
+        <tr><td>What have they bought?</td><td>Entitlement</td><td class="mono">entitlements.product_slug</td><td><span class="chip c-yes">Exists</span></td></tr>
+        <tr><td>What did they pay?</td><td>Payment history</td><td class="mono">orders → payments</td><td><span class="chip c-yes">Exists</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose">
+    A nullable timestamp, not a boolean: it records <em>when</em> access was granted at identical
+    cost, which is the difference between an auditable grant and a flag nobody can explain later.
+    Not a <code>feature_grants</code> table — a table for one column at MVP scale is scope expansion,
+    and §8 of the Scope Boundary answers <em>no, no, no, yes</em> to it.
+  </p>
+  <div class="callout">
+    <strong>Convergence path, if Client Finder later becomes the ₹1,499 product.</strong> A grant
+    service sets <code>client_finder_enabled_at</code> when a matching entitlement appears, and
+    clears it on revocation. No table changes, no ownership changes — the authorization check
+    <code>requireClientFinder()</code> keeps reading the same column. The two concepts stay
+    separate; one merely becomes the other's <em>cause</em>.
+  </div>
+  <p class="prose" style="font-size:.9rem;color:var(--muted)">
+    Not hard-coded, as instructed: nothing in the design equates a paid ₹1,499 customer with a user
+    identity. A user may exist with no entitlement, an entitlement may exist with no user (every
+    current row), and both remain true after this change.
+  </p>
+</section>
+
+<section id="c">
+  <div class="sh"><span class="sn">C</span><h2>Final ServiceProfile</h2></div>
+  <div class="callout warn">
+    <strong>The Scope Boundary's four fields cannot drive the existing offer engine.</strong> This
+    is the “verified Client Finder dependency” exception, found by inspecting the consumer rather
+    than the PRD. <code>suggestOffers(signals, rules)</code> takes
+    <code>ServiceRule[]</code>, and that interface requires <strong>five</strong> fields:
+    <pre style="margin:.6rem 0 0"><code>export interface ServiceRule {
+  service: string;
+  triggers: readonly ResearchSignal['kind'][];   // which signal kinds fire this
+  keywords: readonly string[];                   // substrings that strengthen the match
+  typicalValuePaise: number;                     // engagement value
+  rationale: string;                             // '{signal}' template
+}</code></pre>
+    Without <code>triggers</code>, <code>keywords</code> and <code>rationale</code> the engine
+    cannot match a signal to an offer, and every user falls back to
+    <code>DEFAULT_SERVICE_RULES</code> — which is exactly the defect the Readiness Audit recorded
+    as PF-01.
+  </div>
+
+  <h3 style="margin:1.4rem 0 .6rem">Field-by-field</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Field</th><th>Required for MVP?</th><th>Consumer</th><th>Why</th><th>Can defer?</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">service</td><td><span class="chip c-yes">Yes</span></td><td class="mono">ServiceRule.service</td><td>Scope Boundary §5.1. The thing being sold.</td><td>No</td></tr>
+        <tr><td class="mono">targetCustomer</td><td><span class="chip c-yes">Yes</span></td><td>discovery query</td><td>§5.1. Drives the discovery provider's query.</td><td>No</td></tr>
+        <tr><td class="mono">geography</td><td><span class="chip c-yes">Yes</span></td><td>discovery query</td><td>§5.1. Controlled scenario is Mumbai.</td><td>No</td></tr>
+        <tr><td class="mono">minProjectValuePaise</td><td><span class="chip c-yes">Yes</span></td><td>ranking filter</td><td>§5.1. The user's floor for bothering.</td><td>No</td></tr>
+        <tr style="background:var(--warn-soft)"><td class="mono">signalTriggers</td><td><span class="chip c-yes">Yes</span></td><td class="mono">ServiceRule.triggers</td><td><strong>Verified dependency.</strong> <code>suggestOffers</code> filters signals by kind; without it no signal matches.</td><td>No</td></tr>
+        <tr style="background:var(--warn-soft)"><td class="mono">keywords</td><td><span class="chip c-yes">Yes</span></td><td class="mono">ServiceRule.keywords</td><td><strong>Verified dependency.</strong> The substring match that turns a signal into an offer.</td><td>No</td></tr>
+        <tr style="background:var(--warn-soft)"><td class="mono">offerRationale</td><td><span class="chip c-yes">Yes</span></td><td class="mono">ServiceRule.rationale</td><td><strong>Verified dependency.</strong> Populates <code>Opportunity.offerRationale</code> — the “why” the MVP must show.</td><td>No</td></tr>
+        <tr><td class="mono">typicalValuePaise</td><td><span class="chip c-part">Derive</span></td><td class="mono">ServiceRule.typicalValuePaise</td><td>Required by the interface, but MVP can derive it from <code>minProjectValuePaise</code>. See the sub-decision below.</td><td>Yes, by deriving</td></tr>
+        <tr><td class="mono">description</td><td><span class="chip c-no">No</span></td><td>none</td><td>PRD §40. No code consumes it.</td><td>Yes</td></tr>
+        <tr><td class="mono">capabilities</td><td><span class="chip c-no">No</span></td><td>none</td><td>PRD §40. Personalisation input — Phase 2.</td><td>Yes</td></tr>
+        <tr><td class="mono">positioning</td><td><span class="chip c-no">No</span></td><td>none</td><td>PRD §40. Outreach input — Phase 2.</td><td>Yes</td></tr>
+        <tr><td class="mono">deliverables</td><td><span class="chip c-no">No</span></td><td>none</td><td>PRD §40. Proposal input — Phase 3.</td><td>Yes</td></tr>
+        <tr><td class="mono">pricing</td><td><span class="chip c-no">No</span></td><td>none</td><td>PRD §40. Proposal input — Phase 3. <code>core-proposal</code> owns authoritative pricing and is deferred.</td><td>Yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <strong>Sub-decision — <code>typicalValuePaise</code>.</strong> Semantically it differs from
+    <code>minProjectValuePaise</code>: typical is what an engagement is worth (it populates
+    <code>Opportunity.estimatedValuePaise</code>); minimum is the user's floor. For the MVP,
+    deriving <code>typical := minProjectValuePaise</code> is a defensible simplification that
+    removes a field the user would have to guess at. <strong>Recommended</strong>, but flagged —
+    it makes every opportunity's estimated value equal to the user's floor, which may read oddly in
+    the UI.
+  </div>
+  <p class="prose">
+    <strong>Resolution of the conflict:</strong> seven fields, not four and not thirteen. Four from
+    Scope Boundary §5.1, three added under its own “verified dependency” exception, and the five
+    remaining PRD §40 fields deferred because <em>no code consumes them</em>. The Scope Boundary
+    governs and its exception clause is what admits the three.
+  </p>
+</section>
+
+<section id="d">
+  <div class="sh"><span class="sn">D</span><h2>Final MVP data model</h2></div>
+  <p class="prose">Nine models. All new tables; three reuse a shape from the root schema that is
+    being deleted. Every one carries <code>user_id</code> with <code>ON DELETE RESTRICT</code>.</p>
+
+  <div class="model">
+    <div class="mh"><span class="mn">users</span><span class="chip c-new">New</span></div>
+    <dl>
+      <dt>Purpose</dt><dd>Ownership anchor and feature-access holder.</dd>
+      <dt>Ownership</dt><dd>Root of the graph.</dd>
+      <dt>Key fields</dt><dd class="k">id · email · name? · client_finder_enabled_at? · created_at · updated_at</dd>
+      <dt>Relationships</dt><dd>Parent of every other MVP table; referenced by <code>access_tokens.user_id</code>.</dd>
+      <dt>Indexes</dt><dd><code>UNIQUE(email)</code></dd>
+      <dt>Constraints</dt><dd><code>CHECK (email = lower(email))</code>, matching <code>entitlements</code> and <code>access_tokens</code>.</dd>
+    </dl>
+  </div>
+
+  <div class="model">
+    <div class="mh"><span class="mn">service_profiles</span><span class="chip c-new">New</span></div>
+    <dl>
+      <dt>Purpose</dt><dd>What the user sells. Parameterises discovery and the offer engine.</dd>
+      <dt>Ownership</dt><dd><code>user_id</code></dd>
+      <dt>Key fields</dt><dd class="k">id · user_id · service · target_customer · geography · min_project_value_paise · currency · signal_triggers text[] · keywords text[] · offer_rationale · created_at · updated_at</dd>
+      <dt>Relationships</dt><dd><code>user_id → users</code>; parent of <code>searches</code>.</dd>
+      <dt>Indexes</dt><dd><code>(user_id)</code></dd>
+      <dt>Constraints</dt><dd><code>CHECK (min_project_value_paise &gt; 0)</code>, matching the <code>orders</code>/<code>payments</code> convention.</dd>
+    </dl>
+  </div>
+
+  <div class="model">
+    <div class="mh"><span class="mn">searches</span><span class="chip c-new">New</span></div>
+    <dl>
+      <dt>Purpose</dt><dd>The job record. Carries the status the UI shows and the ownership the worker reads.</dd>
+      <dt>Ownership</dt><dd><code>user_id</code> — the single source of truth for everything the run produces.</dd>
+      <dt>Key fields</dt><dd class="k">id · user_id · service_profile_id · status · requested_count · idempotency_key · attempts · last_error · lease_owner? · lease_expires_at? · requested_at · started_at? · finished_at? · created_at · updated_at</dd>
+      <dt>Relationships</dt><dd><code>user_id → users</code>, <code>service_profile_id → service_profiles</code>; parent of <code>prospects</code>.</dd>
+      <dt>Indexes</dt><dd><code>(user_id, requested_at DESC)</code> for the list view; partial <code>(requested_at) WHERE status = 'PENDING'</code> for the claim query, mirroring <code>meta_events_due_idx</code>.</dd>
+      <dt>Constraints</dt><dd><code>UNIQUE(idempotency_key)</code>; status in PENDING · RUNNING · COMPLETE · FAILED · CANCELLED (PRD §41).</dd>
+    </dl>
+  </div>
+
+  <div class="model">
+    <div class="mh"><span class="mn">companies</span><span class="chip c-new">New table</span><span class="chip c-part">Shape reused</span></div>
+    <dl>
+      <dt>Purpose</dt><dd>The discovered business after normalisation; the deduplication target.</dd>
+      <dt>Ownership</dt><dd><code>user_id</code> — user-owned, per the previously confirmed decision.</dd>
+      <dt>Key fields</dt><dd class="k">id · user_id · name · domain? · industry? · size_band? · country? · description? · created_at · updated_at</dd>
+      <dt>Relationships</dt><dd><code>user_id → users</code>; parent of <code>prospects</code> and <code>research_signals</code>.</dd>
+      <dt>Indexes</dt><dd><code>(user_id)</code></dd>
+      <dt>Constraints</dt><dd><strong>Partial unique</strong> <code>(user_id, domain) WHERE domain IS NOT NULL</code> — the dedup key. Prisma cannot express this; hand-written SQL, as with <code>payments_one_captured_per_order</code>.</dd>
+    </dl>
+  </div>
+
+  <div class="model">
+    <div class="mh"><span class="mn">prospects</span><span class="chip c-new">New table</span><span class="chip c-part">Shape reused</span></div>
+    <dl>
+      <dt>Purpose</dt><dd>What gets researched and scored. Root schema's <code>Lead</code>, renamed to the PRD's journey wording.</dd>
+      <dt>Ownership</dt><dd><code>user_id</code></dd>
+      <dt>Key fields</dt><dd class="k">id · user_id · search_id · company_id · full_name? · email? · role? · linkedin_url? · status · unsubscribed_at? · created_at · updated_at</dd>
+      <dt>Relationships</dt><dd>→ <code>users</code>, <code>searches</code>, <code>companies</code>; parent of <code>research_signals</code> and <code>opportunities</code>.</dd>
+      <dt>Indexes</dt><dd><code>(search_id)</code>, <code>(user_id)</code>, <code>(company_id)</code></dd>
+      <dt>Constraints</dt><dd>Dropped from the reused shape: <code>score</code>, <code>scored_at</code>, <code>score_reason</code> — scoring lives in its own table so the seven factors stay explainable.</dd>
+    </dl>
+  </div>
+
+  <div class="model">
+    <div class="mh"><span class="mn">research_signals</span><span class="chip c-new">New table</span><span class="chip c-part">Shape reused</span></div>
+    <dl>
+      <dt>Purpose</dt><dd>Evidence, provenance, confidence, freshness and supersession in one append-only table.</dd>
+      <dt>Ownership</dt><dd>Via <code>prospect_id</code>. Denormalise <code>user_id</code> only if query plans demand it — measure first.</dd>
+      <dt>Key fields</dt><dd class="k">id · prospect_id · company_id · kind · signal · source_url? · confidence · weight · observed_at · superseded_at? · created_at</dd>
+      <dt>Relationships</dt><dd>→ <code>prospects</code>, <code>companies</code>.</dd>
+      <dt>Indexes</dt><dd>Partial <code>(prospect_id) WHERE superseded_at IS NULL</code> — the scorer reads only live signals, so the index should shrink as rows are superseded.</dd>
+      <dt>Constraints</dt><dd><code>CHECK (confidence BETWEEN 0 AND 100)</code>. Append-only by convention; supersession is an <code>UPDATE</code> of <code>superseded_at</code>, never a delete.</dd>
+    </dl>
+  </div>
+
+  <div class="model">
+    <div class="mh"><span class="mn">opportunities</span><span class="chip c-new">New table</span><span class="chip c-part">Shape reused</span></div>
+    <dl>
+      <dt>Purpose</dt><dd>The evidence-backed result the user reviews.</dd>
+      <dt>Ownership</dt><dd><code>user_id</code></dd>
+      <dt>Key fields</dt><dd class="k">id · user_id · prospect_id · stage · service_offer? · offer_rationale? · estimated_value_paise? · currency · stage_changed_at · created_at · updated_at</dd>
+      <dt>Relationships</dt><dd>→ <code>users</code>, <code>prospects</code>; parent of <code>opportunity_scores</code> and <code>feedback</code>.</dd>
+      <dt>Indexes</dt><dd><code>(user_id, stage)</code>, <code>(prospect_id)</code></dd>
+      <dt>Constraints</dt><dd><code>service_offer</code> <strong>nullable</strong> — this is how NONE is expressed when evidence is insufficient. Six CRM relations from the reused shape are <strong>not</strong> carried over.</dd>
+    </dl>
+  </div>
+
+  <div class="model">
+    <div class="mh"><span class="mn">opportunity_scores</span><span class="chip c-new">New</span></div>
+    <dl>
+      <dt>Purpose</dt><dd>One row per scoring run, with the per-factor breakdown that makes ranking explainable and reproducible.</dd>
+      <dt>Ownership</dt><dd>Via <code>opportunity_id</code>.</dd>
+      <dt>Key fields</dt><dd class="k">id · opportunity_id · total · band · factors jsonb · inference_discount_applied · scorer_version · scored_at</dd>
+      <dt>Relationships</dt><dd>→ <code>opportunities</code>.</dd>
+      <dt>Indexes</dt><dd><code>(opportunity_id, scored_at DESC)</code> — latest score per opportunity.</dd>
+      <dt>Constraints</dt><dd><code>CHECK (total BETWEEN 0 AND 100)</code>. <code>scorer_version</code> is what lets a ranking be reproduced after the weights change.</dd>
+    </dl>
+  </div>
+
+  <div class="model">
+    <div class="mh"><span class="mn">feedback</span><span class="chip c-new">New</span></div>
+    <dl>
+      <dt>Purpose</dt><dd>The MVP's primary validation instrument.</dd>
+      <dt>Ownership</dt><dd><code>user_id</code></dd>
+      <dt>Key fields</dt><dd class="k">id · user_id · opportunity_id · useful boolean · reason? · created_at</dd>
+      <dt>Relationships</dt><dd>→ <code>users</code>, <code>opportunities</code>.</dd>
+      <dt>Indexes</dt><dd><code>(opportunity_id)</code>, <code>(user_id, created_at DESC)</code></dd>
+      <dt>Constraints</dt><dd><code>UNIQUE(user_id, opportunity_id)</code> — one verdict per user per opportunity; a change of mind is an update, not a second row.</dd>
+    </dl>
+  </div>
+
+  <h3 style="margin:1.75rem 0 .6rem">Required job-state fields</h3>
+  <p class="prose">All on <code>searches</code>. Modelled on the <code>meta_events</code> worker,
+    which is the one worker component already proven against real PostgreSQL.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Field</th><th>Purpose</th><th>Precedent</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">status</td><td>PENDING · RUNNING · COMPLETE · FAILED · CANCELLED</td><td>PRD §41</td></tr>
+        <tr><td class="mono">attempts</td><td>Retry budget; incremented only on genuine failure</td><td class="mono">meta_events.attempts</td></tr>
+        <tr><td class="mono">last_error</td><td>Diagnosis without a log search</td><td class="mono">meta_events.last_error</td></tr>
+        <tr><td class="mono">lease_owner · lease_expires_at</td><td>Survive a worker crash mid-run; enable fencing so a stale worker cannot overwrite a live one</td><td class="mono">meta_events lease pair</td></tr>
+        <tr><td class="mono">idempotency_key</td><td>A retried submission must not create a second search</td><td class="mono">orders.idempotency_key</td></tr>
+        <tr><td class="mono">requested_at · started_at · finished_at</td><td>Queue latency and run duration, without a metrics system</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <strong>No separate jobs or outbox table.</strong> <code>searches</code> <em>is</em> the job
+    record. A generic job table would add indirection with no MVP benefit, and
+    <code>meta_events</code> is the commerce outbox — coupling the two would join unrelated
+    subsystems.
+  </div>
+</section>
+
+<section id="e">
+  <div class="sh"><span class="sn">E</span><h2>Ownership / authorization model</h2></div>
+  <div class="callout bad">
+    <strong>Rejected by construction: no code path accepts a caller-supplied <code>userId</code>.</strong>
+    No route handler, service or repository takes <code>userId</code> from a body, query string,
+    path segment or header. The only producer is <code>resolveSession()</code>, which derives it
+    from an httpOnly cookie via a database lookup.
+  </div>
+
+  <h3 style="margin:1.4rem 0 .6rem">How <code>userId</code> is obtained and bound</h3>
+  <div class="graph">Request
+  ↓  cookie: acos_session (httpOnly · Secure · SameSite=Lax)
+  ↓  requireUser()
+       ├─ hashAccessToken(raw)              sha256 — plaintext never queried
+       ├─ findAccessToken(hash)             single indexed lookup
+       ├─ evaluateAccessToken(stored, now)  existence · revoked · expired
+       ├─ stored.user_id IS NULL  →  throw  entitlement token, not a session
+       └─ → userId                          <span style="color:var(--ok)">server-derived, unforgeable</span>
+  ↓  requireClientFinder(userId)            users.client_finder_enabled_at IS NOT NULL
+  ↓  service(userId, input)                 userId is the FIRST argument, never inside input
+  ↓  repository.method(userId, …)           every statement filters on it</div>
+
+  <h3 style="margin:1.5rem 0 .6rem">How repositories enforce ownership</h3>
+  <ul class="prose">
+    <li><strong>Every method takes <code>userId</code> as its first parameter.</strong> Positional
+      and mandatory, so an omission is a compile error rather than a silent full-table read.</li>
+    <li><strong>No method returns rows without a <code>user_id</code> predicate.</strong> Including
+      single-row reads by primary key: <code>WHERE id = $1 AND user_id = $2</code>. An
+      unauthorised id returns zero rows, never a row the caller then has to check.</li>
+    <li><strong>Reads on child tables join to the owning row</strong> rather than trusting a
+      denormalised column. <code>research_signals</code> is reached through
+      <code>prospects</code>.</li>
+    <li><strong>Writes set <code>user_id</code> from the argument</strong>, never from input data.</li>
+    <li><code>ON DELETE RESTRICT</code> to <code>users</code> everywhere — matching how
+      <code>orders</code> is already protected.</li>
+  </ul>
+
+  <h3 style="margin:1.5rem 0 .6rem">How worker jobs preserve ownership</h3>
+  <p class="prose">
+    The worker never receives an identity. It claims a <code>searches</code> row with
+    <code>FOR UPDATE SKIP LOCKED</code> and reads <code>row.user_id</code> from persisted state.
+    Because that row was written by an authenticated request, ownership is transitively bound to a
+    real session without the worker knowing sessions exist. Every row it writes carries that
+    <code>user_id</code>. No identity propagation, no signed job payloads, no service token — all of
+    which would be larger surface and weaker guarantees.
+  </p>
+
+  <h3 style="margin:1.5rem 0 .6rem">How cross-user access is prevented</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Layer</th><th>Control</th></tr></thead>
+      <tbody>
+        <tr><td>Transport</td><td>httpOnly cookie — page JavaScript cannot read or forge the session</td></tr>
+        <tr><td>Session</td><td>Token looked up by hash; expiry and revocation checked on every request</td></tr>
+        <tr><td>Route</td><td><code>requireUser()</code> first in every handler. No middleware exists, so this is per-route and must be tested as such</td></tr>
+        <tr><td>Service</td><td><code>userId</code> is a parameter, never part of the parsed request body</td></tr>
+        <tr><td>Repository</td><td>Mandatory <code>user_id</code> predicate on every statement</td></tr>
+        <tr><td>Database</td><td>Foreign keys with <code>ON DELETE RESTRICT</code>; partial unique dedup scoped by <code>user_id</code></td></tr>
+        <tr><td>Test</td><td>Two users, one dataset: B must receive empty, not A's rows and not a 500</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn">
+    <strong>The weakest link is the route layer, and it is worth naming.</strong> With no middleware
+    there is no global backstop: a handler that forgets <code>requireUser()</code> is simply
+    unprotected, and nothing fails. Mitigation is a standing test that enumerates route files and
+    asserts each calls it — cheap, and the only thing that makes the omission loud.
+  </div>
+</section>
+
+<section id="f">
+  <div class="sh"><span class="sn">F</span><h2>Migration plan — 0012</h2></div>
+  <p class="prose"><em>Plan only. Nothing created.</em></p>
+  <div class="callout ok">
+    <strong>Confirmed additive.</strong> Nine <code>CREATE TABLE</code>s, one
+    <code>ADD COLUMN</code> on <code>access_tokens</code>, plus indexes and constraints. No
+    <code>ALTER</code> to a column, no <code>DROP</code>, no data transformation, no backfill. Every
+    existing row in all ten current tables is untouched.
+  </div>
+  <div class="callout bad">
+    <strong>Confirmed: does not import Client, Conversation, Activity, OutreachMessage, FollowUp or
+    Proposal.</strong> None appears as a table, a column, a foreign key or a relation. The risk
+    channel was <code>opportunities</code>, whose reused shape declares six CRM relations — all
+    deliberately dropped. <em>A relation is a scope decision.</em>
+  </div>
+  <ol class="steps">
+    <li><h4>Prerequisite — complete C-2 steps 1–3</h4>
+      <p class="prose">Delete the root <code>schema.prisma</code> and pin the schema path first.
+        <code>migrate dev</code> uses a shadow database that replays the chain against whichever
+        schema the working directory resolves; doing this work while two schemas exist risks
+        generating into the wrong file.</p></li>
+    <li><h4>Add <code>users</code> and extend <code>access_tokens</code></h4>
+      <p class="prose"><code>users</code> with a lowercase-email CHECK; <code>access_tokens.user_id</code>
+        <strong>nullable</strong>, indexed. Nullable is load-bearing: existing rows are entitlement
+        credentials with no user, and backfilling them would invent identities.</p></li>
+    <li><h4>Add the seven domain tables</h4>
+      <p class="prose">service_profiles, searches, companies, prospects, research_signals,
+        opportunities, opportunity_scores, feedback — each with <code>user_id</code> (or an owning
+        parent) and <code>ON DELETE RESTRICT</code>.</p></li>
+    <li><h4>Hand-write what Prisma cannot express</h4>
+      <p class="prose">Partial unique <code>(user_id, domain) WHERE domain IS NOT NULL</code>;
+        partial <code>(prospect_id) WHERE superseded_at IS NULL</code>; partial
+        <code>(requested_at) WHERE status = 'PENDING'</code>; the CHECK constraints. Same pattern
+        as <code>payments_one_captured_per_order</code> — document them in schema comments as 0001
+        does, since Prisma will not see them.</p></li>
+    <li><h4>Name it <code>0012_client_finder_mvp_base</code></h4>
+      <p class="prose">One migration, not nine — these tables have no meaning independently.
+        <strong>Must not</strong> be backfilled into the 0005/0006 gap: those names are permanently
+        absent from every database that ran the chain, and Prisma checks only whether a name is
+        recorded, not whether its position is sane.</p></li>
+    <li><h4>Add the session secret to <code>packages/config</code></h4>
+      <p class="prose">Distinct from <code>DOWNLOAD_GRANT_SECRET</code> — separate rotation
+        lifetimes. Minimum 32 characters, listed in <code>SECRET_KEYS</code> so it is redacted and
+        validated like the rest.</p></li>
+    <li><h4>Verify, then write the isolation test before the second route</h4>
+      <p class="prose"><code>db-migrate-deploy.sh --check</code> on a scratch database; 10 tables →
+        19; generated client 6 models → 15. Then the two-user isolation test. The new migration runs
+        in every temp database across all 22 integration suites — expect a wall-clock increase and
+        leave <code>fileParallelism: false</code> alone.</p></li>
+  </ol>
+</section>
+
+<section id="g">
+  <div class="sh"><span class="sn">G</span><h2>Open questions</h2></div>
+  <div class="tri">
+    <div class="fact">
+      <div class="hd">■ Verified fact</div>
+      <ul>
+        <li><code>evaluateAccessToken</code> returns identity without reading entitlements.</li>
+        <li><code>resolveAccess</code> returns <code>granted: true</code> with an empty <code>purchased</code> array.</li>
+        <li><code>entitlements.order_id</code> is <code>NOT NULL</code> with an FK to <code>orders</code>.</li>
+        <li><code>reissueAccessToken</code> gates issuance on <code>listActive().length &gt; 0</code>.</li>
+        <li><code>ServiceRule</code> requires service, triggers, keywords, typicalValuePaise, rationale.</li>
+        <li><code>suggestOffers</code> defaults to <code>DEFAULT_SERVICE_RULES</code> when none is supplied.</li>
+        <li><code>access_tokens</code> stores only the sha256 hash, with TTL and revocation.</li>
+        <li>Next migration number is 0012; 9 applied, none rolled back.</li>
+        <li>No middleware exists — authorization must be per-route.</li>
+      </ul>
+    </div>
+    <div class="rec">
+      <div class="hd">▲ Recommended decision</div>
+      <ul>
+        <li>Adopt identity ≠ entitlement ≠ payment; it is already the code's structure.</li>
+        <li>Extend <code>access_tokens</code> with nullable <code>user_id</code>; session = non-null.</li>
+        <li><code>users.client_finder_enabled_at</code> as the feature boundary — not a new table.</li>
+        <li>Operator provisioning script; defer self-service signup and email.</li>
+        <li>ServiceProfile = 7 fields: 4 from §5.1 plus 3 verified dependencies.</li>
+        <li>Derive <code>typicalValuePaise</code> from <code>minProjectValuePaise</code> for MVP.</li>
+        <li>Nine tables, one additive migration <code>0012</code>.</li>
+        <li><code>userId</code> as first positional argument everywhere; never in a payload.</li>
+        <li>A standing test asserting every route calls <code>requireUser()</code>.</li>
+      </ul>
+    </div>
+    <div class="open">
+      <div class="hd">● Unresolved — your call</div>
+      <ul>
+        <li><strong>Session lifetime.</strong> <code>ACCESS_TOKEN_TTL_MS</code> is 30 days, chosen for a purchased-product credential. Likely wrong for a working session; a shorter session TTL means a second constant.</li>
+        <li><strong>Does <code>typicalValuePaise</code> deriving from the minimum read acceptably in the UI?</strong> Every opportunity's estimated value equals the user's floor.</li>
+        <li><strong>Cookie name.</strong> Reuse <code>acos_access</code> or introduce <code>acos_session</code>? Separate names make the two credential kinds visible in the browser; one name is simpler.</li>
+        <li><strong>Do staging or production databases exist</strong>, and at what migration state? Only the local test database was observable.</li>
+        <li><strong>Feedback reason: free text or a closed set?</strong> A closed set is analysable at MVP scale; free text captures what you did not anticipate. This affects the column type.</li>
+        <li><strong>Prospect vs Lead naming</strong> — recommended <code>prospects</code>, but it should be settled once and applied consistently.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Design only. No Prisma schema, migration, application source, test or configuration file was
+  modified. Facts labelled verified were established by reading the repository and by querying the
+  live PostgreSQL 16.14 test instance. Everything under “recommended decision” is a proposal
+  derived from those facts, from PRD V2.0 §§39–42, and from <code>MVP_SCOPE_BOUNDARY.md</code>
+  §§3, 5 and 8 — including its verified-dependency exception, which is what admits the three extra
+  ServiceProfile fields.
+</footer>
+
+</div>
+
+</body></html>

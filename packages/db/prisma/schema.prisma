@@ -1,0 +1,334 @@
+// -----------------------------------------------------------------------
+// Prisma schema — commerce core + Meta attribution + operational
+// reconciliation tables.
+//
+// Scope is deliberately exactly six models, per spec: Order, Payment,
+// WebhookEvent, MetaEvent, IdempotencyReconciliation,
+// ProductionIndexMigration. Customer and product information are stored
+// directly on Order (denormalized) rather than via separate Users/
+// Products tables, since no such tables were requested and the funnel's
+// products are a small fixed catalog, not a table that needs its own
+// lifecycle.
+//
+// STRUCTURE ONLY: this file contains no application/business logic.
+//
+// TWO CONSTRAINTS THIS SCHEMA CANNOT EXPRESS NATIVELY (Prisma limitation,
+// not an oversight) — both MUST be added as hand-written SQL in the first
+// migration before this schema is considered production-complete:
+//   1. CHECK (amount_paise > 0) on orders and payments.
+//   2. Partial unique index on payments: only one CAPTURED payment per
+//      order — i.e. CREATE UNIQUE INDEX ... ON payments(order_id) WHERE
+//      status = 'CAPTURED'.
+// See the full constraint-by-constraint explanation delivered alongside
+// this file.
+// -----------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+  // Build configuration only — no table, column, index or constraint is
+  // affected by this block.
+  //
+  // Both Dockerfiles use node:20-alpine, which ships OpenSSL 3. Left to
+  // itself `prisma generate` emitted the openssl-1.1.x musl engine, and
+  // loading it failed at `next build` with "libssl.so.1.1: No such file
+  // or directory" — the image could not be built at all. Naming the
+  // targets explicitly is Prisma's documented remedy; "native" keeps
+  // local development working on macOS and Linux hosts.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =========================================================================
+// Enums
+// =========================================================================
+
+enum OrderStatus {
+  PENDING
+  ATTEMPTED
+  PAID
+  FAILED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+enum MetaEventStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  DEAD_LETTER
+}
+
+enum IdempotencyRecordType {
+  ORDER
+  PAYMENT
+  WEBHOOK_EVENT
+  META_EVENT
+}
+
+enum IdempotencyReconciliationStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  IGNORED
+}
+
+enum ProductionIndexMigrationStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  ROLLED_BACK
+}
+
+// =========================================================================
+// Order
+// =========================================================================
+
+model Order {
+  id String @id @default(uuid())
+
+  razorpayOrderId String @unique @map("razorpay_order_id")
+
+  // Set from the client's `Idempotency-Key` request header (e.g.
+  // crypto.randomUUID() generated once per checkout attempt and resent
+  // on retries). Nullable — a request without one is still processed,
+  // just without dedup protection. See createOrder.ts and architecture
+  // §14 item 4.
+  idempotencyKey String? @unique @map("idempotency_key")
+
+  // --- Customer information (denormalized: no separate Users table) ---
+  // customerName is optional: the create-order endpoint's contract is
+  // { productId, customerEmail, customerPhone? } — no name is collected
+  // at this step.
+  customerName  String? @map("customer_name")
+  customerEmail String  @map("customer_email")
+  customerPhone String? @map("customer_phone")
+
+  // --- Product information (denormalized: no separate Products table) ---
+  productSlug String @map("product_slug")
+  productName String @map("product_name")
+
+  amountPaise Int         @map("amount_paise")
+  currency    String      @default("INR")
+  status      OrderStatus @default(PENDING)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  payments      Payment[]
+  webhookEvents WebhookEvent[]
+  metaEvents    MetaEvent[]
+
+  @@index([customerEmail])
+  @@index([status])
+  @@index([productSlug])
+  @@map("orders")
+}
+
+// =========================================================================
+// Payment
+// =========================================================================
+
+model Payment {
+  id String @id @default(uuid())
+
+  razorpayPaymentId String @unique @map("razorpay_payment_id")
+
+  orderId String @map("order_id")
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  amountPaise Int    @map("amount_paise")
+  currency    String @default("INR")
+  status      PaymentStatus
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // NOTE: "only one CAPTURED payment per order" is enforced by a partial
+  // unique index added via hand-written migration SQL (Prisma cannot
+  // express a WHERE clause on a unique index). See migration notes.
+
+  @@index([orderId])
+  @@index([status])
+  @@map("payments")
+}
+
+// =========================================================================
+// WebhookEvent
+// =========================================================================
+
+model WebhookEvent {
+  id String @id @default(uuid())
+
+  razorpayEventId String @unique @map("razorpay_event_id")
+  eventName       String @map("event_name")
+
+  orderId String? @map("order_id")
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  // --- Processing metadata ---
+  // Contains PII (email, phone, UPI handle, card metadata, notes) until
+  // payloadRedactedAt is set. Never expose it through an API — read the
+  // webhook_events_audit view, which has no payload column. See
+  // migration 0011 and docs/SECURITY.md "Webhook payload retention".
+  payload         Json
+  signatureValid  Boolean   @map("signature_valid")
+  receivedAt      DateTime  @default(now()) @map("received_at")
+  processedAt     DateTime? @map("processed_at")
+  processingError String?   @map("processing_error")
+
+  // When the payload was narrowed to the retention allowlist; NULL means
+  // it is still verbatim. Declared here so `prisma migrate dev` does not
+  // generate a migration that drops the column and undoes 0011.
+  payloadRedactedAt DateTime? @map("payload_redacted_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@index([eventName])
+  @@index([processedAt])
+  // NOT declared here: webhook_events_payload_retention_idx, a PARTIAL
+  // index on (received_at) WHERE payload_redacted_at IS NULL that serves
+  // the redaction job. Prisma's schema language cannot express a WHERE
+  // clause, so it lives in migration 0011 — like
+  // payments_one_captured_per_order and meta_events_due_idx.
+  @@map("webhook_events")
+}
+
+// =========================================================================
+// MetaEvent
+// =========================================================================
+
+model MetaEvent {
+  id String @id @default(uuid())
+
+  // Deterministic, stable event id (e.g. sha256-derived from payment/order
+  // id) — this is what lets Meta's own dedup work across retries and
+  // across client-Pixel + server-CAPI double reporting.
+  metaEventId String @unique @map("meta_event_id")
+
+  orderId String @map("order_id")
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  eventName  String @map("event_name")
+  product    String
+  valuePaise Int    @map("value_paise")
+  currency   String @default("INR")
+
+  status        MetaEventStatus @default(PENDING)
+  attempts      Int             @default(0)
+  nextAttemptAt DateTime        @default(now()) @map("next_attempt_at")
+
+  // --- Lease locking: prevents two concurrent worker instances from
+  // dispatching the same event. Complements (does not replace) `SELECT
+  // ... FOR UPDATE SKIP LOCKED` at the query layer — the lease survives
+  // a worker crash mid-dispatch, whereas a DB row lock is released the
+  // instant the transaction ends. ---
+  leaseOwner     String?   @map("lease_owner")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+
+  lastError String? @map("last_error")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // NOT declared here, deliberately — see migration 0010:
+  //
+  //   @@index([orderId])              dropped. meta_events_order_id_key
+  //                                   (unique, 0002) is byte-for-byte the
+  //                                   same btree and serves every read.
+  //   @@index([status, nextAttemptAt]) dropped. Replaced by a PARTIAL index
+  //                                   on (next_attempt_at, created_at)
+  //                                   WHERE status = 'PENDING', which
+  //                                   Prisma's schema language cannot
+  //                                   express — so it lives in SQL, like
+  //                                   payments_one_captured_per_order.
+  //
+  // Re-adding either here would make `prisma migrate dev` generate a
+  // migration that recreates them and undoes 0010.
+  @@index([leaseExpiresAt])
+  @@map("meta_events")
+}
+
+// =========================================================================
+// IdempotencyReconciliation
+// =========================================================================
+//
+// Operational table: when a duplicate-processing anomaly is *detected*
+// (e.g. a unique-constraint violation is caught rather than silently
+// hit, or a reconciliation job finds two rows that should be one), a
+// case is opened here for a human to review and close out. This table
+// is not part of the hot payment path — it exists so violations of the
+// idempotency guarantees elsewhere in the schema are auditable and
+// actionable rather than just logged and forgotten.
+
+model IdempotencyReconciliation {
+  id String @id @default(uuid())
+
+  recordType   IdempotencyRecordType @map("record_type")
+  duplicateKey String                @map("duplicate_key")
+
+  // Snapshot of the conflicting record(s) at detection time, for
+  // inspection without needing to reconstruct history from other tables.
+  snapshot    Json
+  recordCount Int @map("record_count")
+
+  status     IdempotencyReconciliationStatus @default(OPEN)
+  resolution String?
+  resolvedBy String?                         @map("resolved_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // One open case per (recordType, duplicateKey): repeated detections of
+  // the same collision should increment recordCount on the existing case,
+  // not spawn new ones.
+  @@unique([recordType, duplicateKey], name: "idempotency_reconciliation_unique_case")
+  @@index([status])
+  @@map("idempotency_reconciliations")
+}
+
+// =========================================================================
+// ProductionIndexMigration
+// =========================================================================
+//
+// Tracks index-creation operations that must run OUTSIDE Prisma's normal
+// transactional migration wrapper — specifically `CREATE INDEX
+// CONCURRENTLY`, which Postgres forbids inside a transaction block and
+// which Prisma's default `migrate deploy` wraps in one. This table is
+// the audit/status ledger for those out-of-band operations (see
+// architecture §9 Migration Strategy) so a partially-applied concurrent
+// index build is visible and re-driveable rather than silently unknown.
+
+model ProductionIndexMigration {
+  id String @id @default(uuid())
+
+  migrationName String @map("migration_name")
+  indexName     String @map("index_name")
+
+  status      ProductionIndexMigrationStatus @default(PENDING) @map("deployment_status")
+  startedAt   DateTime?                      @map("start_time")
+  completedAt DateTime?                      @map("completion_time")
+  error       String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Re-running the deploy script for the same concurrent index build must
+  // be a safe no-op / resumable check, not a duplicate tracking row.
+  @@unique([migrationName, indexName], name: "production_index_migration_unique")
+  @@index([status])
+  @@map("production_index_migrations")
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@acos/core-proposal",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "echo 'integration tests live in /tests/integration' && exit 0"
+  },
+  "dependencies": {
+    "@acos/core-acquisition": "workspace:*",
+    "@acos/core-research": "workspace:*",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  }
+}

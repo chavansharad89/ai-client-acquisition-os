@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<!-- saved from url=(0092)https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/ -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"cred":"cookie","capabilities":{"artifact":"artifact.O-h4mzdy.js","assets":"assets.DhQw8DTi.js","comments":"comments.DcGvuXoo.js","db":"db.DL2sIJ17.js","downloads":"downloads.axDW2QAi.js","embed":"embed.swQslL0W.js","endpoints":"endpoints.BPfoKaE1.js","mcp":"mcp.C8qKIFvQ.js","network":"network.B5UA9Su4.js","permissions":"permissions.DWFFeHI0.js","room":"room.BF1j0KPr.js","sample":"sample.C7KQQdQj.js","self":"artifact.O-h4mzdy.js","user":"user.CCh6oTS_.js"},"transforms":"_transforms.BXjPs0fy.js","comments":"_comments.CoT-GWno.js","translate":"_translate.DqxC5ek1.js","ldx":"_ldx.CqNtBrkk.js"}                                                                                                                                                                                                                                                                                                                                                                                                             </script><script>(function(){"use strict";var Rn=3e5;function tr(t,e){try{const n=t("navigation")[0],o=[n.responseStart,n.redirectEnd-n.redirectStart,n.domContentLoadedEventStart,e()];for(let a=0;a<o.length;a++){if(!(o[a]>=0&&o[a]<=3e5))return;o[a]=o[a]|0}return o}catch{return}}var rr=["light","dark","system"],nr=/^[A-Za-z0-9_-]{1,64}$/,wt=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,or=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function ar(t){const e=t.toLowerCase();return e.startsWith("data-")||e.startsWith("aria-")||or.has(e)}var bt="data-ldx-props";function sr(t,e){if(e.toLowerCase()===bt)return!0;const n=t.getAttribute(bt);if(n===null)return!1;try{const o=JSON.parse(n);if(o===null||typeof o!="object"||Array.isArray(o))return!0;const a=e.toLowerCase();return Object.keys(o).some(s=>s.toLowerCase()===a)}catch{return!0}}var Tn="http://www.w3.org/1999/xhtml",lr="http://www.w3.org/2000/svg",ir=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),cr=new Set(["script","style"]);function ur(t){const e=t.localName.toLowerCase();return t.namespaceURI==="http://www.w3.org/1999/xhtml"?!ir.has(e):t.namespaceURI===lr?!cr.has(e):!1}function Ve(t,e){return t===e||(t===160||t===32)&&(e===160||e===32)}function fr(t,e){const n=t.length,o=e.length;let a=0;for(;a<n&&a<o&&Ve(t.charCodeAt(a),e.charCodeAt(a));)a++;let s=0;for(;s<n-a&&s<o-a&&Ve(t.charCodeAt(n-1-s),e.charCodeAt(o-1-s));)s++;return{p:a,s}}function dr(t,e){const n=t.firstChild;if(t.childNodes.length!==1||n===null||n.nodeType!==Node.TEXT_NODE){t.textContent=e;return}const o=n.data,a=o.length,s=e.length,{p:c,s:d}=fr(o,e);c===a&&d===0&&a===s||n.replaceData(c,a-c-d,e.slice(c,s-d));const O=n.data,S=t.ownerDocument.getSelection?.()??null,P=S!==null&&S.rangeCount>0&&(S.anchorNode===n||S.focusNode===n)?{anchor:S.anchorNode,anchorOffset:S.anchorOffset,focus:S.focusNode,focusOffset:S.focusOffset}:null;let v=-1,T=-1;for(let h=0;h<O.length&&h<e.length;h++){const I=O.charCodeAt(h),$=e.charCodeAt(h);I!==$&&Ve(I,$)&&(v<0&&(v=h),T=h)}const m=v>=0;if(m&&n.replaceData(v,T-v+1,e.slice(v,T+1)),m&&P!==null&&P.anchor!==null&&P.focus!==null)try{S.setBaseAndExtent(P.anchor,P.anchorOffset,P.focus,P.focusOffset)}catch{}}var hr=new Set(["html","head","body","frameset"]);function pr(t){return t.namespaceURI==="http://www.w3.org/1999/xhtml"&&hr.has(t.localName)}function mr(t){if(t===null||typeof t!="object")return!1;const e=t;if(typeof e.target!="string"||!nr.test(e.target)||e.text!==void 0&&typeof e.text!="string")return!1;if(e.attrsSet!==void 0){if(e.attrsSet===null||typeof e.attrsSet!="object")return!1;for(const[n,o]of Object.entries(e.attrsSet))if(!wt.test(n)||typeof o!="string")return!1}if(e.attrsRemoved!==void 0){if(!Array.isArray(e.attrsRemoved))return!1;for(const n of e.attrsRemoved)if(typeof n!="string"||!wt.test(n))return!1}return!0}function vr(t,e){if(t===null||typeof t!="object")return!1;const{seq:n,elements:o}=t;if(typeof n!="number"||!Number.isSafeInteger(n)||!Array.isArray(o)||o.length===0||o.length>64)return!1;for(let a=0;a<o.length;a++)if(!e(o[a]))return!1;return!0}function _r(t){return t===null||typeof t!="object"?!1:vr(t.__frame_patch,mr)}function yr(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_init;return e!==null&&typeof e=="object"}function gr(t){return t!==null&&typeof t=="object"&&t.__frame_size_poke===!0}function wr(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_host_visible;return e!==null&&typeof e=="object"&&typeof e.visible=="boolean"}function br(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_theme;if(e===null||typeof e!="object")return!1;const n=e.theme;return typeof n=="string"&&rr.includes(n)}var Er=["ok","empty","snapshot_error","snapshot_timeout","unclonable","oversize","unavailable","restore_error","withheld"],Sr=["TypeError","RangeError","ReferenceError","SyntaxError","DataCloneError","QuotaExceededError","AbortError","TimeoutError","SecurityError","Error","other"];function kr(t){return typeof t=="string"&&Sr.includes(t)?t:"other"}var Ar=Object.freeze({until:null,now:!1}),Rr="__claude_hot",Tr="__claude_hot_in",Or=/^__claude_hot(?:_in)?(?::|$)/,Et=/^[0-9a-z]{1,32}$/,We=t=>t===void 0?Rr:"__claude_hot:"+t,ye=t=>t===void 0?Tr:"__claude_hot_in:"+t;function Lr(t,e){const n=[];for(let o=0;o<t.length;o++){const a=t.key(o);a!==null&&a!==e&&Or.test(a)&&n.push(a)}for(const o of n)t.removeItem(o)}function Mr(t){let e=null;try{e=B(JSON.parse(t)?.hot)}catch{return null}return e===null||typeof e.k!="string"||!Et.test(e.k)?null:ae(e.g)?{k:e.k,g:e.g}:{k:e.k}}var On=262144,Pr=3e3,Nr=5e3,St=/^[a-z0-9._:-]{1,64}$/,Cr=["none","hot-restart","hard-reload"],jr=["asset","doc","added","removed"],Ir=1500,Fr=/^[0-9a-f]{64}$/;function B(t){return t!==null&&typeof t=="object"?t:null}function ae(t){return typeof t=="number"&&Number.isInteger(t)&&t>=0&&t<2**31}function kt(t){return t===void 0||typeof t=="number"&&Number.isFinite(t)}function xr(t){return t===void 0||typeof t=="string"&&St.test(t)}function At(t){const e=B(t);return e!==null&&(e.until===null||typeof e.until=="number"&&Number.isFinite(e.until))&&typeof e.now=="boolean"}function Xe(t){const e=B(t);return e!==null&&typeof e.ver=="string"&&e.ver.length<=128&&kt(e.seq)&&typeof e.handoff=="string"&&Er.includes(e.handoff)&&xr(e.note)}function Dr(t){const e=B(t);return e!==null&&ae(e.gen)&&(e.phase==="final"||e.phase==="pending")&&(e.from===null||Xe(e.from))}function Hr(t){const e=B(t);return e!==null&&e.kv===1&&ae(e.gen)&&Xe(e.from)&&Object.hasOwn(e,"data")}function qr(t){const e=B(t);return e!==null&&e.__frame_hot_snapshot===!0&&ae(e.gen)&&typeof e.timeoutMs=="number"&&e.timeoutMs>=0&&e.timeoutMs<=6e4&&(e.handoff===void 0||typeof e.handoff=="boolean")&&(e.deadline===void 0||At(e.deadline))&&kt(e.seq)&&(e.note===void 0||typeof e.note=="string")&&(e.key===void 0||typeof e.key=="string")}function Br(t){const e=B(t);return e!==null&&e.__frame_hot_start===!0&&ae(e.gen)&&Xe(e.from)}function Ur(t){return typeof t=="string"&&t.length>=1&&t.length<=128}function Rt(t){return B(t)!==null&&!Array.isArray(t)}function Gr(t){const e=B(t);return e!==null&&e.__frame_cap_grant===!0&&typeof e.cap=="string"&&Ur(e.ver)&&(e.grant===void 0||Rt(e.grant))&&(e.budgets===void 0||Rt(e.budgets)&&Object.values(e.budgets).every(Number.isFinite))&&(e.brokerGen===void 0||ae(e.brokerGen))}function zr(t){const e=B(t);return e!==null&&e.__frame_cap_rewired===!0&&(e.caps===void 0||Array.isArray(e.caps)&&e.caps.every(n=>typeof n=="string"))&&(e.brokerGen===void 0||ae(e.brokerGen))}function Tt(t){const e=B(t);return e!==null&&typeof e.ver=="string"&&e.ver.length<=128&&Number.isFinite(e.seq)}function Ot(t){if(t==null||typeof t=="string")return!0;const e=B(t);return e!==null&&typeof e.doc=="string"&&typeof e.profile=="string"}function Kr(t){const e=B(t);return e!==null&&typeof e.path=="string"&&jr.includes(e.kind)&&Ot(e.from)&&Ot(e.to)}function $r(t){return t===null?null:Object.freeze(t.filter(Kr))}function Vr(t){const e=B(t);return e!==null&&e.__frame_hot_update===!0&&Number.isFinite(e.id)&&Tt(e.from)&&Tt(e.to)&&(e.changed===null||Array.isArray(e.changed))&&Cr.includes(e.required)&&At(e.deadline)&&typeof e.verdictTimeoutMs=="number"&&e.verdictTimeoutMs>=0&&e.verdictTimeoutMs<=6e4&&(e.preflight===void 0||typeof e.preflight=="string"&&Fr.test(e.preflight))}var se=/^[\w.-]+\.js$/;function Wr(t,e,n){return n?"inert":typeof e=="string"&&se.test(e)?t?[e]:"inert":t?"inert":"framed"}var Lt=Object.freeze({[Symbol("claude.hot.restart")]:!0});function Mt(t,e){let n;try{n=t??sessionStorage}catch{return null}const o=We(e?.k),a=ye(e?.k);let s=null;try{s=n.getItem(o)}catch{}try{n.removeItem(o)}catch{}try{Lr(n,a)}catch{}let c=null;if(s!==null&&!(e!==null&&e.g===void 0))try{const d=JSON.parse(s);Hr(d)&&(e===null||d.gen===e.g)&&(c=d)}catch{}if(c===null)try{n.removeItem(a)}catch{}return c}function Xr(){const t=/^\/_f\/([^/]{1,128})\//.exec(location.pathname);return t?t[1]:""}var Yr=/^[^/\\?#]{1,128}$/,Pt=t=>Yr.test(t)&&t!=="."&&t!=="..";function Nt(t,e,n){const o=new URL(t),a="/_f/"+e+"/";if(!e||!o.pathname.startsWith(a)||!Pt(n))return null;const s=o.search.slice(1).split("&").filter(c=>!/^__frame_t(?:=|$)/.test(c)).join("&");return o.origin+"/_f/"+n+"/"+o.pathname.slice(a.length)+(s?"?"+s:"")+o.hash}var Ce="{}";function ge(t){if(!t)return null;const e={ver:t.ver,handoff:t.handoff};return t.seq!==void 0&&(e.seq=t.seq),t.note!==void 0&&(e.note=t.note),e}function Ct(t,e){return t!==null&&t.note===void 0&&e?.note!==void 0?{...t,note:e.note}:t}function jt(t){const e=t?.k;return e!==null&&typeof e=="object"?e:void 0}function Jr(t,e,n,o=null){const a=setTimeout,s=clearTimeout,c=queueMicrotask,d=performance.now.bind(performance),O=new TextEncoder;let S=null,P=null;try{S=history,P=S.replaceState.bind(S)}catch{}const v=(...r)=>{try{console.warn(...r)}catch{}};let T=Xr(),m=null;try{m=sessionStorage}catch{}const h={storage:m,fetch:typeof fetch=="function"?fetch.bind(globalThis):null,entry:location.origin+location.pathname+location.search,ver:T,key:o?.k};let I=o?.k;const $=typeof requestAnimationFrame=="function"?requestAnimationFrame:r=>a(()=>r(d()),16);let y=e?.data??{},N=ge(e?.from),A=e?.gen??0,F=e!==null,V=!1,Q=!1,W=null,Se=!1;const ke=new AbortController;let Ae=null,q=null,Re=null,Te=!1,i=()=>{};const p=new Promise(r=>{i=r});let g=!1,x=!1,C=!1,D,L=null,ce=!1,De=!1,re=!1,Oe=!1,ne=!1,de=!1;const oe=r=>{for(const u of[We(r),ye(r)])try{m?.removeItem(u)}catch{}},H=(r,u)=>{try{u!==null&&n.post(r,u)}catch{}},he=()=>ne||=re&&(q===null||Oe),X=()=>{const r={__frame_hot:!0,ready:q!==null,accept:Re!==null,demand:!0};de=!ne,de&&(r.booting=!0),g&&(r.readData=!0),C&&(r.threw=!0),L?.assess&&(r.preflight=!0),H(r,W)};let Le=!1,Me=!1,l=!1,w=!1;const _=()=>{Le||!Se||l||(Le=!0,H({__frame_reveal_hold:!0},"*"))},M=()=>new Promise(r=>{let u,f=0;const b=j=>{if(u===void 0)u=j;else if(j!==u||++f>=8){r();return}try{$(b)}catch{r()}};try{$(b)}catch{r()}}),Y=()=>{l=!0,H({__frame_reveal_ready:!0},"*")},K=r=>{Me||(Me=!0,r.then(u=>{if(u===!1)return;let f=null;try{f=L?.settle?.()??null}catch{}return(f===null?M():new Promise(b=>{a(b,50),Promise.resolve(f).then(b,b)}).then(M)).then(Y)}))},Pe=()=>{if(w||!l)return;w=!0;const r=()=>{try{L?.afterReveal?.()}catch{}};r(),M().then(()=>{r(),Y()})},He=(r=!1)=>{if(Te||q===null||!F||!Q)return;Te=!0;const u=q,f=y;c(()=>{let b;try{b=u(f)}catch(U){throw i(!1),U}let j=!1;try{j=typeof b?.then=="function"}catch{}if(!j){i(!0);return}Promise.resolve(b).then(()=>i(!0),U=>{i(!1),c(()=>{throw U})})}),K(r?p:n.dcl.then(()=>p))},qe=r=>typeof r=="string"&&St.test(r)?r:void 0,ct=r=>{const u={__frame_hot_restart:!0},f=qe(r?.note);f!==void 0&&(u.note=f),r?.required==="hard-reload"&&(u.required="hard-reload"),H(u,W)},Vt=Object.freeze({get data(){return Q||(x=!0),!F&&!g&&(g=!0,Q&&X()),y},get from(){return N},get gen(){return A},signal:ke.signal,snapshot(r){typeof r=="function"&&(Ae=r)},ready(r){typeof r!="function"||q!==null||(q=r,_(),X(),V&&H({__frame_hot_ready:!0,gen:A},W),He())},accept(r){typeof r=="function"&&(Re=r,X())},restart(r){const u={note:r?.note,required:r?.required};if(Q){ct(u);return}const f=D;D={note:qe(f?.note)??u.note,required:f?.required==="hard-reload"||u.required==="hard-reload"?"hard-reload":void 0}}});let Be=null,Wt=()=>{};const yn=new Promise(r=>{Wt=r});let gn=null;const Xt=()=>gn??=n.dcl.then(()=>{let r=!1;try{r=Be!==null&&Be.expect()}catch{}if(!r)return;const u=Be.maxMs;return new Promise(f=>{yn.then(f),a(f,u)})}),Yt=()=>{if(!ce||De||L===null)return;De=!0;const r=L;Xt().then(()=>{try{l||r.afterStart(jt(e),!1)}catch{}})},Jt=r=>{e!==null&&x&&(g=!0),y={},N=null,A=0;try{m?.removeItem(ye(o?.k))}catch{}e!==null&&!r&&K(n.dcl.then(()=>q!==null?p:void 0))},wn=()=>{ce=!0,K(Xt().then(()=>q!==null?p:void 0)),Yt()};try{addEventListener("error",()=>{C||q!==null||(C=!0,X())})}catch{}const Zt=()=>{a(()=>{!ne&&he()&&de&&X()},0)};try{re=document.readyState==="complete",re||addEventListener("load",()=>{re=!0,Zt()},{once:!0})}catch{re=!0}he(),p.then(()=>{Oe=!0,Zt()});let ue=-1,ut,ft,Ne=!0,dt=!1,ht,Ue=null;const pt=r=>{const u=Ue===null;Ue=Ne&&r[0]!=="withheld"?r:["withheld",r[1],Ce];let f=r[0];if(Ne&&f!=="withheld"){const j={ver:T,handoff:f};ut!==void 0&&(j.seq=ut),ft!==void 0&&(j.note=ft);try{if(m===null)throw new Error("no storage");m.setItem(We(I),'{"kv":1,"gen":'+ue+',"from":'+JSON.stringify(j)+(ht!==void 0?',"k":'+JSON.stringify(ht):"")+',"data":'+(f==="ok"?r[2]:Ce)+"}")}catch{f="unavailable"}}else{f="withheld",oe(I);try{L?.release?.()}catch{}}const b={__frame_hot_snapshotted:!0,gen:ue,handoff:f,bytes:r[1]};r[3]!==void 0&&(b.errName=r[3]),H(b,W),u&&(f==="snapshot_error"||f==="unclonable"||f==="oversize")&&v("claude.hot: snapshot",f,r[3])},pe=r=>{try{return kr(r?.name)}catch{return"other"}},me=(r,u,f=0)=>pt(u===void 0?[r,f,Ce]:[r,f,Ce,pe(u)]),bn=r=>{if(r.gen<=ue)return;const u=ue>=0;if(ue=r.gen,ut=r.seq,ft=qe(r.note),typeof r.key=="string"&&Et.test(r.key)&&r.key!==I&&(oe(I),I=r.key),Ne&&=r.handoff!==!1,u){Ue!==null?pt(Ue):dt&&H({__frame_hot_held:!0,gen:ue},W);return}ke.abort();const f=Object.freeze({handoff:Ne,timeoutMs:r.timeoutMs,deadline:r.deadline??Ar}),b=Ae,j=()=>{if(Ne)try{ht=L?.capture()}catch{}if(b===null){me("empty");return}let k=!1;const G=a(()=>{k||(k=!0,me("snapshot_timeout"))},Math.max(0,f.timeoutMs));Promise.resolve().then(()=>b(f)).then(ve=>{if(k)return;k=!0,s(G);let ee;try{ee=JSON.stringify(ve)}catch(mt){me("unclonable",mt);return}if(typeof ee!="string"){me("unclonable");return}let te=ee.length;try{te=O.encode(ee).length}catch{}if(te>262144){me("oversize",void 0,te);return}pt(["ok",te,ee])},ve=>{k||(k=!0,s(G),me("snapshot_error",ve))})};let U=null;try{U=L?.holdForIme()??null}catch{}if(U===null)j();else{dt=!0,H({__frame_hot_held:!0,gen:ue},W);const k=()=>{dt=!1,j()};U.then(k,k)}},En=r=>{if(!V||F||q===null||r.gen!==A)return;let u=null;try{u=Mt(m,o&&{k:o.k,g:r.gen})}catch{}if(u!==null&&u.gen!==r.gen){u=null;try{m?.removeItem(ye(o?.k))}catch{}}y=u?.data??{},N=Ct(ge(u?.from??r.from),ge(r.from)),u!==null&&(A=u.gen),F=!0,V=!1;const f=jt(u);p.then(b=>{try{b&&L?.afterStart(f,!0)}catch{}}),He(!0)};let Ge=0;const Sn=r=>{const u=Re;if(u===null||r.id<=Ge)return;Ge=r.id;const f=L?.assess;if(r.preflight===void 0||f===void 0){Qt(r,u);return}let b=!1;const j=G=>{b||(b=!0,s(k),r.id===Ge&&Qt(r,u,G))},U=()=>j(f.timeout(r)),k=a(U,Ir+100);f.run(r,window).then(j,U)},Qt=(r,u,f)=>{let b,j=!1,U=!1,k,G,ve=null;const ee=E=>{if(U)return!1;if(k!==void 0&&k!==E)return v(`claude.hot: u.${E}() ignored - u.${k}() was called first`),!1;const Z=k===void 0;return k=E,Z},te=E=>{k="restart",v(`claude.hot: ${E} - restarting`)},mt=()=>{if(!ee("adopt")||r.id!==Ge)return;const E=r.to.ver;if(ze.required!=="none"){te(`u.adopt() needs required 'none', it is '${ze.required}'`);return}if(!Pt(E)){te("u.adopt() cannot address this version");return}if(!T||E===T)return;const Z=T,J=h.entry;let Ke="",_t,_e=null,$e;try{Ke=location.href,_t=S.state,_e=Nt(Ke,Z,E),_e!==null&&(P(_t,"",_e),location.pathname.startsWith("/_f/"+E+"/")?_e=location.href:$e="navigate event canceled")}catch(gt){$e=pe(gt)}if($e!==void 0){G="adopt_failed",te(`adopt_failed ${$e}; URL not changed`);return}_e===null?(G="adopt_skipped",v(`claude.hot: adopt_skipped - page already left /_f/${Z}/; URL not changed, update still applied`)):G="adopted",T=h.ver=E;try{h.entry=Nt(J,Z,E)??J}catch{}const yt=_e;ve=()=>{if(T===E){if(yt!==null)try{if(location.href!==yt)v("claude.hot: adopt_revert_skipped - update not applied; URL left where the page navigated");else{if(P(_t,"",Ke),location.href!==Ke){v("claude.hot: adopt_revert_failed navigate event canceled - URL still at the new version");return}G="adopt_reverted",v("claude.hot: adopt_reverted - adopt() was called but the handler threw; URL restored")}}catch(gt){v(`claude.hot: adopt_revert_failed ${pe(gt)} - URL still at the new version`);return}T=h.ver=Z,h.entry=J,yt===null&&(G=void 0)}}},ze=Object.freeze({from:{ver:r.from.ver,seq:r.from.seq},to:{ver:r.to.ver,seq:r.to.seq},changed:$r(r.changed),required:r.required,deadline:r.deadline,adopt:mt,defer(){return ee("defer")&&ze.deadline.now&&te("u.defer() past the deadline"),Lt},restart(E){return ee("restart"),k==="restart"&&!U&&(b??=qe(E?.note),j||=E?.required==="hard-reload"),Lt},...f?.update}),kn=(E,Z)=>{U=!0,E==="threw"?(ve?.(),b??=pe(Z).toLowerCase()):k===void 0&&v(E==="timeout"?"claude.hot: accept handler did not answer in time - restarting":"claude.hot: accept handler settled without defer/restart/adopt - restarting");const J={__frame_hot_verdict:!0,id:r.id};J.verdict=E==="threw"||k===void 0||k==="restart"?"restart":k==="adopt"?"applied":"deferred",J.verdict==="restart"&&(j&&(J.required="hard-reload"),b!==void 0&&(J.note=b)),G!==void 0&&(J.verdict==="applied"||G!=="adopted")&&(J.adopt=G),H(Object.assign(J,f?.verdict),W)};let er=!1;const vt=(E,Z)=>er?!1:(er=!0,s(An),kn(E,Z),!0),An=a(()=>vt("timeout"),r.verdictTimeoutMs);Promise.resolve().then(()=>u(ze)).then(()=>vt("settled"),E=>{!vt("threw",E)&&k==="adopt"&&ct({note:pe(E).toLowerCase()}),v("claude.hot: accept",pe(E))})};try{t.hot===void 0&&Object.defineProperty(t,"hot",{value:Vt,writable:!1,configurable:!1,enumerable:!1})}catch{}return{hot:Vt,boot:h,afterConnect(){Se=!0,(e!==null||q!==null)&&_()},onInit(r,u){W=u,Q=!0;const f=Dr(r)?r:null;f?.phase==="final"&&e!==null&&e.gen===f.gen?(F=!0,N=Ct(N,ge(f.from)),wn()):(V=f?.phase==="pending",Jt(V),F=!V,A=f?.gen??0,N=ge(f?.from)),X(),de&&a(()=>{ne||(ne=!0,X())},Nr),V&&q!==null&&H({__frame_hot_ready:!0,gen:A},u),D!==void 0&&(ct(D),D=void 0),He()},onNoInit(){Q=!0,Jt(!1),F=!0,He()},onShell(r){return r?.__frame_revealed===!0?(Pe(),!1):qr(r)?(bn(r),!0):Br(r)?(En(r),!0):Vr(r)?(Sn(r),!0):!1},attachExtras(r){L=r,Yt(),r.assess&&X()},inSlot:()=>ye(I),hydration(r,u){Be??={expect:r,maxMs:u}},hydrated(){Wt()},carried(){return F?y:{}},presented:()=>l}}var Ln="frame_ldx_runtime",Zr="frame_ldx_build",Mn="script#an-form",Qr=256;function It(t,e,n){for(const o of t)n(o)&&t.delete(o);t.size>=Qr&&!t.has(e)&&t.delete(t.values().next().value),t.add(e)}function Ye(t,e,n){try{const o=t[e];if(typeof o!="function")return;t[e]=function(...a){const s=o.apply(this,a);try{n(this)}catch{}return s}}catch{}}var Je;function en(){if(Je)return Je;const t={media:new Set,contexts:new Set,onStart:null,onPause:null};Je=t;const e=window.HTMLMediaElement?.prototype;e&&(Ye(e,"play",a=>{It(t.media,a,s=>s.paused),t.onStart?.(a)}),Ye(e,"pause",a=>t.onPause?.(a)));const n=window.AudioContext,o=window.AudioNode?.prototype;return n&&o&&Ye(o,"connect",a=>{const s=a.context;s instanceof n&&(It(t.contexts,s,c=>c.state==="closed"),t.onStart?.(s))}),t}function tn(t){let e=window;for(let n=0;e.parent&&e.parent!==e&&n<8;n++)if(e=e.parent,t(e))return!0;return!1}function rn(){let t=null;const e=()=>t??parent,n=o=>t?o===t:tn(a=>a===o);return{post(o,a){if(t){e().postMessage(o,a);return}let s=parent;for(let c=0;c<8&&(s.postMessage(o,a),!(!s.parent||s.parent===s));c++)s=s.parent},on(o){const a=s=>{const c=s.source;n(c)&&o(s.data,s.origin,s.isTrusted,()=>{t??=c})};return addEventListener("message",a),()=>removeEventListener("message",a)},port:o=>({post(a,s){if(s?.activation){e().postMessage(a,{targetOrigin:o,includeUserActivation:!0});return}if(s?.transfer){e().postMessage(a,o,s.transfer);return}e().postMessage(a,o)},on(a,s){const c=d=>{n(d.source)&&d.origin===o&&a(d.data,d)};return addEventListener("message",c,s),()=>removeEventListener("message",c,s)}})}}function nn(){const t={post:()=>{},on:()=>()=>{}};return{...t,port:()=>t}}var Ze="__frame_scroll",on=150,an=310,sn=160,ln=3e4;function cn(){let t=0,e=!1,n=!1,o=!1,a=0,s=null;const c=y=>{try{sessionStorage.setItem(Ze,JSON.stringify({y}))}catch{}},d=()=>{if(clearTimeout(t),s===null)return;const y=s;s=null,c(y)},O=()=>{if(e){e=!1;return}n=!0,s=scrollY,clearTimeout(t),t=setTimeout(d,on)};try{addEventListener("scroll",O,{passive:!0}),addEventListener("pagehide",d)}catch{}const S=()=>{let y;try{y=sessionStorage.getItem(Ze)}catch{return null}if(y===null)return null;let N;try{N=JSON.parse(y)}catch{N=null}const A=N?.y;if(!(typeof A=="number"&&Number.isFinite(A)&&A>=0)){try{sessionStorage.removeItem(Ze)}catch{}return null}return A};let P=!1;const v=y=>{try{const N=scrollY;scrollTo({top:y,left:0,behavior:"instant"}),a=y,o=!0,clearTimeout(t),s=null,c(y);const A=scrollY;A!==N&&(e=!0),A!==y&&!P&&(P=!0,addEventListener("load",()=>{try{if(scrollY===A){const F=S();v(F!==null?F:a)}}catch{}},{once:!0}))}catch{}},T=()=>{try{return!!location.hash}catch{return!0}};let m=!1;const h=()=>{try{if(m||innerWidth>an||innerHeight>sn)return;m=!0;const y=Date.now(),N=()=>{try{removeEventListener("resize",N)}catch{}if(Date.now()-y>ln||n||T())return;const A=S();v(A!==null?A:a)};addEventListener("resize",N)}catch{}};let I=!1,$=!1;return{restore(){if(I||(I=!0,T()))return;const y=S();y!==null&&(v(y),h())},promoted(){if($||($=!0,T()))return;const y=S();y!==null?(v(y),h()):o&&v(a)}}}function un(t,e,n,o){let a=null;try{a=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:O=>O})??null}catch{}const s=window.Worker,c=s?.prototype,d=Object.freeze({Worker:s,workerOn:c?.addEventListener,workerPost:c?.postMessage,workerTerminate:c?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,now:Date.now,policy:a,origins:e});n(t).then(O=>O?.bootTopLevel?O.bootTopLevel(d,o):o.settle()).catch(()=>o.settle())}var Pn="modulepreload",Nn=function(t){return"/"+t},Cn={},fn=function(e,n,o){let a=Promise.resolve();function s(c){const d=new Event("vite:preloadError",{cancelable:!0});if(d.payload=c,window.dispatchEvent(d),!d.defaultPrevented)throw c}return a.then(c=>{for(const d of c||[])d.status==="rejected"&&s(d.reason);return e().catch(s)})},dn=window===top,Ft=Object.getOwnPropertyDescriptor(window,"claude"),je=Wr(dn,window.__FRAME_PREAMBLE?.topLevel,Ft?.writable===!1),Qe=typeof je=="object"&&je[0],R=Qe?nn():rn();(function(){const t=Object.defineProperty,e=globalThis,n=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let o=0;for(let a=0;a<n.length;a++){const s=n[a];try{t(e,s,{value:void 0,writable:!1,configurable:!1})}catch{try{delete e[s]}catch{}try{t(e,s,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof e[s]=="function"&&o++}if(o&&je==="framed")try{R.post({__frame_rtc_lockdown_failed:o},"*")}catch{}})();var xt=1e4,hn=2e3,et=2e3,Dt=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function Ht(t){for(const e of Dt)if(e.endsWith(":*"))try{const n=new URL(t);if(`${n.protocol}//${n.hostname}:*`===e)return!0}catch{}else if(t===e)return!0;return!1}var we=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),Ie=window.__FRAME_PREAMBLE?.transforms,tt=window.__FRAME_PREAMBLE?.comments,rt=window.__FRAME_PREAMBLE?.translate,be=window.__FRAME_PREAMBLE?.ldx;function qt(t){return fn(()=>import("/_runtime/"+t),void 0)}var Ee=new Set,pn=setTimeout,mn=800+800*Math.random();function le(t){return qt(t).catch(()=>new Promise(e=>pn(e,mn)).then(()=>qt(t+"?r=1")).then(e=>(e!==void 0&&Ee.add(t),e)))}function Bt(t,e,n){return{contract:t.contract,changes:new Set(t.changes??[]),flags:new Set(t.flags??[]),capabilities:t.capabilities??{},capBudgets:t.capBudgets??{},brokerGen:t.brokerGen,transforms:new Map,shellOrigin:e,shell:n,mount:it,hooks:Fe,pipe:()=>({wrap:(o,a)=>(...s)=>{try{return a(...s)}catch(c){return Promise.reject(c)}}})}}var fe=null,z=null;function Ut(t,e,n){try{Object.defineProperty(t,e,{value:n,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(t,e,{value:n,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var nt=!1,Fe={editBefore:null,edit:null};function vn(t,e,n=!1){const o=[];let a;if(n)try{Fe.editBefore?.(t)}catch{}for(const s of t.elements){const c=document.querySelector(`[data-id="${s.target}"]`);if(!c){a=s.target;break}if([...Object.keys(s.attrsSet??{}),...s.attrsRemoved??[]].some(d=>!ar(d)||sr(c,d))){a=s.target;break}if(s.text!==void 0&&(!ur(c)||pr(c))){a=s.target;break}for(const[d,O]of Object.entries(s.attrsSet??{}))if(!zt(c,d)){try{c.setAttribute(d,O)}catch{}Gt(c,d,O)}for(const d of s.attrsRemoved??[])zt(c,d)||(c.removeAttribute(d),Gt(c,d,null));typeof s.text=="string"&&dr(c,s.text),o.push(s.target)}if(n)try{Fe.edit?.(t.seq,o,a)}catch{}if(a!==void 0){R.post({__frame_patch_miss:{seq:t.seq}},e);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:t.seq,targets:o}}))}catch{}}function Gt(t,e,n){if(!(t instanceof HTMLInputElement))return;const o=e.toLowerCase();o==="checked"?t.checked=n!==null:o==="value"&&t.type!=="file"&&(t.value=n??"")}function zt(t,e){const n=e.toLowerCase(),o=t;return n==="data-id"||(n==="value"||n==="checked")&&(o.__artifactSecret===!0||/^(password|hidden|file)$/.test(o.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${t.getAttribute("autocomplete")??""} ${o.autocomplete??""}`))}function Kt(t){const e=document.documentElement;t==="light"||t==="dark"?(e.dataset.theme=t,e.style.colorScheme=t,nt=!0):nt&&(delete e.dataset.theme,e.style.colorScheme="",nt=!1)}var ie=new Map,ot=null;function at(){let t;const e={u:new Promise(n=>{t=n}),r:n=>{e.done=!0,t(n)},done:!1,nulled:!1};return e}function xe(t,e){t.nulled=!0,t.ver=e,t.r(null)}function st(t,e){for(const[n,o]of ie)o.done||(e&&o.asked?e(n,o):xe(o,t))}var _n=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),lt=!1,it=(t,e)=>{let n=ie.get(t);if(n?.nulled&&lt)n=at(),ie.set(t,n);else if(!n||n.done){n?.nulled&&z&&R.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:t,phase:"install"}},z);return}const o=typeof e=="function"?Object.setPrototypeOf(e,_n):Object.assign(Object.create(null),e);typeof o.then=="function"&&delete o.then,n.want=void 0,n.r(Object.freeze(o))};function $t(){const t=Ft?.value??{};Ut(window,"claude",t);for(const e of Object.keys(we)){if(t[e]!==void 0){Ut(t,e,t[e]);continue}ie.set(e,at())}if(t.use===void 0){const e=n=>{if(typeof n!="string"||!Object.hasOwn(we,n))return Promise.resolve(null);let o=ie.get(n);return o?(ot&&(o.nulled||o.want!==void 0)&&(o=ot(n,o)),o.asked=!0,o.u):Promise.resolve(t[n]??null)};try{Object.defineProperty(t,"use",{value:e,writable:!0,configurable:!0,enumerable:!1})}catch{}}return t}if(je==="framed"){const t=Ie&&se.test(Ie)?le(Ie).catch(()=>{}):Promise.resolve(void 0),e=i=>{if(i.type==="auxclick"&&i.button!==1)return;const p=i.target,g=p&&p.closest?p.closest("a[href],area[href]"):null;if(!g)return;const x=g.getAttribute("href");if(!x)return;let C;try{C=new URL(x,document.baseURI)}catch{return}if((C.protocol==="http:"||C.protocol==="https:")&&C.origin!==location.origin){i.preventDefault();const D=(g.getAttribute("target")??"").toLowerCase(),L=i.type==="auxclick"||i.metaKey||i.ctrlKey||i.shiftKey||i.altKey||!["","_self","_top","_parent"].includes(D);R.post({__frame_nav:!0,url:C.href,newTab:L},"*")}};addEventListener("click",e,!0),addEventListener("auxclick",e,!0);const n={},o=i=>{i.isTrusted&&(n.pointer=!0)},a=i=>{i.isTrusted&&(n.click=!0)};addEventListener("pointermove",o,{capture:!0,passive:!0}),addEventListener("click",a,{capture:!0,passive:!0});const s={cb:null};addEventListener("keydown",i=>s.cb?.(i),!0);const c={cb:null};addEventListener("keydown",i=>c.cb?.(i));const d=en();t.then(i=>i?.installEscapeForward?.(s,p=>{z&&R.post(p,z)})),t.then(i=>{try{i?.installFocusKeep?.()}catch{}}),t.then(i=>{if(!i?.wireNav)return;const p=R.port("*");i.wireNav(p),removeEventListener("click",e,!0),removeEventListener("auxclick",e,!0),removeEventListener("pointermove",o,!0),removeEventListener("click",a,!0),i.wireEngagement?.(n,p,d)});let O=null;try{O=cn()}catch{}const S=document.readyState==="loading"?new Promise(i=>document.addEventListener("DOMContentLoaded",()=>i(),{once:!0})):Promise.resolve();let P=null,v=null;try{v=Mr(window.name),P=Mt(null,v)}catch{}const T=$t();let m=null;try{m=Jr(T,P,{post:(i,p)=>R.post(i,p),dcl:S},v)}catch{}t.then(i=>{try{m&&i?.installHotExtras?.(m)}catch{}});let h=null;const I=()=>Array.isArray(h?.flags)&&h.flags.includes("frame_ldx_runtime")&&!!be&&se.test(be)&&document.querySelector("script#an-form")!==null;try{m?.hydration(I,Pr)}catch{}let $=null,y=0;const N=R.on((i,p,g,x)=>{Ht(p)&&yr(i)&&(x(),h=i.__frame_init,z=p,N(),clearTimeout(y),$?.())});R.post({__frame_connect:!0},"*");try{m?.afterConnect()}catch{}const A=setTimeout,F=clearTimeout;let V=()=>NaN,Q=()=>[];try{V=performance.now.bind(performance),Q=performance.getEntriesByType.bind(performance)}catch{}let W=0;const Se=()=>{try{R.post({__frame_alive:!0},"*")}catch{}W=A(Se,hn)},ke=()=>F(W);Se(),addEventListener("load",ke,{once:!0});const Ae=new Promise(i=>{$=i,y=setTimeout(()=>{N(),i()},xt)}),q=new WeakSet;addEventListener("error",i=>{i.target&&q.add(i.target)},!0);const Re=()=>{let i=[];try{i=[...document.querySelectorAll("link[rel~=stylesheet]:not([rel~=alternate])")].filter(g=>!g.sheet&&!g.disabled&&!q.has(g)&&g.getAttribute("href")&&URL.canParse(g.href)&&(!g.media||matchMedia(g.media).matches))}catch{}let p=i.length;return p===0?Promise.resolve():new Promise(g=>{try{const x=et-V(),C=A(g,x>0?x<et?x:et:0),D=()=>{--p===0&&(F(C),g())};for(const L of i)L.addEventListener("load",D,{once:!0}),L.addEventListener("error",D,{once:!0})}catch{g()}})};S.then(()=>{try{O?.restore()}catch{}}),Promise.all([Ae,S,t]).then(([,,i])=>{if(h?.hostOverlays!==!0||!z)return;let p=!1;try{p=i?.declaresCover?.()===!0}catch{}R.post({__frame_layout:{cover:p}},z)});const Te={cb:null};R.on((i,p)=>{if(Ht(p)&&gr(i)){try{O?.promoted()}catch{}Te.cb?.()}}),Ae.then(async()=>{if(!h||!z){st();try{m?.onNoInit()}catch{}return}if(Kt(h.theme),h.hostVisible===!1&&t.then(l=>l?.applyHostVisible?.(!1,d)),h.hostKeys!==void 0){const l=z,w=h.hostKeys;t.then(_=>_?.installHostKeyForward?.(c,w,M=>R.post(M,l)))}try{m?.onInit(h.hot,z)}catch{}const i=z,p=R.port(i),g=(l,w)=>R.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:l,phase:w}},i),x=l=>R.post({__frame_cap_recovered:{cap:l}},i);let C=h.brokerGen;const D=()=>m?.boot.ver??"",L=D(),ce=(l,w)=>{const _=D();F(w.t),w.want=_,w.t=A(()=>{w.done||xe(w,_)},xt),R.post({__frame_cap_want:!0,cap:l,ver:_},i)},De=(l,w)=>{const _=ie.get(l.cap),M=we[l.cap];if(!w||!_||_.done||_.want!==l.ver||!se.test(M))return;if(F(_.t),_.want=void 0,C=l.brokerGen??C,l.ver!==D()){ce(l.cap,_);return}if(!l.grant||l.cap==="network"){xe(_,l.ver);return}const Y=fe,K=fe={...Y,capabilities:{...Y.capabilities,[l.cap]:l.grant},capBudgets:{...Y.capBudgets,[l.cap]:{...Y.capBudgets[l.cap],...l.budgets}}};le(M).then(Pe=>{Ee.has(M)&&x(l.cap),K.brokerGen=C,lt=!0;try{Pe?.install?.(K)}catch{g(l.cap,"install")}finally{lt=!1}},()=>g(l.cap)).then(()=>{_.done||xe(_,l.ver)})};let re=!1,Oe=!1;R.on((l,w,_)=>{if(w!==i)return;try{if(m?.onShell(l))return}catch{}if(br(l)&&Kt(l.__frame_theme.theme),Gr(l)&&De(l,_),_&&zr(l)&&(C=l.brokerGen??C),wr(l)){const K=l.__frame_host_visible.visible;t.then(Pe=>Pe?.applyHostVisible?.(K,d))}_r(l)&&vn(l.__frame_patch,i,_);const M=l?.__fc_mode;M&&typeof M=="object"&&!re&&tt&&se.test(tt)&&(re=!0,le(tt).then(K=>K.install?.(i,M.on===!0,p)).catch(()=>{}));const Y=l?.__ft_cmd;Y&&typeof Y=="object"&&!Oe&&rt&&se.test(rt)&&(Oe=!0,le(rt).then(K=>K.install?.(i,Y,p)).catch(()=>{}))});const ne=Object.keys(h.capabilities??{}).filter(l=>Object.hasOwn(we,l)).map(l=>[l,we[l]]).filter(l=>typeof l[1]=="string"&&se.test(l[1])),de=await Promise.allSettled(ne.map(([,l])=>le(l))),oe=await t,H=i;if(oe?.buildBoot||g("_transforms"),oe?.buildBoot)try{fe=oe.buildBoot(h,oe.TRANSFORMS??{},{shellOrigin:H,mount:it,hooks:Fe,shell:p},l=>R.post({__frame_cap_telemetry:l},H))}catch{g("_transforms","install"),fe=Bt(h,H,p)}else fe=Bt(h,H,p);oe?.buildBoot&&Ee.has(Ie??"")&&x("_transforms");const he=fe;he.brokerGen=C,de.forEach((l,w)=>{const[_,M]=ne[w];if(l.status!=="fulfilled"){g(_);return}Ee.has(M)&&x(_);try{l.value?.install?.(he)}catch{g(_,"install")}});const X=h.capWants===!0;X&&(ot=(l,w)=>{const _=D();if(!_)return w;if(!w.nulled)return w.want!==_&&ce(l,w),w;if(_===w.ver)return w;const M=at();return ie.set(l,M),ce(l,M),M}),st(L,X&&D()!==L?ce:void 0),await S,await Re(),ke();const Le=tr(Q,V);R.post(Le?{__frame_ready:!0,nav:Le}:{__frame_ready:!0},z),t.then(l=>l?.installSizeReporter?.(H,Te,p));let Me=!1;try{Me=I()}catch{}be&&Me?le(be).then(l=>l?.boot?.({shellOrigin:i,build:he.flags.has(Zr),hot:m?.hot??null,carried:m?.carried(),presented:()=>m?.presented()??!0})).catch(()=>!1).then(l=>{m?.hydrated(),l!==!0?g("_ldx"):Ee.has(be)&&x("_ldx")}):m?.hydrated()})}else Qe&&($t(),un(Qe,Dt,le,{settle:st,mount:it}))})();</script><!-- /frame-runtime --><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>Client Finder Readiness Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+<link rel="stylesheet" href="./css2">
+
+<style>
+  :root {
+    --paper: #F6F7F9;
+    --card: #FFFFFF;
+    --ink: #131820;
+    --muted: #5B6673;
+    --faint: #8A939F;
+    --rule: #DDE2E8;
+    --rule-soft: #EAEEF2;
+    --accent: #1F5FA8;
+    --accent-soft: #E8F0F9;
+    --p0: #B3261E;
+    --p1: #A65B00;
+    --p2: #1F5FA8;
+    --p3: #6B7784;
+    --ok: #1B6B4A;
+    --ok-soft: #E6F2EC;
+    --warn-soft: #FBF0E0;
+    --bad-soft: #FAE9E8;
+    --shadow: 0 1px 2px rgba(19,24,32,.05), 0 8px 24px -12px rgba(19,24,32,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0F1216;
+      --card: #161B21;
+      --ink: #E6E9ED;
+      --muted: #9AA5B1;
+      --faint: #6F7A86;
+      --rule: #262D36;
+      --rule-soft: #1E242B;
+      --accent: #7FB0E8;
+      --accent-soft: #16222F;
+      --p0: #F08078;
+      --p1: #E0A33F;
+      --p2: #7FB0E8;
+      --p3: #8A939F;
+      --ok: #62BD94;
+      --ok-soft: #12241C;
+      --warn-soft: #251C0E;
+      --bad-soft: #2A1614;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0F1216;
+    --card: #161B21;
+    --ink: #E6E9ED;
+    --muted: #9AA5B1;
+    --faint: #6F7A86;
+    --rule: #262D36;
+    --rule-soft: #1E242B;
+    --accent: #7FB0E8;
+    --accent-soft: #16222F;
+    --p0: #F08078;
+    --p1: #E0A33F;
+    --p2: #7FB0E8;
+    --p3: #8A939F;
+    --ok: #62BD94;
+    --ok-soft: #12241C;
+    --warn-soft: #251C0E;
+    --bad-soft: #2A1614;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+    font-size: 15.5px;
+    line-height: 1.6;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 78rem; margin: 0 auto; padding: 0 1.5rem 6rem; }
+  .prose { max-width: 62rem; }
+
+  h1, h2, h3, h4 { font-family: Fraunces, Georgia, serif; font-weight: 600; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(2rem, 4.5vw, 3.1rem); line-height: 1.05; letter-spacing: -0.02em; }
+  h2 { font-size: clamp(1.35rem, 2.4vw, 1.75rem); line-height: 1.15; letter-spacing: -0.01em; }
+  h3 { font-size: 1.1rem; line-height: 1.25; }
+  p { margin: 0 0 1rem; }
+  a { color: var(--accent); }
+
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .87em; }
+  code { background: var(--rule-soft); padding: .1em .38em; border-radius: 3px; word-break: break-word; }
+
+  /* ---- header ---- */
+  header.masthead { border-bottom: 1px solid var(--rule); padding: 4.5rem 0 2.25rem; margin-bottom: 2.5rem; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: .7rem; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--faint); margin-bottom: 1.1rem;
+  }
+  .standfirst { font-size: 1.1rem; color: var(--muted); max-width: 46rem; margin-top: 1.25rem; }
+
+  /* ---- thesis strip ---- */
+  .thesis { display: grid; gap: 1px; grid-template-columns: repeat(3, 1fr); background: var(--rule);
+            border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; margin: 2.25rem 0 0; }
+  .thesis > div { background: var(--card); padding: 1.15rem 1.25rem; }
+  .thesis .k { font-family: "IBM Plex Mono", monospace; font-size: .68rem; letter-spacing: .1em;
+               text-transform: uppercase; color: var(--faint); }
+  .thesis .v { font-family: Fraunces, serif; font-size: 1.5rem; font-weight: 600; margin-top: .3rem; line-height: 1.1; }
+  .thesis .n { font-size: .82rem; color: var(--muted); margin-top: .35rem; }
+  @media (max-width: 720px) { .thesis { grid-template-columns: 1fr; } }
+
+  /* ---- sections ---- */
+  section { margin: 3.25rem 0 0; scroll-margin-top: 1rem; }
+  .sec-head { display: flex; align-items: baseline; gap: .75rem; border-bottom: 1px solid var(--rule);
+              padding-bottom: .55rem; margin-bottom: 1.35rem; }
+  .sec-num { font-family: "IBM Plex Mono", monospace; font-size: .8rem; color: var(--faint); flex: none; }
+
+  /* ---- chips ---- */
+  .chip { display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: .66rem;
+          letter-spacing: .06em; text-transform: uppercase; padding: .2em .55em; border-radius: 3px;
+          border: 1px solid currentColor; white-space: nowrap; }
+  .c-p0 { color: var(--p0); background: var(--bad-soft); }
+  .c-p1 { color: var(--p1); background: var(--warn-soft); }
+  .c-p2 { color: var(--p2); background: var(--accent-soft); }
+  .c-p3 { color: var(--p3); }
+  .c-impl { color: var(--ok); background: var(--ok-soft); }
+  .c-part { color: var(--p1); background: var(--warn-soft); }
+  .c-not  { color: var(--p0); background: var(--bad-soft); }
+  .c-fut  { color: var(--p3); }
+
+  /* ---- tables ---- */
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 10px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+  th, td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th { font-family: "IBM Plex Mono", monospace; font-size: .68rem; letter-spacing: .08em;
+       text-transform: uppercase; color: var(--faint); font-weight: 500; white-space: nowrap;
+       background: var(--card); position: sticky; top: 0; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.mono, th.mono { font-family: "IBM Plex Mono", monospace; font-size: .8rem; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---- readiness matrix ---- */
+  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid var(--muted); }
+  .dot.on { background: var(--ok); border-color: var(--ok); }
+  .dot.part { background: linear-gradient(90deg, var(--p1) 50%, transparent 50%); border-color: var(--p1); }
+  .dot.off { background: transparent; border-color: var(--rule); }
+
+  /* ---- finding ---- */
+  .finding { border: 1px solid var(--rule); border-radius: 10px; background: var(--card);
+             padding: 1.1rem 1.2rem; margin: 0 0 .9rem; box-shadow: var(--shadow); }
+  .finding > .fid { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+  .finding .fname { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: .84rem; color: var(--accent); }
+  .finding h4 { font-size: 1.02rem; margin: 0 0 .5rem; }
+  .finding dl { display: grid; grid-template-columns: 8.5rem 1fr; gap: .3rem .9rem; margin: .65rem 0 0; font-size: .88rem; }
+  .finding dt { font-family: "IBM Plex Mono", monospace; font-size: .68rem; letter-spacing: .07em;
+                text-transform: uppercase; color: var(--faint); padding-top: .22em; }
+  .finding dd { margin: 0; }
+  @media (max-width: 640px) { .finding dl { grid-template-columns: 1fr; gap: .1rem; } .finding dd { margin-bottom: .5rem; } }
+
+  pre { background: var(--rule-soft); border: 1px solid var(--rule); border-radius: 6px;
+        padding: .7rem .85rem; overflow-x: auto; margin: .5rem 0; font-size: .8rem; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+
+  ul, ol { margin: 0 0 1rem; padding-left: 1.2rem; }
+  li { margin-bottom: .3rem; }
+
+  .callout { border-left: 3px solid var(--accent); background: var(--accent-soft);
+             padding: .85rem 1rem; border-radius: 0 8px 8px 0; margin: 1.25rem 0; }
+  .callout.bad { border-left-color: var(--p0); background: var(--bad-soft); }
+
+  .toc { columns: 3; column-gap: 2rem; font-size: .87rem; }
+  .toc a { display: block; text-decoration: none; color: var(--ink); padding: .16rem 0;
+           border-bottom: 1px solid transparent; }
+  .toc a:hover { border-bottom-color: var(--rule); }
+  .toc .tn { font-family: "IBM Plex Mono", monospace; color: var(--faint); font-size: .75rem; margin-right: .45rem; }
+  @media (max-width: 860px) { .toc { columns: 2; } }
+  @media (max-width: 560px) { .toc { columns: 1; } }
+
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule);
+           color: var(--faint); font-size: .82rem; }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="eyebrow">Repository Audit · Audit only, no code modified</div>
+  <h1>Client Finder Readiness Audit</h1>
+  <p class="standfirst">
+    Measured against PRD V2.0, which places the repository at <strong>Stage 6 — Client Finder MVP /
+    Pre-Implementation</strong>. The question this audit answers is not “does the code work” but
+    “which of the three things does it have”: implemented logic, integration, production readiness.
+  </p>
+
+  <div class="thesis">
+    <div>
+      <div class="k">Implemented logic</div>
+      <div class="v" style="color:var(--ok)">Substantial</div>
+      <div class="n">~294 unit tests across four acquisition-domain packages. Scoring, offers,
+        staleness, follow-up, outreach verification, proposal versioning all present and tested.</div>
+    </div>
+    <div>
+      <div class="k">Integrated</div>
+      <div class="v" style="color:var(--p0)">Almost none</div>
+      <div class="n">Zero acquisition API routes. Zero acquisition persistence implementations.
+        Zero integration tests touching the acquisition domain. The dashboard renders a hardcoded
+        empty snapshot.</div>
+    </div>
+    <div>
+      <div class="k">Production ready</div>
+      <div class="v" style="color:var(--p0)">No</div>
+      <div class="n">Worker entrypoint throws. Web image cannot build. No auth. No email. Secrets
+        validate on first request, not at boot.</div>
+    </div>
+  </div>
+</header>
+
+<section id="s1">
+  <div class="sec-head"><span class="sec-num">01</span><h2>Executive summary</h2></div>
+  <div class="prose">
+    <p>
+      The repository contains two systems. The <strong>commerce system</strong> (orders, payments,
+      webhooks, entitlements, Meta CAPI) is genuinely built and genuinely tested: 315 integration
+      tests run against real PostgreSQL 16.14, and the database enforces its own invariants through
+      triggers and partial unique indexes rather than trusting application code. The
+      <strong>acquisition system</strong> — the actual product per the PRD — is a library of pure
+      functions with no database, no API, no worker and no user.
+    </p>
+    <p>
+      That split is the single most important fact in this audit, and it is consistent with the
+      PRD's own Stage 6 declaration. It is not a defect that the acquisition engine is unfinished.
+      It <em>is</em> a defect that several places in the repository describe it as further along
+      than it is, and that the parts which do exist cannot be connected without decisions that have
+      not been made.
+    </p>
+    <p>Four findings would change how I'd plan the next sprint:</p>
+    <ol>
+      <li>
+        <strong>There are two Prisma schemas and they disagree.</strong> The root
+        <code>schema.prisma</code> defines the entire acquisition domain — including a
+        <code>User</code> model — across 17 models. The schema the tooling actually uses,
+        <code>packages/db/prisma/schema.prisma</code>, defines six. No migration creates any
+        <code>acq_*</code> table. The acquisition domain has nowhere to persist to, and the file
+        that says otherwise is not wired to anything.
+      </li>
+      <li>
+        <strong>A refunded customer keeps the product.</strong> Verified by execution against real
+        PostgreSQL: after a full refund, zero captured payments remain and
+        <code>resolveAccess</code> still returns the entitlement. This is live revenue leakage the
+        day real money flows.
+      </li>
+      <li>
+        <strong>The MVP's first three stages do not exist in any form.</strong> ServiceProfile,
+        search/discovery, candidate normalisation — zero files. The PRD's Appendix A rates these
+        <span class="chip c-part">Partial</span>; the evidence supports
+        <span class="chip c-not">Not implemented</span>.
+      </li>
+      <li>
+        <strong>The worker cannot load its own dependencies.</strong> Every <code>@acos/*</code>
+        package points <code>main</code> at TypeScript source, so a compiled worker importing any of
+        them dies on <code>SyntaxError: Unexpected token 'export'</code>. Latent only because the
+        entrypoint currently throws before importing anything.
+      </li>
+    </ol>
+    <p>
+      Counterweight, stated plainly: the AI-evidence layer is the strongest part of the codebase. I
+      attempted seven provenance bypasses — whitespace-padded quotes, punctuation-only quotes, real
+      quotes cited to the wrong document, invented URLs, case shifts, paraphrases, sub-minimum
+      lengths — and all seven were rejected.
+    </p>
+  </div>
+</section>
+
+<section id="toc">
+  <div class="sec-head"><span class="sec-num">—</span><h2>Contents</h2></div>
+  <nav class="toc">
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s1"><span class="tn">01</span>Executive summary</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s2"><span class="tn">02</span>Current architecture</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s3"><span class="tn">03</span>Repository structure</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s4"><span class="tn">04</span>Product requirement coverage</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s5"><span class="tn">05</span>Implemented logic</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s6"><span class="tn">06</span>Partial features</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s7"><span class="tn">07</span>Not implemented</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s8"><span class="tn">08</span>Future features</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s9"><span class="tn">09</span>Critical gaps</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s10"><span class="tn">10</span>P0–P3 issues</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s11"><span class="tn">11</span>Database / schema</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s12"><span class="tn">12</span>API / integration</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s13"><span class="tn">13</span>Worker / jobs</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s14"><span class="tn">14</span>AI / research</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s15"><span class="tn">15</span>Acquisition domain</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s16"><span class="tn">16</span>Outreach / safety</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s17"><span class="tn">17</span>Proposal / pricing</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s18"><span class="tn">18</span>Payment / entitlement</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s19"><span class="tn">19</span>Authentication / tenancy</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s20"><span class="tn">20</span>Security</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s21"><span class="tn">21</span>Observability</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s22"><span class="tn">22</span>Testing gaps</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s23"><span class="tn">23</span>Production readiness</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s24"><span class="tn">24</span>Documentation</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s25"><span class="tn">25</span>Stale artifacts</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#s26"><span class="tn">26</span>Traceability matrix</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#a"><span class="tn">A</span>Top 20 issues</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#b"><span class="tn">B</span>MVP blockers</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#c"><span class="tn">C</span>Post-MVP</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#d"><span class="tn">D</span>Safe as future</a>
+    <a href="https://761d85d5-cd80-4d7f-bab8-99dea4989428.frame.claudeusercontent.com/_f/1789529625-ed91/#e"><span class="tn">E</span>Implementation order</a>
+  </nav>
+</section>
+
+<section id="s2">
+  <div class="sec-head"><span class="sec-num">02</span><h2>Current architecture</h2></div>
+  <div class="prose">
+    <p>
+      A pnpm/Turbo monorepo: 15 packages, two apps. The package boundary discipline is real — every
+      domain package is pure (no I/O), with persistence behind repository interfaces owned by the
+      app. That is a good architecture. The problem is that it has only been <em>completed</em> on
+      one side.
+    </p>
+  </div>
+
+  <h3 style="margin:1.5rem 0 .6rem">Readiness by domain</h3>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Domain</th><th>Logic</th><th>Persistence</th><th>API</th><th>UI</th><th>Worker</th>
+          <th>Integration tests</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Orders / payments</td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td class="num">yes</td></tr>
+        <tr><td>Webhooks</td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td class="num">yes</td></tr>
+        <tr><td>Entitlements / delivery</td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot part"></span></td><td><span class="dot off"></span></td><td class="num">yes</td></tr>
+        <tr><td>Meta CAPI</td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot part"></span></td><td class="num">yes</td></tr>
+        <tr><td>Reconciliation</td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td class="num">yes</td></tr>
+        <tr><td>Research (AI)</td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td class="num">no</td></tr>
+        <tr><td>Acquisition / scoring</td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot part"></span></td><td><span class="dot off"></span></td><td class="num">no</td></tr>
+        <tr><td>Outreach</td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td class="num">no</td></tr>
+        <tr><td>Proposal</td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td class="num">no</td></tr>
+        <tr><td>Identity / tenancy</td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td class="num">no</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:.82rem;color:var(--muted);margin-top:.6rem">
+    <span class="dot on"></span> complete &nbsp;·&nbsp; <span class="dot part"></span> partial or
+    stubbed &nbsp;·&nbsp; <span class="dot off"></span> absent. “UI partial” for entitlements and
+    acquisition means components exist and render, fed by empty or hardcoded data.
+  </p>
+</section>
+
+<section id="s3">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Repository structure</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Package</th><th class="num">Source files</th><th class="num">LOC</th><th class="num">Test files</th><th>Runtime consumers</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">core-acquisition</td><td class="num">12</td><td class="num">2,048</td><td class="num">4</td><td>apps/web dashboard components</td></tr>
+        <tr><td class="mono">core-payments</td><td class="num">11</td><td class="num">1,901</td><td class="num">3</td><td>apps/web routes</td></tr>
+        <tr><td class="mono">core-research</td><td class="num">11</td><td class="num">1,710</td><td class="num">1</td><td>core-outreach, core-proposal only</td></tr>
+        <tr><td class="mono">db-index-deploy</td><td class="num">8</td><td class="num">1,102</td><td class="num">2</td><td>scripts/</td></tr>
+        <tr><td class="mono">core-proposal</td><td class="num">7</td><td class="num">972</td><td class="num">1</td><td><strong style="color:var(--p0)">none</strong></td></tr>
+        <tr><td class="mono">core-entitlements</td><td class="num">11</td><td class="num">952</td><td class="num">4</td><td>apps/web, tests</td></tr>
+        <tr><td class="mono">core-outreach</td><td class="num">7</td><td class="num">820</td><td class="num">1</td><td>core-acquisition/followUp only</td></tr>
+        <tr><td class="mono">core-reconciliation</td><td class="num">7</td><td class="num">815</td><td class="num">1</td><td>db-index-deploy, tests</td></tr>
+        <tr><td class="mono">catalog</td><td class="num">8</td><td class="num">471</td><td class="num">2</td><td>apps/web, core-payments</td></tr>
+        <tr><td class="mono">rate-limit</td><td class="num">4</td><td class="num">338</td><td class="num">1</td><td>apps/web</td></tr>
+        <tr><td class="mono">observability</td><td class="num">2</td><td class="num">255</td><td class="num">1</td><td><strong style="color:var(--p0)">none</strong></td></tr>
+        <tr><td class="mono">core-capi</td><td class="num">2</td><td class="num">230</td><td class="num">1</td><td>apps/web, apps/worker</td></tr>
+        <tr><td class="mono">config</td><td class="num">2</td><td class="num">216</td><td class="num">1</td><td>apps/web, apps/worker</td></tr>
+        <tr><td class="mono">db</td><td class="num">2</td><td class="num">28</td><td class="num">0</td><td>apps/web, core-payments</td></tr>
+        <tr><td class="mono">shared-types</td><td class="num">1</td><td class="num">15</td><td class="num">0</td><td><strong style="color:var(--p0)">empty placeholder</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s4">
+  <div class="sec-head"><span class="sec-num">04</span><h2>Product requirement coverage</h2></div>
+  <div class="prose">
+    <p>
+      MVP core journey per the PRD:
+      <code>DEFINE SERVICE → FIND → RESEARCH → EVIDENCE → NEED DETECTION → OPPORTUNITY → SCORE →
+      RANK → USER FEEDBACK</code>. Coverage below is what the repository supports, not what the PRD
+      status matrix asserts. Where they differ, the difference is the finding.
+    </p>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>MVP stage</th><th>PRD §</th><th>PRD status</th><th>Audited status</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Define service</td><td class="mono">40</td><td><span class="chip c-part">Partial</span></td><td><span class="chip c-not">Not impl</span></td><td class="mono">0 files match ServiceProfile</td></tr>
+        <tr><td>Find (search)</td><td class="mono">41–42</td><td><span class="chip c-part">Partial</span></td><td><span class="chip c-not">Not impl</span></td><td class="mono">no search API, no SearchRun</td></tr>
+        <tr><td>Discovery provider</td><td class="mono">43</td><td><span class="chip c-part">Partial</span></td><td><span class="chip c-not">Not impl</span></td><td class="mono">0 files</td></tr>
+        <tr><td>Candidate normalisation</td><td class="mono">44</td><td><span class="chip c-part">Partial</span></td><td><span class="chip c-not">Not impl</span></td><td class="mono">0 files</td></tr>
+        <tr><td>Deduplication</td><td class="mono">45</td><td><span class="chip c-part">Partial</span></td><td><span class="chip c-not">Not impl</span></td><td>dedup exists only for payments/webhooks</td></tr>
+        <tr><td>Research</td><td class="mono">46</td><td><span class="chip c-impl">Impl logic</span></td><td><span class="chip c-impl">Impl logic</span></td><td class="mono">core-research, 91 tests</td></tr>
+        <tr><td>Evidence</td><td class="mono">47</td><td><span class="chip c-impl">Impl logic</span></td><td><span class="chip c-impl">Impl logic</span></td><td class="mono">provenance.ts, 7 bypasses rejected</td></tr>
+        <tr><td>Need detection</td><td class="mono">48–49</td><td><span class="chip c-impl">Impl logic</span></td><td><span class="chip c-part">Partial</span></td><td>offer engine keyed on hardcoded rules</td></tr>
+        <tr><td>Opportunity generation</td><td class="mono">50</td><td><span class="chip c-impl">Impl logic</span></td><td><span class="chip c-part">Partial</span></td><td>consumes snapshots; nothing generates them</td></tr>
+        <tr><td>Scoring / ranking</td><td class="mono">21</td><td><span class="chip c-impl">Impl logic</span></td><td><span class="chip c-impl">Impl logic</span></td><td class="mono">prospectScore.ts, 7 factors</td></tr>
+        <tr><td>Signal freshness</td><td class="mono">19</td><td><span class="chip c-impl">Impl logic</span></td><td><span class="chip c-impl">Impl logic</span></td><td class="mono">scoring.ts decayFactor</td></tr>
+        <tr><td>Inference discount</td><td class="mono">22</td><td><span class="chip c-impl">Impl logic</span></td><td><span class="chip c-impl">Impl logic</span></td><td class="mono">INFERENCE_DISCOUNT</td></tr>
+        <tr><td>Next action</td><td class="mono">23</td><td><span class="chip c-impl">Impl logic</span></td><td><span class="chip c-impl">Impl logic</span></td><td class="mono">nextAction.ts</td></tr>
+        <tr><td>Staleness</td><td class="mono">24</td><td><span class="chip c-impl">Impl logic</span></td><td><span class="chip c-impl">Impl logic</span></td><td class="mono">STALE_AFTER_DAYS</td></tr>
+        <tr><td>User feedback</td><td class="mono">57</td><td><span class="chip c-part">Partial</span></td><td><span class="chip c-not">Not impl</span></td><td>no feedback API or persistence</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s5">
+  <div class="sec-head"><span class="sec-num">05</span><h2>Implemented logic</h2></div>
+  <div class="prose">
+    <p>
+      Genuinely present, tested, and matching the PRD's description. All of it is pure — no
+      persistence, no transport. Per the PRD's own definition of IMPLEMENTED LOGIC, that is the
+      correct bar, and these clear it.
+    </p>
+    <ul>
+      <li><strong>Seven-factor prospect scoring</strong> with weights, bands and an explicit
+        inference discount — <code>core-acquisition/src/prospectScore.ts</code></li>
+      <li><strong>Signal freshness decay</strong> with per-source-kind weighting —
+        <code>scoring.ts</code>, <code>SIGNAL_FRESH_DAYS</code> / <code>SOURCE_WEIGHT</code></li>
+      <li><strong>Offer engine</strong> — <code>offer.ts</code>, <code>suggestOffers()</code></li>
+      <li><strong>Opportunity stage machine</strong> with terminal/resumable states and pause
+        provenance — <code>stages.ts</code></li>
+      <li><strong>Next-action queue and staleness</strong> — <code>nextAction.ts</code></li>
+      <li><strong>Follow-up cadence</strong>, business-day spacing, cancel-on-reply,
+        channel escalation — <code>cadence.ts</code>, <code>followUp.ts</code></li>
+      <li><strong>Human-approval audit trail</strong> with an actor model that refuses system
+        actors — <code>audit.ts</code>, <code>assertHumanActor</code></li>
+      <li><strong>Outreach generation, verification, spam-phrase detection</strong> —
+        <code>core-outreach/src/{generator,verify}.ts</code></li>
+      <li><strong>Proposal generation, versioning, pricing checks</strong> —
+        <code>core-proposal/src/{generator,versions,pricing}.ts</code></li>
+      <li><strong>AI research with schema-validated output, targeted repair, and verbatim
+        provenance</strong> — <code>core-research/</code></li>
+      <li><strong>The whole commerce path</strong> — order creation with server-side pricing,
+        webhook trust boundary, entitlements, Meta CAPI deduplication, reconciliation.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="s6">
+  <div class="sec-head"><span class="sec-num">06</span><h2>Partial features</h2></div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">PF-01</span><span class="chip c-part">Partial</span><span class="chip c-p1">P1</span></div>
+    <h4>Offer engine is not driven by a user's service definition</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §40 ServiceProfile, §49 Offer engine — offers must reflect the service the user defined.</dd>
+      <dt>Current</dt><dd><code>suggestOffers(signals, rules = DEFAULT_SERVICE_RULES)</code> matches signals against a hardcoded rule set.</dd>
+      <dt>File</dt><dd class="mono">packages/core-acquisition/src/offer.ts</dd>
+      <dt>Evidence</dt><dd>The <code>rules</code> parameter defaults to a module constant; no ServiceProfile type, table or API exists anywhere in the repository to supply it.</dd>
+      <dt>Why it matters</dt><dd>Every user gets identical offer suggestions. The MVP's first journey stage is what personalises everything downstream; without it the ranking is generic.</dd>
+      <dt>Fix</dt><dd>Define ServiceProfile (persisted), and pass its rules into <code>suggestOffers</code>. The seam already exists — the parameter is there.</dd>
+      <dt>Depends on</dt><dd>Acquisition persistence (DB-01), identity (AU-01)</dd>
+      <dt>Test</dt><dd>Two profiles over identical signals must produce different offer sets and different <code>serviceFit</code>.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">PF-02</span><span class="chip c-part">Partial</span><span class="chip c-p1">P1</span></div>
+    <h4>Dashboard UI renders a hardcoded empty snapshot</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §56 Dashboard requirements</dd>
+      <dt>Current</dt><dd><code>loadDashboard()</code> ignores its arguments and returns <code>buildDashboard(EMPTY_SNAPSHOT, now)</code>.</dd>
+      <dt>File</dt><dd class="mono">apps/web/src/dashboard/loadDashboard.ts:48</dd>
+      <dt>Evidence</dt><dd>File comment: “the acquisition repositories do not exist yet … nothing populates the <code>acq_*</code> tables.” All 16 snapshot fields are literal <code>0</code>.</dd>
+      <dt>Why it matters</dt><dd>UI exists but returns empty data. To the project's credit this is honest-empty rather than fabricated-demo, and the comment says so — but the dashboard proves nothing about the pipeline.</dd>
+      <dt>Fix</dt><dd>Implement the acquisition repositories; <code>loadDashboard</code> is the single function that changes.</dd>
+      <dt>Depends on</dt><dd>DB-01, DB-02</dd>
+      <dt>Test</dt><dd>Integration test seeding opportunities and asserting the rendered metrics match.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">PF-03</span><span class="chip c-part">Partial</span><span class="chip c-p1">P1</span></div>
+    <h4>Meta worker is implemented but nothing runs it</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §64 Worker requirements</dd>
+      <dt>Current</dt><dd>Lease claiming, SKIP LOCKED, fencing, retry with full jitter, dead-lettering and ambiguous-send recording are all implemented and covered by real-PostgreSQL tests. No poll loop invokes them.</dd>
+      <dt>File</dt><dd class="mono">apps/worker/src/metaEvents/worker.ts</dd>
+      <dt>Evidence</dt><dd><code>apps/worker/src/index.ts</code> throws <code>'apps/worker: poll loop not implemented (Phase 2)'</code>.</dd>
+      <dt>Why it matters</dt><dd>The hardest part is done; the easiest part is missing. Purchases never reach Meta, so attribution and ad optimisation are dead.</dd>
+      <dt>Fix</dt><dd>Poll loop calling the existing <code>claimMetaEvents</code>/<code>processMetaEvent</code>, with SIGTERM draining.</dd>
+      <dt>Depends on</dt><dd>WK-02 (packages must be loadable)</dd>
+      <dt>Test</dt><dd>Boot the worker against a seeded backlog; assert all events reach SENT and SIGTERM drains cleanly.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s7">
+  <div class="sec-head"><span class="sec-num">07</span><h2>Not implemented</h2></div>
+  <div class="prose">
+    <p>Requirement is defined in PRD V2.0; no meaningful implementation exists.</p>
+    <ul>
+      <li><strong>ServiceProfile</strong> (§40) — zero files.</li>
+      <li><strong>Search, async search, discovery provider, candidate normalisation, candidate
+        deduplication</strong> (§41–45) — zero files. This is the entire FIND stage.</li>
+      <li><strong>Prospect / lead persistence</strong> — no table, no repository.</li>
+      <li><strong>User identity and tenancy</strong> (§39) — no <code>userId</code> anywhere in
+        runtime code.</li>
+      <li><strong>User feedback capture</strong> (§57) — no API, no table.</li>
+      <li><strong>Conversation and qualification</strong> (§30–31) — no implementation.</li>
+      <li><strong>Outcome / revenue feedback loop</strong> (§58) — metrics functions exist but
+        nothing records outcomes.</li>
+      <li><strong>AI cost management and usage metering</strong> (§59–60) — the Anthropic adapter
+        sets <code>max_tokens</code> and never reads <code>usage</code>. No cost accounting at all.</li>
+      <li><strong>PII lifecycle</strong> (§67) — webhook payload retention exists; customer PII in
+        <code>orders</code> has no retention, export or erasure path.</li>
+      <li><strong>Production deployment</strong> (§70) — see §23.</li>
+      <li><strong>Email delivery</strong> — no transport of any kind. Breaks the PRD F-001 chain at
+        its last step.</li>
+      <li><strong>Correlation IDs / metrics / tracing</strong> —
+        <code>withCorrelationId</code> throws.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="s8">
+  <div class="sec-head"><span class="sec-num">08</span><h2>Future features</h2></div>
+  <div class="prose">
+    <p>
+      Deferred by the PRD and correctly absent. Nothing in the repository speculatively implements
+      these, which is the right call and worth noting given §107 explicitly forbids building them
+      yet.
+    </p>
+    <ul>
+      <li>SaaS subscriptions and usage quotas (§61, Appendix A: FUTURE)</li>
+      <li>CRM, teams/workspaces (Appendix A: FUTURE)</li>
+      <li>Autonomous acquisition agents (§101 Phase 6)</li>
+      <li>Large-scale acquisition and scraping (§107)</li>
+      <li>Advanced “improve” analytics (§57)</li>
+    </ul>
+    <p>
+      One caveat: the root <code>schema.prisma</code> models <code>acq_clients</code>,
+      <code>acq_conversations</code> and <code>acq_activities</code> — i.e. CRM-shaped tables — for a
+      stage the PRD says must not be built yet. Since that schema is unused, this is latent rather
+      than active scope creep, but it should not be migrated wholesale.
+    </p>
+  </div>
+</section>
+
+<section id="s9">
+  <div class="sec-head"><span class="sec-num">09</span><h2>Critical gaps</h2></div>
+  <div class="callout bad">
+    <strong>The MVP journey has no middle.</strong> Research produces
+    <code>LeadResearchRow</code>; scoring consumes <code>ResearchSignal</code>. The two types are
+    shaped to line up — same <code>kind</code>, <code>signal</code>, <code>confidence</code>,
+    <code>observedAt</code> — but no code converts one to the other, no table stores either, and no
+    process moves data between them. Two well-built halves of a pipeline with nothing in between.
+  </div>
+  <div class="prose">
+    <ol>
+      <li><strong>No persistence for anything the product is about.</strong> Every repository
+        implementation in the repo (<code>createPgEntitlementRepository</code>,
+        <code>createPrismaOrderRepository</code>, <code>createPgReconciliationRepository</code>,
+        <code>createPgRateLimiter</code>, <code>createPgMetaEventRepository</code>) serves commerce.
+        <code>ResearchRepository</code> has zero implementations.</li>
+      <li><strong>No API surface for the product.</strong> Five routes exist: create-order, verify
+        (501), the Razorpay webhook, and the two health probes. Nothing for service definition,
+        search, prospects, opportunities or feedback.</li>
+      <li><strong>Refund does not revoke access</strong> — verified live (see PE-01).</li>
+      <li><strong>No identity</strong>, so no requirement that depends on “this user's” data can be
+        satisfied.</li>
+      <li><strong>The web application cannot be built</strong> — two pages resolve to <code>/</code>.</li>
+    </ol>
+  </div>
+</section>
+
+<section id="s10">
+  <div class="sec-head"><span class="sec-num">10</span><h2>Issues by priority</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Issue</th><th>Area</th><th>Sev</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">PE-01</td><td>Refund does not revoke entitlement</td><td>Payments</td><td><span class="chip c-p0">P0</span></td><td><span class="chip c-part">Partial</span></td></tr>
+        <tr><td class="mono">PD-01</td><td>Web image cannot build — duplicate <code>/</code> route</td><td>Prod</td><td><span class="chip c-p0">P0</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">PE-02</td><td>No email transport; delivery chain incomplete</td><td>Payments</td><td><span class="chip c-p0">P0</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">DB-01</td><td>Two Prisma schemas disagree; acq_* has no migration</td><td>Schema</td><td><span class="chip c-p1">P1</span></td><td><span class="chip c-part">Partial</span></td></tr>
+        <tr><td class="mono">WK-01</td><td>Worker poll loop throws on boot</td><td>Worker</td><td><span class="chip c-p1">P1</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">WK-02</td><td><code>@acos/*</code> packages unloadable by Node</td><td>Worker</td><td><span class="chip c-p1">P1</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">AU-01</td><td>No authentication or tenancy</td><td>Auth</td><td><span class="chip c-p1">P1</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">MVP-01</td><td>ServiceProfile absent</td><td>Product</td><td><span class="chip c-p1">P1</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">MVP-02</td><td>Search / discovery / normalisation / dedup absent</td><td>Product</td><td><span class="chip c-p1">P1</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">INT-01</td><td>No research→scoring adapter; no acquisition persistence</td><td>Integration</td><td><span class="chip c-p1">P1</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">SEC-01</td><td>Env validated lazily, not at boot (docs claim otherwise)</td><td>Security</td><td><span class="chip c-p1">P1</span></td><td><span class="chip c-part">Partial</span></td></tr>
+        <tr><td class="mono">SEC-02</td><td><code>x-forwarded-for</code> trusted unconditionally</td><td>Security</td><td><span class="chip c-p1">P1</span></td><td><span class="chip c-part">Partial</span></td></tr>
+        <tr><td class="mono">SEC-03</td><td>Rate limiter falls back to in-memory off <code>NODE_ENV</code></td><td>Security</td><td><span class="chip c-p1">P1</span></td><td><span class="chip c-part">Partial</span></td></tr>
+        <tr><td class="mono">TS-01</td><td>Zero integration coverage of acquisition domain</td><td>Testing</td><td><span class="chip c-p1">P1</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">TS-02</td><td>Contract tests are 6 todos, 0 assertions</td><td>Testing</td><td><span class="chip c-p2">P2</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">OB-01</td><td><code>withCorrelationId</code> throws; no metrics/tracing</td><td>Observability</td><td><span class="chip c-p2">P2</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">AI-01</td><td>No token/cost metering</td><td>AI</td><td><span class="chip c-p2">P2</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">SEC-04</td><td>CSP report-only</td><td>Security</td><td><span class="chip c-p2">P2</span></td><td><span class="chip c-part">Partial</span></td></tr>
+        <tr><td class="mono">PII-01</td><td>No PII retention/erasure for customer data</td><td>Security</td><td><span class="chip c-p2">P2</span></td><td><span class="chip c-not">Not impl</span></td></tr>
+        <tr><td class="mono">DOC-01</td><td>README claims boot-time secret validation</td><td>Docs</td><td><span class="chip c-p2">P2</span></td><td><span class="chip c-part">Partial</span></td></tr>
+        <tr><td class="mono">DOC-02</td><td>README/DATABASE/MIGRATIONS counts stale</td><td>Docs</td><td><span class="chip c-p3">P3</span></td><td><span class="chip c-part">Partial</span></td></tr>
+        <tr><td class="mono">ST-01</td><td>Dead <code>.eslintrc.json</code>; unreferenced root schema; empty shared-types</td><td>Stale</td><td><span class="chip c-p3">P3</span></td><td><span class="chip c-part">Partial</span></td></tr>
+        <tr><td class="mono">INT-02</td><td><code>ResearchSourceKind</code> defined three times</td><td>Integration</td><td><span class="chip c-p3">P3</span></td><td><span class="chip c-part">Partial</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s11">
+  <div class="sec-head"><span class="sec-num">11</span><h2>Database / schema issues</h2></div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">DB-01</span><span class="chip c-part">Partial</span><span class="chip c-p1">P1</span></div>
+    <h4>Two Prisma schemas disagree; the acquisition one is unreferenced</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §65, F-003 — “One authoritative schema and migration chain.”</dd>
+      <dt>Current</dt><dd>Root <code>schema.prisma</code> defines 17 models including the entire
+        <code>acq_*</code> domain and <code>User</code>. <code>packages/db/prisma/schema.prisma</code>
+        — the one every script and the Dockerfile target — defines 6.</dd>
+      <dt>File</dt><dd class="mono">schema.prisma:1–38, 392–733 · packages/db/prisma/schema.prisma</dd>
+      <dt>Evidence</dt><dd>
+        Root schema <code>@@map</code>s: <code>acq_users</code>, <code>acq_companies</code>,
+        <code>acq_leads</code>, <code>acq_lead_research</code>, <code>acq_opportunities</code>,
+        <code>acq_outreach_messages</code>, <code>acq_follow_ups</code>,
+        <code>acq_conversations</code>, <code>acq_proposals</code>, <code>acq_clients</code>,
+        <code>acq_activities</code>. None is created by any migration. The root file's own header
+        says “Scope is deliberately exactly six models” while the file defines seventeen. Nothing in
+        the repository references it except one prose line in
+        <code>infra/migrations-runbook.md</code>.
+      </dd>
+      <dt>Why it matters</dt><dd>The only written description of the product's data model is in a
+        file that is not deployed, not generated from, not validated by CI, and internally
+        self-contradictory. Anyone reading it will believe the acquisition tables exist.</dd>
+      <dt>Fix</dt><dd>Pick one schema file. Either fold the <code>acq_*</code> models into
+        <code>packages/db/prisma/schema.prisma</code> and generate the missing base migration, or
+        delete the root file and keep the domain model in the PRD until it is built.</dd>
+      <dt>Depends on</dt><dd>None — this is the unblocking decision for the whole MVP.</dd>
+      <dt>Test</dt><dd>CI assertion that exactly one <code>schema.prisma</code> exists, and that
+        <code>prisma migrate diff</code> against the chain reports no drift.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">DB-02</span><span class="chip c-part">Partial</span><span class="chip c-p1">P1</span></div>
+    <h4>Two migrations are quarantined because their base schema was never written</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §65 — deployable migration chain.</dd>
+      <dt>Current</dt><dd><code>0005_outreach_provenance</code> and
+        <code>0006_opportunity_lifecycle</code> live in <code>migrations-blocked/</code>. They
+        <code>ALTER</code> <code>acq_outreach_messages</code> and <code>acq_opportunities</code> and
+        use the <code>OutreachChannel</code> enum — none of which any migration creates.</dd>
+      <dt>File</dt><dd class="mono">packages/db/prisma/migrations-blocked/</dd>
+      <dt>Evidence</dt><dd><code>prisma migrate deploy</code> previously failed with
+        <code>P3018 … 42704: type "OutreachChannel" does not exist</code>. The chain now applies
+        cleanly with those two removed — 9 migrations, verified.</dd>
+      <dt>Why it matters</dt><dd>Real work (an approval state machine, a send gate, pause
+        provenance) is written and unusable. It also means the acquisition schema was designed
+        twice — once in the root Prisma file, once in raw SQL — with a third naming convention.</dd>
+      <dt>Fix</dt><dd>Write the base migration for the acquisition tables, then restore both.</dd>
+      <dt>Depends on</dt><dd>DB-01</dd>
+      <dt>Test</dt><dd>Already present: <code>tests/pipeline/testPolicy.test.ts</code> fails if any
+        migration <code>ALTER</code>s a table the chain never creates.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">DB-03</span><span class="chip c-not">Not impl</span><span class="chip c-p2">P2</span></div>
+    <h4>Worker dispatchers reference a table that does not exist</h4>
+    <dl>
+      <dt>Current</dt><dd>Both dispatcher stubs describe consuming <code>outbox_events</code>. The
+        actual outbox table is <code>meta_events</code>.</dd>
+      <dt>File</dt><dd class="mono">apps/worker/src/dispatchers/capiDispatcher.ts:3 ·
+        deliveryDispatcher.ts:3</dd>
+      <dt>Evidence</dt><dd><code>outbox_events</code> appears in 3 code locations and in zero
+        migrations or schemas.</dd>
+      <dt>Why it matters</dt><dd>Minor today (both files are stubs) but it is a third name for the
+        same concept, and whoever implements the loop will look for the wrong table.</dd>
+      <dt>Fix</dt><dd>Rename the references to <code>meta_events</code>, or delete the stubs — the
+        implemented worker in <code>metaEvents/</code> already does this job.</dd>
+      <dt>Depends on</dt><dd>WK-01</dd>
+      <dt>Test</dt><dd>Extend the existing migration-policy test to flag table names in comments
+        that no migration creates.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s12">
+  <div class="sec-head"><span class="sec-num">12</span><h2>API / integration issues</h2></div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">INT-01</span><span class="chip c-not">Not impl</span><span class="chip c-p1">P1</span></div>
+    <h4>Persistence exists with no API; domain logic exists with no persistence</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §41–50, the entire MVP journey.</dd>
+      <dt>Current</dt><dd>Five API routes exist, all commerce or health. No route for service
+        profile, search, prospects, opportunities, or feedback.</dd>
+      <dt>File</dt><dd class="mono">apps/web/app/api/{health,ready,payments/create-order,payments/verify,webhooks/razorpay}/route.ts</dd>
+      <dt>Evidence</dt><dd><code>ResearchRepository</code> (<code>core-research/src/persist.ts:117</code>)
+        has zero implementations repository-wide. <code>core-acquisition</code> declares no
+        repository interface at all — every function takes a snapshot argument.</dd>
+      <dt>Why it matters</dt><dd>This is the gap between “implemented logic” and “product”. Nothing
+        a user does can reach the engine, and nothing the engine computes can be stored.</dd>
+      <dt>Fix</dt><dd>Define the acquisition repositories, implement them against the new tables,
+        then add routes in journey order: profile → search → prospect list → opportunity detail →
+        feedback.</dd>
+      <dt>Depends on</dt><dd>DB-01, AU-01</dd>
+      <dt>Test</dt><dd>Integration test walking the full MVP journey against real PostgreSQL and
+        asserting a ranked opportunity comes out.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">INT-02</span><span class="chip c-part">Partial</span><span class="chip c-p3">P3</span></div>
+    <h4><code>ResearchSourceKind</code> is defined three times with no shared source</h4>
+    <dl>
+      <dt>Current</dt><dd>Identical 8-value unions in <code>core-research/src/persist.ts</code> and
+        <code>core-acquisition/src/scoring.ts</code>, plus an enum in root
+        <code>schema.prisma</code>.</dd>
+      <dt>File</dt><dd class="mono">core-research/src/persist.ts:16 · core-acquisition/src/scoring.ts ·
+        schema.prisma:362</dd>
+      <dt>Evidence</dt><dd>All three currently agree. <code>packages/shared-types</code> — whose
+        stated purpose is exactly this — contains only
+        <code>export type Placeholder = never</code>.</dd>
+      <dt>Why it matters</dt><dd>These two packages must exchange values across this union. Drift
+        would be silent and would misweight scores rather than fail.</dd>
+      <dt>Fix</dt><dd>Move the union into <code>@acos/shared-types</code> and import it in both.</dd>
+      <dt>Depends on</dt><dd>None</dd>
+      <dt>Test</dt><dd>Type-level assertion that both packages' kind sets are mutually assignable.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s13">
+  <div class="sec-head"><span class="sec-num">13</span><h2>Worker / job issues</h2></div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">WK-01</span><span class="chip c-not">Not impl</span><span class="chip c-p1">P1</span></div>
+    <h4>Worker entrypoint throws on boot</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §64, F-002 — poll, lease, process, retry, fail, shutdown, health.</dd>
+      <dt>Current</dt><dd><code>main()</code> throws immediately.</dd>
+      <dt>File</dt><dd class="mono">apps/worker/src/index.ts:22</dd>
+      <dt>Evidence</dt><dd>Container run output:
+        <pre><code>Error: apps/worker: poll loop not implemented (Phase 2)
+    at main (/app/dist/index.js:22:11)</code></pre></dd>
+      <dt>Why it matters</dt><dd>Of the seven required worker behaviours, six are implemented and
+        tested in <code>metaEvents/</code>. Only the loop is missing, and without it no Purchase
+        event ever reaches Meta.</dd>
+      <dt>Fix</dt><dd>Poll loop over the existing functions, with a SIGTERM handler that stops
+        claiming and drains in-flight leases.</dd>
+      <dt>Depends on</dt><dd>WK-02</dd>
+      <dt>Test</dt><dd>Boot against a seeded backlog; assert drain-on-SIGTERM and no lost leases.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">WK-02</span><span class="chip c-not">Not impl</span><span class="chip c-p1">P1</span></div>
+    <h4>Workspace packages cannot be loaded by Node in the built image</h4>
+    <dl>
+      <dt>Current</dt><dd>Every <code>@acos/*</code> package sets
+        <code>"main": "src/index.ts"</code>, so a compiled worker requiring one executes TypeScript
+        as CommonJS.</dd>
+      <dt>File</dt><dd class="mono">packages/*/package.json</dd>
+      <dt>Evidence</dt><dd>Inside <code>acos-worker:verify</code>:
+        <pre><code>node -e "require('@acos/config')"
+SyntaxError: Unexpected token 'export'</code></pre>
+        <code>scripts/verify-images.sh</code> reports: cannot require
+        <code>@acos/config @acos/core-capi @acos/core-entitlements @acos/db @acos/observability</code>.</dd>
+      <dt>Why it matters</dt><dd>Latent only because the entrypoint throws first. The moment WK-01
+        is fixed, the worker crashes on its first import. <code>apps/web</code> is unaffected —
+        Next's tracer compiles the sources into its bundle.</dd>
+      <dt>Fix</dt><dd>Give the packages a build step and point <code>main</code>/<code>exports</code>
+        at the compiled output, or bundle the worker.</dd>
+      <dt>Depends on</dt><dd>None</dd>
+      <dt>Test</dt><dd>Already present — the image verification check must pass 12/12.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s14">
+  <div class="sec-head"><span class="sec-num">14</span><h2>AI / research issues</h2></div>
+  <div class="callout">
+    The strongest subsystem in the repository. Structured output is schema-validated, repair is
+    targeted rather than re-prompting the whole document, and OBSERVED claims are checked verbatim
+    against the cited source. I attempted seven bypasses and none succeeded.
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">AI-01</span><span class="chip c-not">Not impl</span><span class="chip c-p2">P2</span></div>
+    <h4>No token accounting or cost control</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §59 AI cost management, §60 usage metering. Appendix A rates this
+        <span class="chip c-part">Partial</span>.</dd>
+      <dt>Current</dt><dd>The Anthropic adapter sets <code>max_tokens</code> and never reads the
+        response's <code>usage</code> block. No per-run, per-user or per-tenant cost record exists.</dd>
+      <dt>File</dt><dd class="mono">packages/core-research/src/anthropicModel.ts:73</dd>
+      <dt>Evidence</dt><dd>Repository-wide search for <code>input_tokens</code>,
+        <code>output_tokens</code>, <code>costPaise</code> returns no runtime matches.</dd>
+      <dt>Why it matters</dt><dd>Research is the product's main variable cost and the PRD's unit
+        economics depend on it. Without metering there is no way to price the SaaS tier, cap a
+        runaway loop, or attribute spend.</dd>
+      <dt>Fix</dt><dd>Record <code>usage</code> per call into a cost table keyed by run and user.</dd>
+      <dt>Depends on</dt><dd>DB-01, AU-01</dd>
+      <dt>Test</dt><dd>Fake model returning known usage; assert the persisted cost row matches.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">AI-02</span><span class="chip c-not">Not impl</span><span class="chip c-p1">P1</span></div>
+    <h4>Research output has nowhere to go</h4>
+    <dl>
+      <dt>Current</dt><dd><code>toResearchRows()</code> maps a validated result onto
+        <code>acq_lead_research</code> rows. That table does not exist and
+        <code>ResearchRepository</code> has no implementation.</dd>
+      <dt>File</dt><dd class="mono">packages/core-research/src/persist.ts:5, :117</dd>
+      <dt>Evidence</dt><dd>File header: “Maps a validated result onto <code>acq_lead_research</code>
+        rows — the append-only table the acquisition engine already scores from.” No migration
+        creates it.</dd>
+      <dt>Why it matters</dt><dd>Research can run but its results vanish. The supersede-then-insert
+        ordering the module is careful about cannot be exercised at all.</dd>
+      <dt>Fix</dt><dd>Create the table; implement the repository transactionally.</dd>
+      <dt>Depends on</dt><dd>DB-01</dd>
+      <dt>Test</dt><dd>Integration test: two runs for one lead; assert the first is superseded and
+        the scorer counts each company once.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s15">
+  <div class="sec-head"><span class="sec-num">15</span><h2>Acquisition-domain issues</h2></div>
+  <div class="prose">
+    <p>
+      The domain logic is the most complete part of the product and the least connected. Beyond
+      PF-01 and INT-01 above:
+    </p>
+  </div>
+  <div class="finding">
+    <div class="fid"><span class="fname">ACQ-01</span><span class="chip c-part">Partial</span><span class="chip c-p1">P1</span></div>
+    <h4>Nothing generates the opportunity snapshots the engine consumes</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §20 Stage J Opportunity generation, §50 Opportunity model.</dd>
+      <dt>Current</dt><dd><code>scoreProspect</code>, <code>rankProspects</code>,
+        <code>nextActionFor</code> and <code>buildQueue</code> all take fully-formed inputs
+        (<code>ProspectInput</code>, <code>OpportunitySnapshot</code>). No function constructs one
+        from research output.</dd>
+      <dt>File</dt><dd class="mono">packages/core-acquisition/src/{prospectScore,nextAction}.ts</dd>
+      <dt>Evidence</dt><dd><code>ProspectInput</code> requires <code>icp</code>,
+        <code>abilityToPay</code>, <code>urgency</code> and <code>serviceFit</code> as
+        <code>Claim</code>s — none of which any code produces.</dd>
+      <dt>Why it matters</dt><dd>Scoring is the headline feature and it cannot currently be reached
+        with real data. The missing step is where “need detection” actually lives.</dd>
+      <dt>Fix</dt><dd>An assembler taking research rows plus a ServiceProfile and emitting
+        <code>ProspectInput</code>.</dd>
+      <dt>Depends on</dt><dd>AI-02, PF-01, DB-01</dd>
+      <dt>Test</dt><dd>Golden test: fixed research rows in, stable ranked opportunity out.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s16">
+  <div class="sec-head"><span class="sec-num">16</span><h2>Outreach / safety issues</h2></div>
+  <div class="finding">
+    <div class="fid"><span class="fname">OUT-01</span><span class="chip c-not">Not impl</span><span class="chip c-p2">P2</span></div>
+    <h4>Safety controls are implemented but unreachable, and the DB gate is quarantined</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §26 verification, §27 human approval, §29 follow-up safety stops,
+        §53 outreach provenance.</dd>
+      <dt>Current</dt><dd>Verification, spam-phrase detection, human-actor enforcement and cadence
+        caps all exist and are tested. <code>core-outreach</code> has no runtime consumer other than
+        <code>core-acquisition/followUp.ts</code>. The database-level send gate — a trigger
+        refusing <code>SENT</code> without a named approver — is in
+        <code>migrations-blocked/0005</code>.</dd>
+      <dt>File</dt><dd class="mono">packages/core-outreach/ ·
+        packages/db/prisma/migrations-blocked/0005_outreach_provenance/migration.sql:103–106</dd>
+      <dt>Evidence</dt><dd>No API route, worker, or UI imports <code>@acos/core-outreach</code>.</dd>
+      <dt>Why it matters</dt><dd>Outreach is the highest-risk surface in the product — sending on a
+        user's behalf. Its safety layer is currently documented and tested but not enforced
+        anywhere a message could actually be sent.</dd>
+      <dt>Fix</dt><dd>Do not wire outreach before the send gate migration is restored. Order
+        matters here more than elsewhere.</dd>
+      <dt>Depends on</dt><dd>DB-01, DB-02</dd>
+      <dt>Test</dt><dd>Integration test proving the database refuses <code>SENT</code> without an
+        approver, independent of application code.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s17">
+  <div class="sec-head"><span class="sec-num">17</span><h2>Proposal / pricing issues</h2></div>
+  <div class="finding">
+    <div class="fid"><span class="fname">PR-01</span><span class="chip c-not">Not impl</span><span class="chip c-p2">P2</span></div>
+    <h4><code>core-proposal</code> has no runtime consumer at all</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §32 Stage U, §33 authoritative pricing, §55 proposal versioning.</dd>
+      <dt>Current</dt><dd>972 lines implementing generation, templates, versioning, pricing checks
+        and hedge-phrase detection. Zero imports outside its own tests.</dd>
+      <dt>File</dt><dd class="mono">packages/core-proposal/</dd>
+      <dt>Evidence</dt><dd>The only repository-wide reference to <code>@acos/core-proposal</code> is
+        a comment in <code>packages/config/src/env.ts:52</code>.</dd>
+      <dt>Why it matters</dt><dd>Dead code in the strict sense: it cannot execute in production.
+        It is also the requirement furthest from the MVP, so this is correct sequencing rather than
+        a mistake — but it should be stated, not assumed.</dd>
+      <dt>Fix</dt><dd>Leave as-is until Phase 3. Do not migrate its tables early.</dd>
+      <dt>Depends on</dt><dd>Post-MVP</dd>
+      <dt>Test</dt><dd>None required now.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s18">
+  <div class="sec-head"><span class="sec-num">18</span><h2>Payment / entitlement issues</h2></div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">PE-01</span><span class="chip c-part">Partial</span><span class="chip c-p0">P0</span></div>
+    <h4>A refunded customer keeps the product</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §63 refund requirements, F-004. Invariant: no product without a
+        captured payment.</dd>
+      <dt>Current</dt><dd><code>entitlement_requires_captured_payment</code> is a
+        <strong>BEFORE INSERT</strong> trigger. Nothing re-evaluates it when a payment leaves
+        <code>CAPTURED</code>. <code>resolveAccess</code> reads <code>entitlements</code> and never
+        consults <code>payments</code>.</dd>
+      <dt>File</dt><dd class="mono">packages/db/prisma/migrations/0004_entitlements/migration.sql:117 ·
+        packages/core-entitlements/src/access.ts</dd>
+      <dt>Evidence</dt><dd>Executed against real PostgreSQL:
+        <pre><code>BEFORE refund, accessible = ["ai_income_99"]
+AFTER  refund, accessible = ["ai_income_99"]
+captured payments remaining = 0</code></pre>
+        Migration 0009 explicitly permits <code>CAPTURED → REFUNDED</code>.</dd>
+      <dt>Why it matters</dt><dd>Free product for anyone who requests a refund. No fraud required.
+        This is the highest-value defect in the repository for a system taking money tomorrow.</dd>
+      <dt>Fix</dt><dd>An <code>AFTER UPDATE OF status ON payments</code> trigger revoking
+        entitlements for the order when no <code>CAPTURED</code> payment remains. <strong>This is a
+        policy decision, not purely a bug fix</strong> — partial refunds and mid-download revocation
+        need an explicit rule first.</dd>
+      <dt>Depends on</dt><dd>A frozen refund policy (PRD §63 is not specific enough to implement
+        from).</dd>
+      <dt>Test</dt><dd>grant → refund → assert <code>resolveAccess</code> denies,
+        <code>revoked_at</code> set, <code>authorizeDownload</code> returns
+        <code>not-entitled</code>; plus partial-refund and re-capture cases.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">PE-02</span><span class="chip c-not">Not impl</span><span class="chip c-p0">P0</span></div>
+    <h4>No email transport — the delivery chain has no last step</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD F-001: Payment → Entitlement → Session → Access → Delivery →
+        <strong>Email</strong>.</dd>
+      <dt>Current</dt><dd>No mail library, no provider client, no send function anywhere.</dd>
+      <dt>File</dt><dd class="mono">— (absent)</dd>
+      <dt>Evidence</dt><dd>Search for <code>nodemailer</code>, <code>@sendgrid</code>,
+        <code>postmark</code>, <code>resend</code>, <code>SESClient</code> returns nothing.
+        <code>reissueAccessToken()</code> exists, returns a token intended to be emailed, and has no
+        caller.</dd>
+      <dt>Why it matters</dt><dd>Customers receive the product only if they keep the browser tab.
+        A lost tab is a support ticket, and after 30 days the access token expires with no
+        re-issue path wired.</dd>
+      <dt>Fix</dt><dd>Add a transport behind an interface; wire an access-link route applying the
+        existing <code>REISSUE_*</code> rate-limit policies.</dd>
+      <dt>Depends on</dt><dd>Provider choice</dd>
+      <dt>Test</dt><dd>Fake transport asserting exactly one send per purchase, and that a re-issue
+        request for an unpaid address sends nothing.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">PE-03</span><span class="chip c-not">Not impl</span><span class="chip c-p2">P2</span></div>
+    <h4>Checkout-return verification is a 501 stub</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §5 step 3 — optimistic confirmation UX.</dd>
+      <dt>Current</dt><dd>Returns <code>501 Not Implemented</code>.</dd>
+      <dt>File</dt><dd class="mono">apps/web/app/api/payments/verify/route.ts:16</dd>
+      <dt>Evidence</dt><dd>The invariant “the browser cannot declare payment successful” holds only
+        because the endpoint does nothing, and <strong>no test enforces</strong> that a future
+        implementation must not grant entitlement.</dd>
+      <dt>Why it matters</dt><dd>An unearned invariant. The route's own comment warns implementers;
+        comments do not fail builds.</dd>
+      <dt>Fix</dt><dd>Implement signature verification for UX only, and add a standing test that the
+        route creates no business rows.</dd>
+      <dt>Depends on</dt><dd>None</dd>
+      <dt>Test</dt><dd>Assert a call to <code>/api/payments/verify</code> creates no
+        <code>payments</code>, <code>entitlements</code> or <code>meta_events</code> row.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s19">
+  <div class="sec-head"><span class="sec-num">19</span><h2>Authentication / tenancy</h2></div>
+  <div class="finding">
+    <div class="fid"><span class="fname">AU-01</span><span class="chip c-not">Not impl</span><span class="chip c-p1">P1</span></div>
+    <h4>No authentication, no user, no tenancy</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §39 user identity and tenancy.</dd>
+      <dt>Current</dt><dd>No session, no login, no <code>userId</code> in any runtime file. A
+        <code>User</code> model exists only in the unreferenced root schema.</dd>
+      <dt>File</dt><dd class="mono">schema.prisma:392 (acq_users) — not migrated</dd>
+      <dt>Evidence</dt><dd>Search for <code>userId</code>, <code>tenantId</code>,
+        <code>getSession</code> across <code>apps/web</code> and all <code>core-*</code> returns
+        nothing. The dashboard at <code>/</code> is unauthenticated.</dd>
+      <dt>Why it matters</dt><dd>Every MVP requirement is per-user: a service profile, a search, a
+        prospect list, feedback. Without identity none of them can be built correctly, and
+        retrofitting tenancy after data exists is far more expensive than adding it first.</dd>
+      <dt>Fix</dt><dd>Introduce identity <em>before</em> the acquisition tables, so every row is
+        created with an owner rather than backfilled.</dd>
+      <dt>Depends on</dt><dd>DB-01</dd>
+      <dt>Test</dt><dd>Cross-tenant read attempt must return empty, not another user's rows.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s20">
+  <div class="sec-head"><span class="sec-num">20</span><h2>Security issues</h2></div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">SEC-01</span><span class="chip c-part">Partial</span><span class="chip c-p1">P1</span></div>
+    <h4>Secrets validate on first request, not at boot — and the README says otherwise</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §66 security requirements; §70 production deployment.</dd>
+      <dt>Current</dt><dd><code>loadEnv()</code> is called lazily inside route handlers and
+        helpers. There is no <code>instrumentation.ts</code> and no boot-time call.</dd>
+      <dt>File</dt><dd class="mono">apps/web/src/server/rateLimit.ts:33 ·
+        app/api/payments/create-order/route.ts:62 · app/api/webhooks/razorpay/route.ts:39</dd>
+      <dt>Evidence</dt><dd>README: “Every variable is validated at process boot by
+        <code>packages/config</code>. A missing or malformed value fails fast rather than surfacing
+        at the first request.” The opposite is true. The laziness is deliberate and documented —
+        module-scope <code>loadEnv()</code> broke <code>next build</code> — but the cost landed at
+        runtime.</dd>
+      <dt>Why it matters</dt><dd>A deployment missing <code>RAZORPAY_WEBHOOK_SECRET</code> starts,
+        passes its health check (liveness deliberately touches nothing), joins the load balancer,
+        and fails on the first real payment. This is a security control that is documented rather
+        than enforced.</dd>
+      <dt>Fix</dt><dd><code>apps/web/instrumentation.ts</code> with
+        <code>register()</code> calling <code>loadEnv()</code> and
+        <code>assertNoPublicSecrets()</code>; it runs once at startup and not during build.</dd>
+      <dt>Depends on</dt><dd>None</dd>
+      <dt>Test</dt><dd>Boot the image with one secret removed; assert non-zero exit and that
+        <code>/api/health</code> never returns 200.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">SEC-02</span><span class="chip c-part">Partial</span><span class="chip c-p1">P1</span></div>
+    <h4><code>x-forwarded-for</code> is trusted unconditionally, defeating the IP rate limit</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §68 rate limiting, F-006 forwarded-header trust.</dd>
+      <dt>Current</dt><dd><code>clientIpOf</code> takes the first entry of
+        <code>x-forwarded-for</code> with no proxy allowlist and no hop-count check.</dd>
+      <dt>File</dt><dd class="mono">apps/web/app/api/payments/create-order/route.ts:81–87</dd>
+      <dt>Evidence</dt><dd><pre><code>const forwarded = request.headers.get('x-forwarded-for');
+const first = forwarded?.split(',')[0]?.trim();
+if (first &amp;&amp; first.length &gt; 0 &amp;&amp; first.length &lt;= 45) return first;</code></pre></dd>
+      <dt>Why it matters</dt><dd>Any caller sets the header, so the per-IP limit
+        (20 / 5 min) is bypassed by rotating a string. Only the per-email limit remains, and that is
+        also caller-supplied. Every accepted call spends real Razorpay quota.</dd>
+      <dt>Fix</dt><dd>Take the client IP from the platform's trusted value, or count hops from the
+        right-hand side against a known proxy count.</dd>
+      <dt>Depends on</dt><dd>Deployment target choice (PD-02)</dd>
+      <dt>Test</dt><dd>Requests with rotating <code>x-forwarded-for</code> values must still be
+        throttled.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">SEC-03</span><span class="chip c-part">Partial</span><span class="chip c-p1">P1</span></div>
+    <h4>Rate limiter silently degrades to per-process memory</h4>
+    <dl>
+      <dt>Current</dt><dd>The Postgres-backed limiter is selected only when
+        <code>NODE_ENV === 'production'</code>; otherwise an in-memory limiter is used.</dd>
+      <dt>File</dt><dd class="mono">apps/web/src/server/rateLimit.ts:34–38</dd>
+      <dt>Evidence</dt><dd><pre><code>if (env.NODE_ENV === 'production') { limiter = createPgRateLimiter(pool); }
+else { limiter = createMemoryRateLimiter(); }</code></pre></dd>
+      <dt>Why it matters</dt><dd>Any environment where <code>NODE_ENV</code> is not exactly
+        <code>production</code> — staging with live keys, or a platform setting
+        <code>staging</code> — gets a per-replica limiter that resets on deploy. With N replicas the
+        real limit is N×.</dd>
+      <dt>Fix</dt><dd>Select on the presence of <code>DATABASE_URL</code> and fail closed; keep the
+        memory limiter for tests that inject it explicitly.</dd>
+      <dt>Depends on</dt><dd>None</dd>
+      <dt>Test</dt><dd><code>NODE_ENV=staging</code> plus a <code>DATABASE_URL</code> must yield the
+        Postgres limiter; two limiter instances must share counters.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">SEC-04</span><span class="chip c-part">Partial</span><span class="chip c-p2">P2</span></div>
+    <h4>CSP is report-only</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §69 CSP, F-007.</dd>
+      <dt>Current</dt><dd><code>Content-Security-Policy-Report-Only</code>. Every other security
+        header is enforced.</dd>
+      <dt>File</dt><dd class="mono">apps/web/next.config.mjs:73</dd>
+      <dt>Evidence</dt><dd>Verified live against a running container: <code>X-Frame-Options</code>,
+        <code>nosniff</code>, <code>Referrer-Policy</code>, <code>Permissions-Policy</code>, HSTS
+        and <code>X-DNS-Prefetch-Control</code> all present and enforced.</dd>
+      <dt>Why it matters</dt><dd>A deliberate, documented decision — Next injects inline bootstrap
+        scripts, so an enforcing policy needs per-request nonces. Report-only cannot break checkout.
+        It also cannot stop an injection.</dd>
+      <dt>Fix</dt><dd>Nonce-based CSP through the App Router, then flip to enforcing.</dd>
+      <dt>Depends on</dt><dd>Violation data from report-only in a real environment.</dd>
+      <dt>Test</dt><dd>Assert an inline script without the nonce is blocked.</dd>
+    </dl>
+  </div>
+
+  <div class="finding">
+    <div class="fid"><span class="fname">PII-01</span><span class="chip c-not">Not impl</span><span class="chip c-p2">P2</span></div>
+    <h4>No PII lifecycle for customer data</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §67 PII requirements, F-008.</dd>
+      <dt>Current</dt><dd>Webhook payload retention exists (180-day allowlist redaction, migration
+        0011). <code>orders.customer_email</code> / <code>customer_phone</code> and
+        <code>entitlements.customer_email</code> have no retention, export or erasure path.</dd>
+      <dt>File</dt><dd class="mono">packages/db/prisma/migrations/0001_init/migration.sql</dd>
+      <dt>Evidence</dt><dd>No non-webhook retention or erasure SQL exists in any migration.</dd>
+      <dt>Why it matters</dt><dd>The system of record for customer identity has an unbounded
+        retention period and no subject-access or deletion mechanism.</dd>
+      <dt>Fix</dt><dd>Define a retention policy for order PII and an erasure routine that preserves
+        financial records while removing identifiers.</dd>
+      <dt>Depends on</dt><dd>Legal/policy decision</dd>
+      <dt>Test</dt><dd>Erasure leaves payment totals reconcilable and removes all identifiers.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s21">
+  <div class="sec-head"><span class="sec-num">21</span><h2>Observability issues</h2></div>
+  <div class="finding">
+    <div class="fid"><span class="fname">OB-01</span><span class="chip c-not">Not impl</span><span class="chip c-p2">P2</span></div>
+    <h4>Structured logging exists; correlation, metrics and tracing do not</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §64 worker health; architecture §11 observability.</dd>
+      <dt>Current</dt><dd>The logger emits one redacted JSON line per call and is genuinely good —
+        key-based PII redaction with an allowlist for correlating identifiers, cycle and depth
+        guards. <code>withCorrelationId</code> throws. No metrics. No tracing.</dd>
+      <dt>File</dt><dd class="mono">packages/observability/src/index.ts:62</dd>
+      <dt>Evidence</dt><dd><code>throw new Error('observability.withCorrelationId: not implemented
+        (Phase 1)')</code>. <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> is declared in
+        <code>packages/config/src/env.ts:82</code> and read by no code.
+        <strong>The logger has no callers at all</strong> — zero
+        <code>logger.info/warn/error</code> calls outside its own tests.</dd>
+      <dt>Why it matters</dt><dd>A payment failure in production is currently invisible: no metric,
+        no trace, no log line, because nothing logs. Configuration advertises a telemetry endpoint
+        that consumes nothing.</dd>
+      <dt>Fix</dt><dd>Call the logger from the webhook handler and worker; implement correlation via
+        <code>AsyncLocalStorage</code>; either wire OTEL or drop the variable.</dd>
+      <dt>Depends on</dt><dd>WK-01</dd>
+      <dt>Test</dt><dd>Assert a correlation id propagates from request to worker-side log line.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s22">
+  <div class="sec-head"><span class="sec-num">22</span><h2>Testing gaps</h2></div>
+  <div class="prose">
+    <p>
+      The commerce side is well tested — and the tests bite. But test volume is concentrated exactly
+      where the product is not.
+    </p>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Layer</th><th class="num">Tests</th><th>Character</th><th>Proves production behaviour?</th></tr></thead>
+      <tbody>
+        <tr><td>Unit (all packages)</td><td class="num">1,043</td><td>pure functions</td><td>partially</td></tr>
+        <tr><td>Integration (commerce)</td><td class="num">315</td><td>real PostgreSQL 16.14</td><td>yes</td></tr>
+        <tr><td>Integration (acquisition)</td><td class="num">0</td><td>—</td><td><strong style="color:var(--p0)">no</strong></td></tr>
+        <tr><td>Contract (Razorpay / Meta)</td><td class="num">0</td><td>6 <code>it.todo</code></td><td><strong style="color:var(--p0)">no</strong></td></tr>
+        <tr><td>Acquisition-domain unit</td><td class="num">~294</td><td>in-memory inputs only</td><td>logic only</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="finding" style="margin-top:1rem">
+    <div class="fid"><span class="fname">TS-01</span><span class="chip c-not">Not impl</span><span class="chip c-p1">P1</span></div>
+    <h4>Tests exist but do not prove production behaviour for the product</h4>
+    <dl>
+      <dt>Current</dt><dd>All ~294 acquisition-domain tests are pure unit tests. No integration
+        suite imports <code>core-acquisition</code>, <code>core-research</code>,
+        <code>core-outreach</code> or <code>core-proposal</code>.</dd>
+      <dt>File</dt><dd class="mono">tests/integration/ (22 suites, all commerce)</dd>
+      <dt>Evidence</dt><dd>Grep for those four package names across <code>tests/</code> returns
+        nothing.</dd>
+      <dt>Why it matters</dt><dd>They prove the arithmetic of scoring, not that a prospect can be
+        found, researched, scored and shown. That journey has never executed.</dd>
+      <dt>Fix</dt><dd>One end-to-end MVP journey test, added as the pipeline is built.</dd>
+      <dt>Depends on</dt><dd>DB-01, INT-01</dd>
+      <dt>Test</dt><dd>This finding <em>is</em> the test requirement.</dd>
+    </dl>
+  </div>
+  <div class="finding">
+    <div class="fid"><span class="fname">TS-02</span><span class="chip c-not">Not impl</span><span class="chip c-p2">P2</span></div>
+    <h4>Contract tests and the idempotency suite are empty scaffolds</h4>
+    <dl>
+      <dt>Current</dt><dd><code>tests/contract/</code> — 6 <code>it.todo</code>, no assertions.
+        <code>tests/integration/webhook-idempotency.test.ts</code> — 4 <code>it.todo</code>.</dd>
+      <dt>File</dt><dd class="mono">tests/contract/{razorpay-webhook,meta-capi}.contract.test.ts ·
+        tests/integration/webhook-idempotency.test.ts</dd>
+      <dt>Evidence</dt><dd>The idempotency file's own header calls it “the single most important
+        test file in the repository”, and its TODO names a case nothing else covers: a duplicate
+        with a <em>different</em> event id but the same payment id.</dd>
+      <dt>Why it matters</dt><dd>I verified that two webhook events carrying one payment id are both
+        accepted; no double-grant occurs, but only because downstream unique constraints catch it.
+        Remove any one and the protection is gone, with no test watching.</dd>
+      <dt>Fix</dt><dd>Implement both suites against recorded real payloads.</dd>
+      <dt>Depends on</dt><dd>Captured sandbox payloads</dd>
+      <dt>Test</dt><dd>Same payment under two event ids ⇒ exactly one entitlement, one payment,
+        one Meta event.</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="s23">
+  <div class="sec-head"><span class="sec-num">23</span><h2>Production-readiness gaps</h2></div>
+  <div class="finding">
+    <div class="fid"><span class="fname">PD-01</span><span class="chip c-not">Not impl</span><span class="chip c-p0">P0</span></div>
+    <h4>The web image cannot be built</h4>
+    <dl>
+      <dt>Requirement</dt><dd>PRD §70, F-005.</dd>
+      <dt>Current</dt><dd><code>app/page.tsx</code> and <code>app/(dashboard)/page.tsx</code> both
+        resolve to <code>/</code>; a route group adds no path segment.</dd>
+      <dt>File</dt><dd class="mono">apps/web/app/page.tsx · apps/web/app/(dashboard)/page.tsx</dd>
+      <dt>Evidence</dt><dd><pre><code>Export encountered errors on following paths:
+	/(dashboard)/page: /
+ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL @acos/web@0.1.0 build: `next build`</code></pre>
+        Reproduced identically locally and inside Docker.</dd>
+      <dt>Why it matters</dt><dd>No deployable web artifact exists. It also carries a security
+        edge: <code>SECURITY.md</code> records the dashboard as unauthenticated, so resolving the
+        collision in the dashboard's favour publishes an internal surface.</dd>
+      <dt>Fix</dt><dd>Move one page. <strong>Product decision</strong> — public funnel entry vs
+        operator dashboard at the site root.</dd>
+      <dt>Depends on</dt><dd>That decision, plus AU-01 if the dashboard stays reachable.</dd>
+      <dt>Test</dt><dd><code>scripts/verify-images.sh</code> must reach 12/12 for both images.</dd>
+    </dl>
+  </div>
+  <div class="prose">
+    <p><strong>What is production-ready:</strong> the worker image builds and passes 11 of 12
+      hardening checks (non-root uid 1000, no package manager, no devDependencies, no migration SQL,
+      no secrets in any layer, healthcheck declared, 67 MB). CI exists at
+      <code>.github/workflows/ci.yml</code> with a real migrate gate and a PostgreSQL service. The
+      migration chain applies cleanly.</p>
+    <p><strong>What is not:</strong> no deploy target, no runtime host chosen, no secret manager, no
+      backup/restore runbook, no rollback procedure, no alerting. <code>pnpm format:check</code>
+      fails on 57 pre-existing files, which fails the CI lint job at its last step.</p>
+  </div>
+</section>
+
+<section id="s24">
+  <div class="sec-head"><span class="sec-num">24</span><h2>Documentation inconsistencies</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Claim</th><th>Location</th><th>Reality</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">DOC-01</td><td>“Every variable is validated at process boot … fails fast rather than surfacing at the first request”</td><td class="mono">README.md</td><td>All <code>loadEnv()</code> calls are lazy; no <code>instrumentation.ts</code>. <strong>Security control documented, not enforced.</strong></td></tr>
+        <tr><td class="mono">DOC-02</td><td>“Seventeen models in two groups”</td><td class="mono">docs/DATABASE.md:7</td><td>Documents the unreferenced root schema. The deployed schema has 6 models / 10 tables.</td></tr>
+        <tr><td class="mono">DOC-03</td><td>“Six migrations”; “trigger migrations (0003–0005)”; “enum replacement in 0006”</td><td class="mono">docs/MIGRATIONS.md:3, :80</td><td>9 in the chain; 0005 and 0006 are quarantined and do not apply.</td></tr>
+        <tr><td class="mono">DOC-04</td><td>“747 unit tests, 154 unrun integration tests”</td><td class="mono">README.md doc table</td><td>1,043 unit; 315 integration, all running. TESTING.md itself is current; the README index is stale.</td></tr>
+        <tr><td class="mono">DOC-05</td><td>“14 open findings”</td><td class="mono">README.md doc table</td><td>11 — three were closed without updating the index.</td></tr>
+        <tr><td class="mono">DOC-06</td><td>“Scope is deliberately exactly six models”</td><td class="mono">schema.prisma:5</td><td>The same file defines 17. Self-contradictory.</td></tr>
+        <tr><td class="mono">DOC-07</td><td>PRD Appendix A rates ServiceProfile / search / discovery / normalisation / dedup as <span class="chip c-part">Partial</span></td><td class="mono">requirement/…V2.0.md</td><td>Zero files implement any of them. Should be <span class="chip c-not">Not implemented</span>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:.88rem;color:var(--muted);margin-top:.8rem">
+    DOC-07 matters most: the PRD is the planning instrument. Rating the MVP's first three stages
+    “Partial” when nothing exists understates the remaining work at exactly the point where the
+    schedule is being set.
+  </p>
+</section>
+
+<section id="s25">
+  <div class="sec-head"><span class="sec-num">25</span><h2>Stale / generated artifacts</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Artifact</th><th>Problem</th><th>Sev</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">ST-01</td><td class="mono">.eslintrc.json</td><td>Tracked and dead. ESLint 9 reads <code>eslint.config.mjs</code> only; this file is never loaded but still looks authoritative.</td><td><span class="chip c-p3">P3</span></td></tr>
+        <tr><td class="mono">ST-02</td><td class="mono">schema.prisma (root)</td><td>734 lines, unreferenced by any script, Dockerfile or CI step. The only description of the acquisition data model.</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="mono">ST-03</td><td class="mono">packages/shared-types</td><td><code>export type Placeholder = never</code>. A declared dependency of <code>apps/web</code> whose stated job — single source of truth for wire contracts — is unfilled while three copies of <code>ResearchSourceKind</code> exist.</td><td><span class="chip c-p3">P3</span></td></tr>
+        <tr><td class="mono">ST-04</td><td class="mono">apps/worker/src/dispatchers/</td><td>Two stubs for a design (<code>outbox_events</code>) superseded by the implemented <code>metaEvents/</code> worker.</td><td><span class="chip c-p3">P3</span></td></tr>
+        <tr><td class="mono">ST-05</td><td class="mono">infra/github-actions/ci.yml</td><td>Retained as a pointer after CI moved to <code>.github/workflows/</code>. Correct, but a second file named <code>ci.yml</code> invites editing the wrong one.</td><td><span class="chip c-p3">P3</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:.88rem;color:var(--muted);margin-top:.8rem">
+    <code>apps/worker/dist</code>, <code>apps/web/.next</code> and <code>.turbo</code> are present
+    locally but correctly gitignored — not repository problems.
+  </p>
+</section>
+
+<section id="s26">
+  <div class="sec-head"><span class="sec-num">26</span><h2>Requirement-to-repository traceability</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>PRD §</th><th>Requirement</th><th>Repository location</th><th>Status</th><th>Finding</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">39</td><td>User identity / tenancy</td><td class="mono">schema.prisma:392 (unmigrated)</td><td><span class="chip c-not">Not impl</span></td><td class="mono">AU-01</td></tr>
+        <tr><td class="mono">40</td><td>ServiceProfile</td><td>—</td><td><span class="chip c-not">Not impl</span></td><td class="mono">MVP-01</td></tr>
+        <tr><td class="mono">41–42</td><td>Search / async search</td><td>—</td><td><span class="chip c-not">Not impl</span></td><td class="mono">MVP-02</td></tr>
+        <tr><td class="mono">43–45</td><td>Discovery / normalisation / dedup</td><td>—</td><td><span class="chip c-not">Not impl</span></td><td class="mono">MVP-02</td></tr>
+        <tr><td class="mono">46</td><td>Research</td><td class="mono">core-research/researcher.ts</td><td><span class="chip c-impl">Logic</span></td><td class="mono">AI-02</td></tr>
+        <tr><td class="mono">47</td><td>Evidence / provenance</td><td class="mono">core-research/provenance.ts</td><td><span class="chip c-impl">Logic</span></td><td>—</td></tr>
+        <tr><td class="mono">48</td><td>AI structured output</td><td class="mono">core-research/{schema,jsonSchema,repair}.ts</td><td><span class="chip c-impl">Logic</span></td><td>—</td></tr>
+        <tr><td class="mono">49</td><td>Offer engine</td><td class="mono">core-acquisition/offer.ts</td><td><span class="chip c-part">Partial</span></td><td class="mono">PF-01</td></tr>
+        <tr><td class="mono">50</td><td>Opportunity model</td><td class="mono">core-acquisition/nextAction.ts</td><td><span class="chip c-part">Partial</span></td><td class="mono">ACQ-01</td></tr>
+        <tr><td class="mono">51</td><td>Prospect state machine</td><td class="mono">core-acquisition/stages.ts</td><td><span class="chip c-impl">Logic</span></td><td>—</td></tr>
+        <tr><td class="mono">52–53</td><td>Outreach state / provenance</td><td class="mono">core-outreach/ + migrations-blocked/0005</td><td><span class="chip c-part">Partial</span></td><td class="mono">OUT-01</td></tr>
+        <tr><td class="mono">54</td><td>Follow-up</td><td class="mono">core-acquisition/{cadence,followUp}.ts</td><td><span class="chip c-impl">Logic</span></td><td>—</td></tr>
+        <tr><td class="mono">55</td><td>Proposal versioning</td><td class="mono">core-proposal/versions.ts</td><td><span class="chip c-impl">Logic</span></td><td class="mono">PR-01</td></tr>
+        <tr><td class="mono">56</td><td>Dashboard</td><td class="mono">apps/web/src/dashboard/loadDashboard.ts</td><td><span class="chip c-part">Partial</span></td><td class="mono">PF-02</td></tr>
+        <tr><td class="mono">57</td><td>Track / improve analytics</td><td class="mono">core-acquisition/metrics.ts</td><td><span class="chip c-part">Partial</span></td><td class="mono">INT-01</td></tr>
+        <tr><td class="mono">58</td><td>Outcome / revenue feedback</td><td>—</td><td><span class="chip c-not">Not impl</span></td><td class="mono">INT-01</td></tr>
+        <tr><td class="mono">59–60</td><td>AI cost / usage metering</td><td>—</td><td><span class="chip c-not">Not impl</span></td><td class="mono">AI-01</td></tr>
+        <tr><td class="mono">61</td><td>Subscriptions</td><td>—</td><td><span class="chip c-fut">Future</span></td><td>—</td></tr>
+        <tr><td class="mono">62</td><td>Payments</td><td class="mono">core-payments/, apps/web routes</td><td><span class="chip c-impl">Logic</span></td><td class="mono">PE-03</td></tr>
+        <tr><td class="mono">63</td><td>Refunds</td><td class="mono">migrations 0009</td><td><span class="chip c-part">Partial</span></td><td class="mono">PE-01</td></tr>
+        <tr><td class="mono">64</td><td>Worker</td><td class="mono">apps/worker/metaEvents/</td><td><span class="chip c-part">Partial</span></td><td class="mono">WK-01/02</td></tr>
+        <tr><td class="mono">65</td><td>Database</td><td class="mono">packages/db/prisma/</td><td><span class="chip c-part">Partial</span></td><td class="mono">DB-01/02</td></tr>
+        <tr><td class="mono">66</td><td>Security</td><td class="mono">docs/SECURITY.md + code</td><td><span class="chip c-part">Partial</span></td><td class="mono">SEC-01…04</td></tr>
+        <tr><td class="mono">67</td><td>PII</td><td class="mono">migration 0011 (webhooks only)</td><td><span class="chip c-part">Partial</span></td><td class="mono">PII-01</td></tr>
+        <tr><td class="mono">68</td><td>Rate limiting</td><td class="mono">packages/rate-limit/</td><td><span class="chip c-part">Partial</span></td><td class="mono">SEC-02/03</td></tr>
+        <tr><td class="mono">69</td><td>CSP</td><td class="mono">apps/web/next.config.mjs</td><td><span class="chip c-part">Partial</span></td><td class="mono">SEC-04</td></tr>
+        <tr><td class="mono">70</td><td>Production deployment</td><td class="mono">Dockerfiles, CI</td><td><span class="chip c-part">Partial</span></td><td class="mono">PD-01</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="a">
+  <div class="sec-head"><span class="sec-num">A</span><h2>Top 20 issues</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th class="num">#</th><th>ID</th><th>Issue</th><th>Sev</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td class="mono">PE-01</td><td>Refunded customer keeps the product — verified live</td><td><span class="chip c-p0">P0</span></td></tr>
+        <tr><td class="num">2</td><td class="mono">DB-01</td><td>Two Prisma schemas disagree; acquisition domain has no migration</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">3</td><td class="mono">PD-01</td><td>Web image cannot be built — duplicate <code>/</code> route</td><td><span class="chip c-p0">P0</span></td></tr>
+        <tr><td class="num">4</td><td class="mono">PE-02</td><td>No email transport; delivery chain has no last step</td><td><span class="chip c-p0">P0</span></td></tr>
+        <tr><td class="num">5</td><td class="mono">AU-01</td><td>No authentication, user or tenancy</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">6</td><td class="mono">MVP-02</td><td>Entire FIND stage absent (search, discovery, normalisation, dedup)</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">7</td><td class="mono">MVP-01</td><td>ServiceProfile absent — MVP journey has no first step</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">8</td><td class="mono">INT-01</td><td>No acquisition persistence and no acquisition API</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">9</td><td class="mono">WK-02</td><td><code>@acos/*</code> unloadable by Node — worker crashes on first import</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">10</td><td class="mono">WK-01</td><td>Worker poll loop throws on boot</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">11</td><td class="mono">SEC-02</td><td><code>x-forwarded-for</code> trusted — IP rate limit bypassable</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">12</td><td class="mono">SEC-01</td><td>Env validated lazily; README claims boot-time enforcement</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">13</td><td class="mono">SEC-03</td><td>Rate limiter degrades to per-process memory off <code>NODE_ENV</code></td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">14</td><td class="mono">ACQ-01</td><td>Nothing generates the snapshots the scoring engine consumes</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">15</td><td class="mono">AI-02</td><td>Research output has no table and no repository</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">16</td><td class="mono">TS-01</td><td>Zero integration coverage of the acquisition domain</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">17</td><td class="mono">DB-02</td><td>Two migrations quarantined; outreach send gate unusable</td><td><span class="chip c-p1">P1</span></td></tr>
+        <tr><td class="num">18</td><td class="mono">OB-01</td><td>Logger has no callers; correlation throws; OTEL unconsumed</td><td><span class="chip c-p2">P2</span></td></tr>
+        <tr><td class="num">19</td><td class="mono">DOC-07</td><td>PRD overstates MVP stage readiness as Partial</td><td><span class="chip c-p2">P2</span></td></tr>
+        <tr><td class="num">20</td><td class="mono">AI-01</td><td>No token or cost metering for the product's main variable cost</td><td><span class="chip c-p2">P2</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="b">
+  <div class="sec-head"><span class="sec-num">B</span><h2>MVP blockers</h2></div>
+  <div class="prose">
+    <p>
+      Must be resolved before the Client Finder MVP can be demonstrated end-to-end. Ordered by
+      dependency, not severity.
+    </p>
+    <ol>
+      <li><strong>DB-01 — decide the authoritative schema.</strong> Nothing else in the MVP can
+        start until there is one schema file and a migration path for <code>acq_*</code>. This is a
+        decision, not an implementation, and it blocks six other items.</li>
+      <li><strong>AU-01 — identity before data.</strong> Every MVP row belongs to a user.
+        Retrofitting tenancy after prospects exist is materially more expensive.</li>
+      <li><strong>MVP-01 — ServiceProfile.</strong> The first journey stage; the offer engine
+        already has the parameter waiting for it.</li>
+      <li><strong>MVP-02 — FIND.</strong> Discovery provider behind an interface, candidate
+        normalisation, dedup, prospect persistence.</li>
+      <li><strong>AI-02 / INT-01 — connect research to scoring.</strong> The table, the repository,
+        and the assembler that turns research rows into <code>ProspectInput</code>.</li>
+      <li><strong>ACQ-01 — opportunity generation.</strong> The missing middle.</li>
+      <li><strong>PF-02 — feed the dashboard.</strong> One function changes.</li>
+      <li><strong>TS-01 — one end-to-end journey test</strong> against real PostgreSQL.</li>
+      <li><strong>PD-01 — resolve the route collision</strong> so a web artifact can be built at
+        all.</li>
+    </ol>
+    <p>
+      PE-01, PE-02 and PD-01 are P0 for <em>taking money</em>, which the funnel already does. If
+      real customers can purchase today, those three precede everything above.
+    </p>
+  </div>
+</section>
+
+<section id="c">
+  <div class="sec-head"><span class="sec-num">C</span><h2>Post-MVP</h2></div>
+  <div class="prose">
+    <ul>
+      <li><strong>WK-01 / WK-02</strong> — worker loop and package loadability. Needed for Meta
+        attribution, not for the MVP journey itself.</li>
+      <li><strong>OUT-01</strong> — outreach wiring, and only after the send-gate migration is
+        restored. The safety layer must be enforced before the first message can be sent.</li>
+      <li><strong>PR-01</strong> — proposals. Complete, unreachable, and correctly deferred.</li>
+      <li><strong>OB-01</strong> — correlation IDs and metrics; start by giving the logger callers.</li>
+      <li><strong>AI-01</strong> — token metering, required before any usage-based pricing.</li>
+      <li><strong>PII-01</strong> — customer PII retention and erasure.</li>
+      <li><strong>SEC-04</strong> — nonce-based CSP, using report-only violation data.</li>
+      <li><strong>TS-02</strong> — contract tests and the idempotency suite.</li>
+      <li><strong>DOC-01…07, ST-01…05</strong> — documentation and stale-artifact cleanup.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="d">
+  <div class="sec-head"><span class="sec-num">D</span><h2>Safe to leave as future</h2></div>
+  <div class="prose">
+    <p>Deferred by PRD §107 and correctly unbuilt. Nothing here should be pulled forward.</p>
+    <ul>
+      <li>SaaS subscriptions, usage quotas, billing optimisation (§61)</li>
+      <li>CRM, conversation management at scale, teams and workspaces</li>
+      <li>Autonomous acquisition agents (Phase 6)</li>
+      <li>Large-scale scraping and campaign management</li>
+      <li>Elaborate “improve” analytics beyond the existing metrics functions</li>
+      <li>Enterprise controls</li>
+    </ul>
+    <p>
+      One watch item: the root schema already models <code>acq_clients</code>,
+      <code>acq_conversations</code> and <code>acq_activities</code> — CRM-shaped tables for a stage
+      the PRD forbids building. When DB-01 is resolved, migrate only what the MVP needs rather than
+      the whole file.
+    </p>
+  </div>
+</section>
+
+<section id="e">
+  <div class="sec-head"><span class="sec-num">E</span><h2>Recommended implementation order</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Step</th><th>Work</th><th>Unblocks</th><th>Why here</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">0</td><td>Freeze refund policy; implement PE-01 revocation</td><td>—</td><td>Live revenue leakage if anyone can purchase today</td></tr>
+        <tr><td class="mono">1</td><td>Resolve the <code>/</code> route collision (PD-01)</td><td>any deploy</td><td>Cheapest possible fix; nothing ships without it</td></tr>
+        <tr><td class="mono">2</td><td>Email transport + access-link route (PE-02)</td><td>delivery</td><td>Completes the paid chain; reissue logic already exists</td></tr>
+        <tr><td class="mono">3</td><td>Choose one schema; write the acquisition base migration (DB-01, DB-02)</td><td>4–9</td><td>The single decision blocking the entire MVP</td></tr>
+        <tr><td class="mono">4</td><td>Identity and tenancy (AU-01)</td><td>5–9</td><td>Must precede the first owned row</td></tr>
+        <tr><td class="mono">5</td><td>ServiceProfile + persistence + API (MVP-01)</td><td>6, 8</td><td>Journey stage one; offer engine already accepts it</td></tr>
+        <tr><td class="mono">6</td><td>Discovery provider, normalisation, dedup, prospect store (MVP-02)</td><td>7</td><td>Journey stage two; abstract the provider per PRD §76</td></tr>
+        <tr><td class="mono">7</td><td>Research persistence + research→prospect assembler (AI-02, ACQ-01)</td><td>8</td><td>Joins the two finished halves</td></tr>
+        <tr><td class="mono">8</td><td>Opportunity API, results UI, feedback capture (INT-01, PF-02)</td><td>9</td><td>First moment a user sees value</td></tr>
+        <tr><td class="mono">9</td><td>End-to-end journey integration test (TS-01)</td><td>validation</td><td>Proves the MVP acceptance criteria in PRD §83</td></tr>
+        <tr><td class="mono">10</td><td>Worker loadability + poll loop (WK-02, WK-01)</td><td>attribution</td><td>Independent of the MVP journey; do not let it block 3–9</td></tr>
+        <tr><td class="mono">11</td><td>SEC-01, SEC-02, SEC-03 hardening</td><td>production</td><td>Small, independent, do before real traffic scales</td></tr>
+        <tr><td class="mono">12</td><td>Observability callers, AI cost metering, PII lifecycle</td><td>operations</td><td>Needed to run it, not to prove it</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout" style="margin-top:1.5rem">
+    <strong>The ordering principle:</strong> step 3 is the fulcrum. Steps 4–9 are a single
+    dependent chain that cannot begin until the schema question is answered, and that chain is the
+    MVP. Steps 0–2 are separable and urgent only because the funnel already takes money. Step 10
+    onward should not be allowed to preempt the chain — the worker, proposals and outreach are all
+    complete logic waiting on integration, and integrating them early spends the sprint on things
+    no user will see before the Client Finder works.
+  </div>
+</section>
+
+<footer>
+  Audit performed against the working tree; no source, schema, migration, test, configuration,
+  documentation or dependency was modified. Evidence cited as <code>path:line</code> is from the
+  repository as read. Execution evidence (refund behaviour, migration chain, image verification,
+  test counts) is from commands run against real PostgreSQL 16.14 and Docker during this audit.
+  Status vocabulary follows PRD V2.0 §104.
+</footer>
+
+</div>
+
+</body></html>

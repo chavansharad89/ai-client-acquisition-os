@@ -1,0 +1,114 @@
+name: CI
+
+# Was infra/github-actions/ci.yml, where GitHub never looked for it — a
+# workflow outside .github/workflows/ does not run, so none of this had
+# ever executed. Moved here so it does.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The Prisma client is generated code that @acos/db's module scope
+      # instantiates, so typecheck cannot resolve @acos/db without it.
+      - run: pnpm db:generate
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm format:check
+
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: acos_test
+          POSTGRES_PASSWORD: acos_test_password
+          POSTGRES_DB: acos_test
+        ports:
+          # 5433 on the host, matching docker-compose.test.yml, so the
+          # integration harness's default URL is correct in CI and
+          # locally without a second code path for either.
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U acos_test -d acos_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://acos_test:acos_test_password@127.0.0.1:5433/acos_test?schema=public
+      # The integration harness creates a throwaway database per suite, so
+      # it connects to `postgres` rather than to the app database.
+      TEST_ADMIN_DATABASE_URL: postgresql://acos_test:acos_test_password@127.0.0.1:5433/postgres
+      # Names the target so a stale DATABASE_URL cannot send this
+      # pipeline's migrations somewhere else. See db-migrate-deploy.sh.
+      EXPECT_DATABASE: acos_test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+
+      # A service container reports healthy as soon as pg_isready passes,
+      # which can be before it is accepting connections on the mapped
+      # port. Waiting here turns a rare flake into a deterministic gate.
+      - name: Wait for PostgreSQL
+        run: ./scripts/wait-for-postgres.sh 127.0.0.1 5433 60
+
+      # THE GATE. This was a TODO, so the schema was never applied and the
+      # integration suites had nothing to run against. It runs before the
+      # tests, and a failure here stops them — a green test run against a
+      # database that was never migrated proves nothing.
+      - name: Migrate the test database
+        run: ./scripts/db-migrate-deploy.sh
+
+      - name: Unit tests
+        run: pnpm test
+
+      # Real PostgreSQL, not a fake: the harness creates a throwaway
+      # database per suite and applies the full migration chain to it.
+      # tests/pipeline/testPolicy.test.ts asserts no integration suite
+      # substitutes an in-memory double or skips migrations.
+      - name: Integration tests
+        run: pnpm test:integration
+
+  # Guards the production images: non-root, minimal, no secrets in any
+  # layer. See docs/SECURITY.md "Container hardening".
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and verify production images
+        run: ./scripts/verify-images.sh
+
+  # migrate-and-deploy:
+  #   TODO: add once there is an actual deploy target.
+  #   Must run scripts/db-migrate-deploy.sh as its own job BEFORE the new
+  #   app version receives traffic, per architecture §9 rule 5.
+  #   needs: [lint-typecheck, test]
+  #   runs-on: ubuntu-latest
+  #   if: github.ref == 'refs/heads/main'
+  #   steps: []

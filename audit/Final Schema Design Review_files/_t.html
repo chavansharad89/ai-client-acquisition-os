@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<!-- saved from url=(0092)https://333458ab-7f5d-438c-a895-ef0c5f92c623.frame.claudeusercontent.com/_f/1789533913-d2a2/ -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"cred":"cookie","capabilities":{"artifact":"artifact.O-h4mzdy.js","assets":"assets.DhQw8DTi.js","comments":"comments.DcGvuXoo.js","db":"db.DL2sIJ17.js","downloads":"downloads.axDW2QAi.js","embed":"embed.swQslL0W.js","endpoints":"endpoints.BPfoKaE1.js","mcp":"mcp.C8qKIFvQ.js","network":"network.B5UA9Su4.js","permissions":"permissions.DWFFeHI0.js","room":"room.BF1j0KPr.js","sample":"sample.C7KQQdQj.js","self":"artifact.O-h4mzdy.js","user":"user.CCh6oTS_.js"},"transforms":"_transforms.BXjPs0fy.js","comments":"_comments.CoT-GWno.js","translate":"_translate.DqxC5ek1.js","ldx":"_ldx.CqNtBrkk.js"}                                                                                                                                                                                                                                                                                                                                                                                                             </script><script>(function(){"use strict";var Rn=3e5;function tr(t,e){try{const n=t("navigation")[0],o=[n.responseStart,n.redirectEnd-n.redirectStart,n.domContentLoadedEventStart,e()];for(let a=0;a<o.length;a++){if(!(o[a]>=0&&o[a]<=3e5))return;o[a]=o[a]|0}return o}catch{return}}var rr=["light","dark","system"],nr=/^[A-Za-z0-9_-]{1,64}$/,wt=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,or=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function ar(t){const e=t.toLowerCase();return e.startsWith("data-")||e.startsWith("aria-")||or.has(e)}var bt="data-ldx-props";function sr(t,e){if(e.toLowerCase()===bt)return!0;const n=t.getAttribute(bt);if(n===null)return!1;try{const o=JSON.parse(n);if(o===null||typeof o!="object"||Array.isArray(o))return!0;const a=e.toLowerCase();return Object.keys(o).some(s=>s.toLowerCase()===a)}catch{return!0}}var Tn="http://www.w3.org/1999/xhtml",lr="http://www.w3.org/2000/svg",ir=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),cr=new Set(["script","style"]);function ur(t){const e=t.localName.toLowerCase();return t.namespaceURI==="http://www.w3.org/1999/xhtml"?!ir.has(e):t.namespaceURI===lr?!cr.has(e):!1}function Ve(t,e){return t===e||(t===160||t===32)&&(e===160||e===32)}function fr(t,e){const n=t.length,o=e.length;let a=0;for(;a<n&&a<o&&Ve(t.charCodeAt(a),e.charCodeAt(a));)a++;let s=0;for(;s<n-a&&s<o-a&&Ve(t.charCodeAt(n-1-s),e.charCodeAt(o-1-s));)s++;return{p:a,s}}function dr(t,e){const n=t.firstChild;if(t.childNodes.length!==1||n===null||n.nodeType!==Node.TEXT_NODE){t.textContent=e;return}const o=n.data,a=o.length,s=e.length,{p:c,s:d}=fr(o,e);c===a&&d===0&&a===s||n.replaceData(c,a-c-d,e.slice(c,s-d));const O=n.data,S=t.ownerDocument.getSelection?.()??null,P=S!==null&&S.rangeCount>0&&(S.anchorNode===n||S.focusNode===n)?{anchor:S.anchorNode,anchorOffset:S.anchorOffset,focus:S.focusNode,focusOffset:S.focusOffset}:null;let v=-1,T=-1;for(let h=0;h<O.length&&h<e.length;h++){const I=O.charCodeAt(h),$=e.charCodeAt(h);I!==$&&Ve(I,$)&&(v<0&&(v=h),T=h)}const m=v>=0;if(m&&n.replaceData(v,T-v+1,e.slice(v,T+1)),m&&P!==null&&P.anchor!==null&&P.focus!==null)try{S.setBaseAndExtent(P.anchor,P.anchorOffset,P.focus,P.focusOffset)}catch{}}var hr=new Set(["html","head","body","frameset"]);function pr(t){return t.namespaceURI==="http://www.w3.org/1999/xhtml"&&hr.has(t.localName)}function mr(t){if(t===null||typeof t!="object")return!1;const e=t;if(typeof e.target!="string"||!nr.test(e.target)||e.text!==void 0&&typeof e.text!="string")return!1;if(e.attrsSet!==void 0){if(e.attrsSet===null||typeof e.attrsSet!="object")return!1;for(const[n,o]of Object.entries(e.attrsSet))if(!wt.test(n)||typeof o!="string")return!1}if(e.attrsRemoved!==void 0){if(!Array.isArray(e.attrsRemoved))return!1;for(const n of e.attrsRemoved)if(typeof n!="string"||!wt.test(n))return!1}return!0}function vr(t,e){if(t===null||typeof t!="object")return!1;const{seq:n,elements:o}=t;if(typeof n!="number"||!Number.isSafeInteger(n)||!Array.isArray(o)||o.length===0||o.length>64)return!1;for(let a=0;a<o.length;a++)if(!e(o[a]))return!1;return!0}function _r(t){return t===null||typeof t!="object"?!1:vr(t.__frame_patch,mr)}function yr(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_init;return e!==null&&typeof e=="object"}function gr(t){return t!==null&&typeof t=="object"&&t.__frame_size_poke===!0}function wr(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_host_visible;return e!==null&&typeof e=="object"&&typeof e.visible=="boolean"}function br(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_theme;if(e===null||typeof e!="object")return!1;const n=e.theme;return typeof n=="string"&&rr.includes(n)}var Er=["ok","empty","snapshot_error","snapshot_timeout","unclonable","oversize","unavailable","restore_error","withheld"],Sr=["TypeError","RangeError","ReferenceError","SyntaxError","DataCloneError","QuotaExceededError","AbortError","TimeoutError","SecurityError","Error","other"];function kr(t){return typeof t=="string"&&Sr.includes(t)?t:"other"}var Ar=Object.freeze({until:null,now:!1}),Rr="__claude_hot",Tr="__claude_hot_in",Or=/^__claude_hot(?:_in)?(?::|$)/,Et=/^[0-9a-z]{1,32}$/,We=t=>t===void 0?Rr:"__claude_hot:"+t,ye=t=>t===void 0?Tr:"__claude_hot_in:"+t;function Lr(t,e){const n=[];for(let o=0;o<t.length;o++){const a=t.key(o);a!==null&&a!==e&&Or.test(a)&&n.push(a)}for(const o of n)t.removeItem(o)}function Mr(t){let e=null;try{e=B(JSON.parse(t)?.hot)}catch{return null}return e===null||typeof e.k!="string"||!Et.test(e.k)?null:ae(e.g)?{k:e.k,g:e.g}:{k:e.k}}var On=262144,Pr=3e3,Nr=5e3,St=/^[a-z0-9._:-]{1,64}$/,Cr=["none","hot-restart","hard-reload"],jr=["asset","doc","added","removed"],Ir=1500,Fr=/^[0-9a-f]{64}$/;function B(t){return t!==null&&typeof t=="object"?t:null}function ae(t){return typeof t=="number"&&Number.isInteger(t)&&t>=0&&t<2**31}function kt(t){return t===void 0||typeof t=="number"&&Number.isFinite(t)}function xr(t){return t===void 0||typeof t=="string"&&St.test(t)}function At(t){const e=B(t);return e!==null&&(e.until===null||typeof e.until=="number"&&Number.isFinite(e.until))&&typeof e.now=="boolean"}function Xe(t){const e=B(t);return e!==null&&typeof e.ver=="string"&&e.ver.length<=128&&kt(e.seq)&&typeof e.handoff=="string"&&Er.includes(e.handoff)&&xr(e.note)}function Dr(t){const e=B(t);return e!==null&&ae(e.gen)&&(e.phase==="final"||e.phase==="pending")&&(e.from===null||Xe(e.from))}function Hr(t){const e=B(t);return e!==null&&e.kv===1&&ae(e.gen)&&Xe(e.from)&&Object.hasOwn(e,"data")}function qr(t){const e=B(t);return e!==null&&e.__frame_hot_snapshot===!0&&ae(e.gen)&&typeof e.timeoutMs=="number"&&e.timeoutMs>=0&&e.timeoutMs<=6e4&&(e.handoff===void 0||typeof e.handoff=="boolean")&&(e.deadline===void 0||At(e.deadline))&&kt(e.seq)&&(e.note===void 0||typeof e.note=="string")&&(e.key===void 0||typeof e.key=="string")}function Br(t){const e=B(t);return e!==null&&e.__frame_hot_start===!0&&ae(e.gen)&&Xe(e.from)}function Ur(t){return typeof t=="string"&&t.length>=1&&t.length<=128}function Rt(t){return B(t)!==null&&!Array.isArray(t)}function Gr(t){const e=B(t);return e!==null&&e.__frame_cap_grant===!0&&typeof e.cap=="string"&&Ur(e.ver)&&(e.grant===void 0||Rt(e.grant))&&(e.budgets===void 0||Rt(e.budgets)&&Object.values(e.budgets).every(Number.isFinite))&&(e.brokerGen===void 0||ae(e.brokerGen))}function zr(t){const e=B(t);return e!==null&&e.__frame_cap_rewired===!0&&(e.caps===void 0||Array.isArray(e.caps)&&e.caps.every(n=>typeof n=="string"))&&(e.brokerGen===void 0||ae(e.brokerGen))}function Tt(t){const e=B(t);return e!==null&&typeof e.ver=="string"&&e.ver.length<=128&&Number.isFinite(e.seq)}function Ot(t){if(t==null||typeof t=="string")return!0;const e=B(t);return e!==null&&typeof e.doc=="string"&&typeof e.profile=="string"}function Kr(t){const e=B(t);return e!==null&&typeof e.path=="string"&&jr.includes(e.kind)&&Ot(e.from)&&Ot(e.to)}function $r(t){return t===null?null:Object.freeze(t.filter(Kr))}function Vr(t){const e=B(t);return e!==null&&e.__frame_hot_update===!0&&Number.isFinite(e.id)&&Tt(e.from)&&Tt(e.to)&&(e.changed===null||Array.isArray(e.changed))&&Cr.includes(e.required)&&At(e.deadline)&&typeof e.verdictTimeoutMs=="number"&&e.verdictTimeoutMs>=0&&e.verdictTimeoutMs<=6e4&&(e.preflight===void 0||typeof e.preflight=="string"&&Fr.test(e.preflight))}var se=/^[\w.-]+\.js$/;function Wr(t,e,n){return n?"inert":typeof e=="string"&&se.test(e)?t?[e]:"inert":t?"inert":"framed"}var Lt=Object.freeze({[Symbol("claude.hot.restart")]:!0});function Mt(t,e){let n;try{n=t??sessionStorage}catch{return null}const o=We(e?.k),a=ye(e?.k);let s=null;try{s=n.getItem(o)}catch{}try{n.removeItem(o)}catch{}try{Lr(n,a)}catch{}let c=null;if(s!==null&&!(e!==null&&e.g===void 0))try{const d=JSON.parse(s);Hr(d)&&(e===null||d.gen===e.g)&&(c=d)}catch{}if(c===null)try{n.removeItem(a)}catch{}return c}function Xr(){const t=/^\/_f\/([^/]{1,128})\//.exec(location.pathname);return t?t[1]:""}var Yr=/^[^/\\?#]{1,128}$/,Pt=t=>Yr.test(t)&&t!=="."&&t!=="..";function Nt(t,e,n){const o=new URL(t),a="/_f/"+e+"/";if(!e||!o.pathname.startsWith(a)||!Pt(n))return null;const s=o.search.slice(1).split("&").filter(c=>!/^__frame_t(?:=|$)/.test(c)).join("&");return o.origin+"/_f/"+n+"/"+o.pathname.slice(a.length)+(s?"?"+s:"")+o.hash}var Ce="{}";function ge(t){if(!t)return null;const e={ver:t.ver,handoff:t.handoff};return t.seq!==void 0&&(e.seq=t.seq),t.note!==void 0&&(e.note=t.note),e}function Ct(t,e){return t!==null&&t.note===void 0&&e?.note!==void 0?{...t,note:e.note}:t}function jt(t){const e=t?.k;return e!==null&&typeof e=="object"?e:void 0}function Jr(t,e,n,o=null){const a=setTimeout,s=clearTimeout,c=queueMicrotask,d=performance.now.bind(performance),O=new TextEncoder;let S=null,P=null;try{S=history,P=S.replaceState.bind(S)}catch{}const v=(...r)=>{try{console.warn(...r)}catch{}};let T=Xr(),m=null;try{m=sessionStorage}catch{}const h={storage:m,fetch:typeof fetch=="function"?fetch.bind(globalThis):null,entry:location.origin+location.pathname+location.search,ver:T,key:o?.k};let I=o?.k;const $=typeof requestAnimationFrame=="function"?requestAnimationFrame:r=>a(()=>r(d()),16);let y=e?.data??{},N=ge(e?.from),A=e?.gen??0,F=e!==null,V=!1,Q=!1,W=null,Se=!1;const ke=new AbortController;let Ae=null,q=null,Re=null,Te=!1,i=()=>{};const p=new Promise(r=>{i=r});let g=!1,x=!1,C=!1,D,L=null,ce=!1,De=!1,re=!1,Oe=!1,ne=!1,de=!1;const oe=r=>{for(const u of[We(r),ye(r)])try{m?.removeItem(u)}catch{}},H=(r,u)=>{try{u!==null&&n.post(r,u)}catch{}},he=()=>ne||=re&&(q===null||Oe),X=()=>{const r={__frame_hot:!0,ready:q!==null,accept:Re!==null,demand:!0};de=!ne,de&&(r.booting=!0),g&&(r.readData=!0),C&&(r.threw=!0),L?.assess&&(r.preflight=!0),H(r,W)};let Le=!1,Me=!1,l=!1,w=!1;const _=()=>{Le||!Se||l||(Le=!0,H({__frame_reveal_hold:!0},"*"))},M=()=>new Promise(r=>{let u,f=0;const b=j=>{if(u===void 0)u=j;else if(j!==u||++f>=8){r();return}try{$(b)}catch{r()}};try{$(b)}catch{r()}}),Y=()=>{l=!0,H({__frame_reveal_ready:!0},"*")},K=r=>{Me||(Me=!0,r.then(u=>{if(u===!1)return;let f=null;try{f=L?.settle?.()??null}catch{}return(f===null?M():new Promise(b=>{a(b,50),Promise.resolve(f).then(b,b)}).then(M)).then(Y)}))},Pe=()=>{if(w||!l)return;w=!0;const r=()=>{try{L?.afterReveal?.()}catch{}};r(),M().then(()=>{r(),Y()})},He=(r=!1)=>{if(Te||q===null||!F||!Q)return;Te=!0;const u=q,f=y;c(()=>{let b;try{b=u(f)}catch(U){throw i(!1),U}let j=!1;try{j=typeof b?.then=="function"}catch{}if(!j){i(!0);return}Promise.resolve(b).then(()=>i(!0),U=>{i(!1),c(()=>{throw U})})}),K(r?p:n.dcl.then(()=>p))},qe=r=>typeof r=="string"&&St.test(r)?r:void 0,ct=r=>{const u={__frame_hot_restart:!0},f=qe(r?.note);f!==void 0&&(u.note=f),r?.required==="hard-reload"&&(u.required="hard-reload"),H(u,W)},Vt=Object.freeze({get data(){return Q||(x=!0),!F&&!g&&(g=!0,Q&&X()),y},get from(){return N},get gen(){return A},signal:ke.signal,snapshot(r){typeof r=="function"&&(Ae=r)},ready(r){typeof r!="function"||q!==null||(q=r,_(),X(),V&&H({__frame_hot_ready:!0,gen:A},W),He())},accept(r){typeof r=="function"&&(Re=r,X())},restart(r){const u={note:r?.note,required:r?.required};if(Q){ct(u);return}const f=D;D={note:qe(f?.note)??u.note,required:f?.required==="hard-reload"||u.required==="hard-reload"?"hard-reload":void 0}}});let Be=null,Wt=()=>{};const yn=new Promise(r=>{Wt=r});let gn=null;const Xt=()=>gn??=n.dcl.then(()=>{let r=!1;try{r=Be!==null&&Be.expect()}catch{}if(!r)return;const u=Be.maxMs;return new Promise(f=>{yn.then(f),a(f,u)})}),Yt=()=>{if(!ce||De||L===null)return;De=!0;const r=L;Xt().then(()=>{try{l||r.afterStart(jt(e),!1)}catch{}})},Jt=r=>{e!==null&&x&&(g=!0),y={},N=null,A=0;try{m?.removeItem(ye(o?.k))}catch{}e!==null&&!r&&K(n.dcl.then(()=>q!==null?p:void 0))},wn=()=>{ce=!0,K(Xt().then(()=>q!==null?p:void 0)),Yt()};try{addEventListener("error",()=>{C||q!==null||(C=!0,X())})}catch{}const Zt=()=>{a(()=>{!ne&&he()&&de&&X()},0)};try{re=document.readyState==="complete",re||addEventListener("load",()=>{re=!0,Zt()},{once:!0})}catch{re=!0}he(),p.then(()=>{Oe=!0,Zt()});let ue=-1,ut,ft,Ne=!0,dt=!1,ht,Ue=null;const pt=r=>{const u=Ue===null;Ue=Ne&&r[0]!=="withheld"?r:["withheld",r[1],Ce];let f=r[0];if(Ne&&f!=="withheld"){const j={ver:T,handoff:f};ut!==void 0&&(j.seq=ut),ft!==void 0&&(j.note=ft);try{if(m===null)throw new Error("no storage");m.setItem(We(I),'{"kv":1,"gen":'+ue+',"from":'+JSON.stringify(j)+(ht!==void 0?',"k":'+JSON.stringify(ht):"")+',"data":'+(f==="ok"?r[2]:Ce)+"}")}catch{f="unavailable"}}else{f="withheld",oe(I);try{L?.release?.()}catch{}}const b={__frame_hot_snapshotted:!0,gen:ue,handoff:f,bytes:r[1]};r[3]!==void 0&&(b.errName=r[3]),H(b,W),u&&(f==="snapshot_error"||f==="unclonable"||f==="oversize")&&v("claude.hot: snapshot",f,r[3])},pe=r=>{try{return kr(r?.name)}catch{return"other"}},me=(r,u,f=0)=>pt(u===void 0?[r,f,Ce]:[r,f,Ce,pe(u)]),bn=r=>{if(r.gen<=ue)return;const u=ue>=0;if(ue=r.gen,ut=r.seq,ft=qe(r.note),typeof r.key=="string"&&Et.test(r.key)&&r.key!==I&&(oe(I),I=r.key),Ne&&=r.handoff!==!1,u){Ue!==null?pt(Ue):dt&&H({__frame_hot_held:!0,gen:ue},W);return}ke.abort();const f=Object.freeze({handoff:Ne,timeoutMs:r.timeoutMs,deadline:r.deadline??Ar}),b=Ae,j=()=>{if(Ne)try{ht=L?.capture()}catch{}if(b===null){me("empty");return}let k=!1;const G=a(()=>{k||(k=!0,me("snapshot_timeout"))},Math.max(0,f.timeoutMs));Promise.resolve().then(()=>b(f)).then(ve=>{if(k)return;k=!0,s(G);let ee;try{ee=JSON.stringify(ve)}catch(mt){me("unclonable",mt);return}if(typeof ee!="string"){me("unclonable");return}let te=ee.length;try{te=O.encode(ee).length}catch{}if(te>262144){me("oversize",void 0,te);return}pt(["ok",te,ee])},ve=>{k||(k=!0,s(G),me("snapshot_error",ve))})};let U=null;try{U=L?.holdForIme()??null}catch{}if(U===null)j();else{dt=!0,H({__frame_hot_held:!0,gen:ue},W);const k=()=>{dt=!1,j()};U.then(k,k)}},En=r=>{if(!V||F||q===null||r.gen!==A)return;let u=null;try{u=Mt(m,o&&{k:o.k,g:r.gen})}catch{}if(u!==null&&u.gen!==r.gen){u=null;try{m?.removeItem(ye(o?.k))}catch{}}y=u?.data??{},N=Ct(ge(u?.from??r.from),ge(r.from)),u!==null&&(A=u.gen),F=!0,V=!1;const f=jt(u);p.then(b=>{try{b&&L?.afterStart(f,!0)}catch{}}),He(!0)};let Ge=0;const Sn=r=>{const u=Re;if(u===null||r.id<=Ge)return;Ge=r.id;const f=L?.assess;if(r.preflight===void 0||f===void 0){Qt(r,u);return}let b=!1;const j=G=>{b||(b=!0,s(k),r.id===Ge&&Qt(r,u,G))},U=()=>j(f.timeout(r)),k=a(U,Ir+100);f.run(r,window).then(j,U)},Qt=(r,u,f)=>{let b,j=!1,U=!1,k,G,ve=null;const ee=E=>{if(U)return!1;if(k!==void 0&&k!==E)return v(`claude.hot: u.${E}() ignored - u.${k}() was called first`),!1;const Z=k===void 0;return k=E,Z},te=E=>{k="restart",v(`claude.hot: ${E} - restarting`)},mt=()=>{if(!ee("adopt")||r.id!==Ge)return;const E=r.to.ver;if(ze.required!=="none"){te(`u.adopt() needs required 'none', it is '${ze.required}'`);return}if(!Pt(E)){te("u.adopt() cannot address this version");return}if(!T||E===T)return;const Z=T,J=h.entry;let Ke="",_t,_e=null,$e;try{Ke=location.href,_t=S.state,_e=Nt(Ke,Z,E),_e!==null&&(P(_t,"",_e),location.pathname.startsWith("/_f/"+E+"/")?_e=location.href:$e="navigate event canceled")}catch(gt){$e=pe(gt)}if($e!==void 0){G="adopt_failed",te(`adopt_failed ${$e}; URL not changed`);return}_e===null?(G="adopt_skipped",v(`claude.hot: adopt_skipped - page already left /_f/${Z}/; URL not changed, update still applied`)):G="adopted",T=h.ver=E;try{h.entry=Nt(J,Z,E)??J}catch{}const yt=_e;ve=()=>{if(T===E){if(yt!==null)try{if(location.href!==yt)v("claude.hot: adopt_revert_skipped - update not applied; URL left where the page navigated");else{if(P(_t,"",Ke),location.href!==Ke){v("claude.hot: adopt_revert_failed navigate event canceled - URL still at the new version");return}G="adopt_reverted",v("claude.hot: adopt_reverted - adopt() was called but the handler threw; URL restored")}}catch(gt){v(`claude.hot: adopt_revert_failed ${pe(gt)} - URL still at the new version`);return}T=h.ver=Z,h.entry=J,yt===null&&(G=void 0)}}},ze=Object.freeze({from:{ver:r.from.ver,seq:r.from.seq},to:{ver:r.to.ver,seq:r.to.seq},changed:$r(r.changed),required:r.required,deadline:r.deadline,adopt:mt,defer(){return ee("defer")&&ze.deadline.now&&te("u.defer() past the deadline"),Lt},restart(E){return ee("restart"),k==="restart"&&!U&&(b??=qe(E?.note),j||=E?.required==="hard-reload"),Lt},...f?.update}),kn=(E,Z)=>{U=!0,E==="threw"?(ve?.(),b??=pe(Z).toLowerCase()):k===void 0&&v(E==="timeout"?"claude.hot: accept handler did not answer in time - restarting":"claude.hot: accept handler settled without defer/restart/adopt - restarting");const J={__frame_hot_verdict:!0,id:r.id};J.verdict=E==="threw"||k===void 0||k==="restart"?"restart":k==="adopt"?"applied":"deferred",J.verdict==="restart"&&(j&&(J.required="hard-reload"),b!==void 0&&(J.note=b)),G!==void 0&&(J.verdict==="applied"||G!=="adopted")&&(J.adopt=G),H(Object.assign(J,f?.verdict),W)};let er=!1;const vt=(E,Z)=>er?!1:(er=!0,s(An),kn(E,Z),!0),An=a(()=>vt("timeout"),r.verdictTimeoutMs);Promise.resolve().then(()=>u(ze)).then(()=>vt("settled"),E=>{!vt("threw",E)&&k==="adopt"&&ct({note:pe(E).toLowerCase()}),v("claude.hot: accept",pe(E))})};try{t.hot===void 0&&Object.defineProperty(t,"hot",{value:Vt,writable:!1,configurable:!1,enumerable:!1})}catch{}return{hot:Vt,boot:h,afterConnect(){Se=!0,(e!==null||q!==null)&&_()},onInit(r,u){W=u,Q=!0;const f=Dr(r)?r:null;f?.phase==="final"&&e!==null&&e.gen===f.gen?(F=!0,N=Ct(N,ge(f.from)),wn()):(V=f?.phase==="pending",Jt(V),F=!V,A=f?.gen??0,N=ge(f?.from)),X(),de&&a(()=>{ne||(ne=!0,X())},Nr),V&&q!==null&&H({__frame_hot_ready:!0,gen:A},u),D!==void 0&&(ct(D),D=void 0),He()},onNoInit(){Q=!0,Jt(!1),F=!0,He()},onShell(r){return r?.__frame_revealed===!0?(Pe(),!1):qr(r)?(bn(r),!0):Br(r)?(En(r),!0):Vr(r)?(Sn(r),!0):!1},attachExtras(r){L=r,Yt(),r.assess&&X()},inSlot:()=>ye(I),hydration(r,u){Be??={expect:r,maxMs:u}},hydrated(){Wt()},carried(){return F?y:{}},presented:()=>l}}var Ln="frame_ldx_runtime",Zr="frame_ldx_build",Mn="script#an-form",Qr=256;function It(t,e,n){for(const o of t)n(o)&&t.delete(o);t.size>=Qr&&!t.has(e)&&t.delete(t.values().next().value),t.add(e)}function Ye(t,e,n){try{const o=t[e];if(typeof o!="function")return;t[e]=function(...a){const s=o.apply(this,a);try{n(this)}catch{}return s}}catch{}}var Je;function en(){if(Je)return Je;const t={media:new Set,contexts:new Set,onStart:null,onPause:null};Je=t;const e=window.HTMLMediaElement?.prototype;e&&(Ye(e,"play",a=>{It(t.media,a,s=>s.paused),t.onStart?.(a)}),Ye(e,"pause",a=>t.onPause?.(a)));const n=window.AudioContext,o=window.AudioNode?.prototype;return n&&o&&Ye(o,"connect",a=>{const s=a.context;s instanceof n&&(It(t.contexts,s,c=>c.state==="closed"),t.onStart?.(s))}),t}function tn(t){let e=window;for(let n=0;e.parent&&e.parent!==e&&n<8;n++)if(e=e.parent,t(e))return!0;return!1}function rn(){let t=null;const e=()=>t??parent,n=o=>t?o===t:tn(a=>a===o);return{post(o,a){if(t){e().postMessage(o,a);return}let s=parent;for(let c=0;c<8&&(s.postMessage(o,a),!(!s.parent||s.parent===s));c++)s=s.parent},on(o){const a=s=>{const c=s.source;n(c)&&o(s.data,s.origin,s.isTrusted,()=>{t??=c})};return addEventListener("message",a),()=>removeEventListener("message",a)},port:o=>({post(a,s){if(s?.activation){e().postMessage(a,{targetOrigin:o,includeUserActivation:!0});return}if(s?.transfer){e().postMessage(a,o,s.transfer);return}e().postMessage(a,o)},on(a,s){const c=d=>{n(d.source)&&d.origin===o&&a(d.data,d)};return addEventListener("message",c,s),()=>removeEventListener("message",c,s)}})}}function nn(){const t={post:()=>{},on:()=>()=>{}};return{...t,port:()=>t}}var Ze="__frame_scroll",on=150,an=310,sn=160,ln=3e4;function cn(){let t=0,e=!1,n=!1,o=!1,a=0,s=null;const c=y=>{try{sessionStorage.setItem(Ze,JSON.stringify({y}))}catch{}},d=()=>{if(clearTimeout(t),s===null)return;const y=s;s=null,c(y)},O=()=>{if(e){e=!1;return}n=!0,s=scrollY,clearTimeout(t),t=setTimeout(d,on)};try{addEventListener("scroll",O,{passive:!0}),addEventListener("pagehide",d)}catch{}const S=()=>{let y;try{y=sessionStorage.getItem(Ze)}catch{return null}if(y===null)return null;let N;try{N=JSON.parse(y)}catch{N=null}const A=N?.y;if(!(typeof A=="number"&&Number.isFinite(A)&&A>=0)){try{sessionStorage.removeItem(Ze)}catch{}return null}return A};let P=!1;const v=y=>{try{const N=scrollY;scrollTo({top:y,left:0,behavior:"instant"}),a=y,o=!0,clearTimeout(t),s=null,c(y);const A=scrollY;A!==N&&(e=!0),A!==y&&!P&&(P=!0,addEventListener("load",()=>{try{if(scrollY===A){const F=S();v(F!==null?F:a)}}catch{}},{once:!0}))}catch{}},T=()=>{try{return!!location.hash}catch{return!0}};let m=!1;const h=()=>{try{if(m||innerWidth>an||innerHeight>sn)return;m=!0;const y=Date.now(),N=()=>{try{removeEventListener("resize",N)}catch{}if(Date.now()-y>ln||n||T())return;const A=S();v(A!==null?A:a)};addEventListener("resize",N)}catch{}};let I=!1,$=!1;return{restore(){if(I||(I=!0,T()))return;const y=S();y!==null&&(v(y),h())},promoted(){if($||($=!0,T()))return;const y=S();y!==null?(v(y),h()):o&&v(a)}}}function un(t,e,n,o){let a=null;try{a=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:O=>O})??null}catch{}const s=window.Worker,c=s?.prototype,d=Object.freeze({Worker:s,workerOn:c?.addEventListener,workerPost:c?.postMessage,workerTerminate:c?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,now:Date.now,policy:a,origins:e});n(t).then(O=>O?.bootTopLevel?O.bootTopLevel(d,o):o.settle()).catch(()=>o.settle())}var Pn="modulepreload",Nn=function(t){return"/"+t},Cn={},fn=function(e,n,o){let a=Promise.resolve();function s(c){const d=new Event("vite:preloadError",{cancelable:!0});if(d.payload=c,window.dispatchEvent(d),!d.defaultPrevented)throw c}return a.then(c=>{for(const d of c||[])d.status==="rejected"&&s(d.reason);return e().catch(s)})},dn=window===top,Ft=Object.getOwnPropertyDescriptor(window,"claude"),je=Wr(dn,window.__FRAME_PREAMBLE?.topLevel,Ft?.writable===!1),Qe=typeof je=="object"&&je[0],R=Qe?nn():rn();(function(){const t=Object.defineProperty,e=globalThis,n=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let o=0;for(let a=0;a<n.length;a++){const s=n[a];try{t(e,s,{value:void 0,writable:!1,configurable:!1})}catch{try{delete e[s]}catch{}try{t(e,s,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof e[s]=="function"&&o++}if(o&&je==="framed")try{R.post({__frame_rtc_lockdown_failed:o},"*")}catch{}})();var xt=1e4,hn=2e3,et=2e3,Dt=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function Ht(t){for(const e of Dt)if(e.endsWith(":*"))try{const n=new URL(t);if(`${n.protocol}//${n.hostname}:*`===e)return!0}catch{}else if(t===e)return!0;return!1}var we=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),Ie=window.__FRAME_PREAMBLE?.transforms,tt=window.__FRAME_PREAMBLE?.comments,rt=window.__FRAME_PREAMBLE?.translate,be=window.__FRAME_PREAMBLE?.ldx;function qt(t){return fn(()=>import("/_runtime/"+t),void 0)}var Ee=new Set,pn=setTimeout,mn=800+800*Math.random();function le(t){return qt(t).catch(()=>new Promise(e=>pn(e,mn)).then(()=>qt(t+"?r=1")).then(e=>(e!==void 0&&Ee.add(t),e)))}function Bt(t,e,n){return{contract:t.contract,changes:new Set(t.changes??[]),flags:new Set(t.flags??[]),capabilities:t.capabilities??{},capBudgets:t.capBudgets??{},brokerGen:t.brokerGen,transforms:new Map,shellOrigin:e,shell:n,mount:it,hooks:Fe,pipe:()=>({wrap:(o,a)=>(...s)=>{try{return a(...s)}catch(c){return Promise.reject(c)}}})}}var fe=null,z=null;function Ut(t,e,n){try{Object.defineProperty(t,e,{value:n,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(t,e,{value:n,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var nt=!1,Fe={editBefore:null,edit:null};function vn(t,e,n=!1){const o=[];let a;if(n)try{Fe.editBefore?.(t)}catch{}for(const s of t.elements){const c=document.querySelector(`[data-id="${s.target}"]`);if(!c){a=s.target;break}if([...Object.keys(s.attrsSet??{}),...s.attrsRemoved??[]].some(d=>!ar(d)||sr(c,d))){a=s.target;break}if(s.text!==void 0&&(!ur(c)||pr(c))){a=s.target;break}for(const[d,O]of Object.entries(s.attrsSet??{}))if(!zt(c,d)){try{c.setAttribute(d,O)}catch{}Gt(c,d,O)}for(const d of s.attrsRemoved??[])zt(c,d)||(c.removeAttribute(d),Gt(c,d,null));typeof s.text=="string"&&dr(c,s.text),o.push(s.target)}if(n)try{Fe.edit?.(t.seq,o,a)}catch{}if(a!==void 0){R.post({__frame_patch_miss:{seq:t.seq}},e);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:t.seq,targets:o}}))}catch{}}function Gt(t,e,n){if(!(t instanceof HTMLInputElement))return;const o=e.toLowerCase();o==="checked"?t.checked=n!==null:o==="value"&&t.type!=="file"&&(t.value=n??"")}function zt(t,e){const n=e.toLowerCase(),o=t;return n==="data-id"||(n==="value"||n==="checked")&&(o.__artifactSecret===!0||/^(password|hidden|file)$/.test(o.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${t.getAttribute("autocomplete")??""} ${o.autocomplete??""}`))}function Kt(t){const e=document.documentElement;t==="light"||t==="dark"?(e.dataset.theme=t,e.style.colorScheme=t,nt=!0):nt&&(delete e.dataset.theme,e.style.colorScheme="",nt=!1)}var ie=new Map,ot=null;function at(){let t;const e={u:new Promise(n=>{t=n}),r:n=>{e.done=!0,t(n)},done:!1,nulled:!1};return e}function xe(t,e){t.nulled=!0,t.ver=e,t.r(null)}function st(t,e){for(const[n,o]of ie)o.done||(e&&o.asked?e(n,o):xe(o,t))}var _n=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),lt=!1,it=(t,e)=>{let n=ie.get(t);if(n?.nulled&&lt)n=at(),ie.set(t,n);else if(!n||n.done){n?.nulled&&z&&R.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:t,phase:"install"}},z);return}const o=typeof e=="function"?Object.setPrototypeOf(e,_n):Object.assign(Object.create(null),e);typeof o.then=="function"&&delete o.then,n.want=void 0,n.r(Object.freeze(o))};function $t(){const t=Ft?.value??{};Ut(window,"claude",t);for(const e of Object.keys(we)){if(t[e]!==void 0){Ut(t,e,t[e]);continue}ie.set(e,at())}if(t.use===void 0){const e=n=>{if(typeof n!="string"||!Object.hasOwn(we,n))return Promise.resolve(null);let o=ie.get(n);return o?(ot&&(o.nulled||o.want!==void 0)&&(o=ot(n,o)),o.asked=!0,o.u):Promise.resolve(t[n]??null)};try{Object.defineProperty(t,"use",{value:e,writable:!0,configurable:!0,enumerable:!1})}catch{}}return t}if(je==="framed"){const t=Ie&&se.test(Ie)?le(Ie).catch(()=>{}):Promise.resolve(void 0),e=i=>{if(i.type==="auxclick"&&i.button!==1)return;const p=i.target,g=p&&p.closest?p.closest("a[href],area[href]"):null;if(!g)return;const x=g.getAttribute("href");if(!x)return;let C;try{C=new URL(x,document.baseURI)}catch{return}if((C.protocol==="http:"||C.protocol==="https:")&&C.origin!==location.origin){i.preventDefault();const D=(g.getAttribute("target")??"").toLowerCase(),L=i.type==="auxclick"||i.metaKey||i.ctrlKey||i.shiftKey||i.altKey||!["","_self","_top","_parent"].includes(D);R.post({__frame_nav:!0,url:C.href,newTab:L},"*")}};addEventListener("click",e,!0),addEventListener("auxclick",e,!0);const n={},o=i=>{i.isTrusted&&(n.pointer=!0)},a=i=>{i.isTrusted&&(n.click=!0)};addEventListener("pointermove",o,{capture:!0,passive:!0}),addEventListener("click",a,{capture:!0,passive:!0});const s={cb:null};addEventListener("keydown",i=>s.cb?.(i),!0);const c={cb:null};addEventListener("keydown",i=>c.cb?.(i));const d=en();t.then(i=>i?.installEscapeForward?.(s,p=>{z&&R.post(p,z)})),t.then(i=>{try{i?.installFocusKeep?.()}catch{}}),t.then(i=>{if(!i?.wireNav)return;const p=R.port("*");i.wireNav(p),removeEventListener("click",e,!0),removeEventListener("auxclick",e,!0),removeEventListener("pointermove",o,!0),removeEventListener("click",a,!0),i.wireEngagement?.(n,p,d)});let O=null;try{O=cn()}catch{}const S=document.readyState==="loading"?new Promise(i=>document.addEventListener("DOMContentLoaded",()=>i(),{once:!0})):Promise.resolve();let P=null,v=null;try{v=Mr(window.name),P=Mt(null,v)}catch{}const T=$t();let m=null;try{m=Jr(T,P,{post:(i,p)=>R.post(i,p),dcl:S},v)}catch{}t.then(i=>{try{m&&i?.installHotExtras?.(m)}catch{}});let h=null;const I=()=>Array.isArray(h?.flags)&&h.flags.includes("frame_ldx_runtime")&&!!be&&se.test(be)&&document.querySelector("script#an-form")!==null;try{m?.hydration(I,Pr)}catch{}let $=null,y=0;const N=R.on((i,p,g,x)=>{Ht(p)&&yr(i)&&(x(),h=i.__frame_init,z=p,N(),clearTimeout(y),$?.())});R.post({__frame_connect:!0},"*");try{m?.afterConnect()}catch{}const A=setTimeout,F=clearTimeout;let V=()=>NaN,Q=()=>[];try{V=performance.now.bind(performance),Q=performance.getEntriesByType.bind(performance)}catch{}let W=0;const Se=()=>{try{R.post({__frame_alive:!0},"*")}catch{}W=A(Se,hn)},ke=()=>F(W);Se(),addEventListener("load",ke,{once:!0});const Ae=new Promise(i=>{$=i,y=setTimeout(()=>{N(),i()},xt)}),q=new WeakSet;addEventListener("error",i=>{i.target&&q.add(i.target)},!0);const Re=()=>{let i=[];try{i=[...document.querySelectorAll("link[rel~=stylesheet]:not([rel~=alternate])")].filter(g=>!g.sheet&&!g.disabled&&!q.has(g)&&g.getAttribute("href")&&URL.canParse(g.href)&&(!g.media||matchMedia(g.media).matches))}catch{}let p=i.length;return p===0?Promise.resolve():new Promise(g=>{try{const x=et-V(),C=A(g,x>0?x<et?x:et:0),D=()=>{--p===0&&(F(C),g())};for(const L of i)L.addEventListener("load",D,{once:!0}),L.addEventListener("error",D,{once:!0})}catch{g()}})};S.then(()=>{try{O?.restore()}catch{}}),Promise.all([Ae,S,t]).then(([,,i])=>{if(h?.hostOverlays!==!0||!z)return;let p=!1;try{p=i?.declaresCover?.()===!0}catch{}R.post({__frame_layout:{cover:p}},z)});const Te={cb:null};R.on((i,p)=>{if(Ht(p)&&gr(i)){try{O?.promoted()}catch{}Te.cb?.()}}),Ae.then(async()=>{if(!h||!z){st();try{m?.onNoInit()}catch{}return}if(Kt(h.theme),h.hostVisible===!1&&t.then(l=>l?.applyHostVisible?.(!1,d)),h.hostKeys!==void 0){const l=z,w=h.hostKeys;t.then(_=>_?.installHostKeyForward?.(c,w,M=>R.post(M,l)))}try{m?.onInit(h.hot,z)}catch{}const i=z,p=R.port(i),g=(l,w)=>R.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:l,phase:w}},i),x=l=>R.post({__frame_cap_recovered:{cap:l}},i);let C=h.brokerGen;const D=()=>m?.boot.ver??"",L=D(),ce=(l,w)=>{const _=D();F(w.t),w.want=_,w.t=A(()=>{w.done||xe(w,_)},xt),R.post({__frame_cap_want:!0,cap:l,ver:_},i)},De=(l,w)=>{const _=ie.get(l.cap),M=we[l.cap];if(!w||!_||_.done||_.want!==l.ver||!se.test(M))return;if(F(_.t),_.want=void 0,C=l.brokerGen??C,l.ver!==D()){ce(l.cap,_);return}if(!l.grant||l.cap==="network"){xe(_,l.ver);return}const Y=fe,K=fe={...Y,capabilities:{...Y.capabilities,[l.cap]:l.grant},capBudgets:{...Y.capBudgets,[l.cap]:{...Y.capBudgets[l.cap],...l.budgets}}};le(M).then(Pe=>{Ee.has(M)&&x(l.cap),K.brokerGen=C,lt=!0;try{Pe?.install?.(K)}catch{g(l.cap,"install")}finally{lt=!1}},()=>g(l.cap)).then(()=>{_.done||xe(_,l.ver)})};let re=!1,Oe=!1;R.on((l,w,_)=>{if(w!==i)return;try{if(m?.onShell(l))return}catch{}if(br(l)&&Kt(l.__frame_theme.theme),Gr(l)&&De(l,_),_&&zr(l)&&(C=l.brokerGen??C),wr(l)){const K=l.__frame_host_visible.visible;t.then(Pe=>Pe?.applyHostVisible?.(K,d))}_r(l)&&vn(l.__frame_patch,i,_);const M=l?.__fc_mode;M&&typeof M=="object"&&!re&&tt&&se.test(tt)&&(re=!0,le(tt).then(K=>K.install?.(i,M.on===!0,p)).catch(()=>{}));const Y=l?.__ft_cmd;Y&&typeof Y=="object"&&!Oe&&rt&&se.test(rt)&&(Oe=!0,le(rt).then(K=>K.install?.(i,Y,p)).catch(()=>{}))});const ne=Object.keys(h.capabilities??{}).filter(l=>Object.hasOwn(we,l)).map(l=>[l,we[l]]).filter(l=>typeof l[1]=="string"&&se.test(l[1])),de=await Promise.allSettled(ne.map(([,l])=>le(l))),oe=await t,H=i;if(oe?.buildBoot||g("_transforms"),oe?.buildBoot)try{fe=oe.buildBoot(h,oe.TRANSFORMS??{},{shellOrigin:H,mount:it,hooks:Fe,shell:p},l=>R.post({__frame_cap_telemetry:l},H))}catch{g("_transforms","install"),fe=Bt(h,H,p)}else fe=Bt(h,H,p);oe?.buildBoot&&Ee.has(Ie??"")&&x("_transforms");const he=fe;he.brokerGen=C,de.forEach((l,w)=>{const[_,M]=ne[w];if(l.status!=="fulfilled"){g(_);return}Ee.has(M)&&x(_);try{l.value?.install?.(he)}catch{g(_,"install")}});const X=h.capWants===!0;X&&(ot=(l,w)=>{const _=D();if(!_)return w;if(!w.nulled)return w.want!==_&&ce(l,w),w;if(_===w.ver)return w;const M=at();return ie.set(l,M),ce(l,M),M}),st(L,X&&D()!==L?ce:void 0),await S,await Re(),ke();const Le=tr(Q,V);R.post(Le?{__frame_ready:!0,nav:Le}:{__frame_ready:!0},z),t.then(l=>l?.installSizeReporter?.(H,Te,p));let Me=!1;try{Me=I()}catch{}be&&Me?le(be).then(l=>l?.boot?.({shellOrigin:i,build:he.flags.has(Zr),hot:m?.hot??null,carried:m?.carried(),presented:()=>m?.presented()??!0})).catch(()=>!1).then(l=>{m?.hydrated(),l!==!0?g("_ldx"):Ee.has(be)&&x("_ldx")}):m?.hydrated()})}else Qe&&($t(),un(Qe,Dt,le,{settle:st,mount:it}))})();</script><!-- /frame-runtime --><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>Final Schema Design Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+<link rel="stylesheet" href="./css2">
+
+<style>
+  :root{
+    --paper:#F6F7F9;--card:#FFFFFF;--ink:#131820;--muted:#5B6673;--faint:#8A939F;
+    --rule:#DDE2E8;--rule-soft:#EAEEF2;--accent:#1F5FA8;--accent-soft:#E8F0F9;
+    --p0:#B3261E;--p1:#A65B00;--p2:#1F5FA8;--p3:#6B7784;--ok:#1B6B4A;
+    --ok-soft:#E6F2EC;--warn-soft:#FBF0E0;--bad-soft:#FAE9E8;
+    --shadow:0 1px 2px rgba(19,24,32,.05),0 8px 24px -12px rgba(19,24,32,.12);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --paper:#0F1216;--card:#161B21;--ink:#E6E9ED;--muted:#9AA5B1;--faint:#6F7A86;
+    --rule:#262D36;--rule-soft:#1E242B;--accent:#7FB0E8;--accent-soft:#16222F;
+    --p0:#F08078;--p1:#E0A33F;--p2:#7FB0E8;--p3:#8A939F;--ok:#62BD94;
+    --ok-soft:#12241C;--warn-soft:#251C0E;--bad-soft:#2A1614;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }}
+  :root[data-theme="dark"]{
+    --paper:#0F1216;--card:#161B21;--ink:#E6E9ED;--muted:#9AA5B1;--faint:#6F7A86;
+    --rule:#262D36;--rule-soft:#1E242B;--accent:#7FB0E8;--accent-soft:#16222F;
+    --p0:#F08078;--p1:#E0A33F;--p2:#7FB0E8;--p3:#8A939F;--ok:#62BD94;
+    --ok-soft:#12241C;--warn-soft:#251C0E;--bad-soft:#2A1614;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);margin:0;font-size:15.5px;line-height:1.6;
+    font-family:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:76rem;margin:0 auto;padding:0 1.5rem 6rem}
+  .prose{max-width:60rem}
+  h1,h2,h3,h4{font-family:Fraunces,Georgia,serif;font-weight:600;text-wrap:balance;margin:0}
+  h1{font-size:clamp(2rem,4.5vw,3rem);line-height:1.05;letter-spacing:-.02em}
+  h2{font-size:clamp(1.28rem,2.2vw,1.65rem);letter-spacing:-.01em}
+  h3{font-size:1.03rem}
+  h4{font-size:.95rem}
+  p{margin:0 0 1rem}
+  a{color:var(--accent)}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.87em}
+  code{background:var(--rule-soft);padding:.1em .38em;border-radius:3px;word-break:break-word}
+  pre{background:var(--rule-soft);border:1px solid var(--rule);border-radius:6px;padding:.7rem .85rem;
+    overflow-x:auto;margin:.5rem 0;font-size:.78rem;line-height:1.5}
+  pre code{background:none;padding:0}
+
+  header.mast{border-bottom:1px solid var(--rule);padding:4.25rem 0 1.9rem;margin-bottom:2.1rem}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:1rem}
+  .stand{font-size:1.06rem;color:var(--muted);max-width:45rem;margin-top:1.05rem}
+
+  .corr{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);
+    border:1px solid var(--p1);border-radius:12px;overflow:hidden;margin-top:2rem}
+  .corr>div{background:var(--card);padding:1.15rem 1.25rem}
+  .corr .n{font-family:"IBM Plex Mono",monospace;font-size:.65rem;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--p1)}
+  .corr .t{font-family:Fraunces,serif;font-size:1.1rem;font-weight:600;margin:.3rem 0 .4rem;line-height:1.2}
+  .corr .d{font-size:.84rem;color:var(--muted)}
+  @media(max-width:820px){.corr{grid-template-columns:1fr}}
+
+  section{margin:2.9rem 0 0;scroll-margin-top:1rem}
+  .sh{display:flex;align-items:baseline;gap:.7rem;border-bottom:1px solid var(--rule);
+    padding-bottom:.48rem;margin-bottom:1.25rem}
+  .sn{font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:var(--faint);flex:none}
+
+  .chip{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.65rem;letter-spacing:.06em;
+    text-transform:uppercase;padding:.2em .55em;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+  .c-yes{color:var(--ok);background:var(--ok-soft)}
+  .c-no{color:var(--p0);background:var(--bad-soft)}
+  .c-part{color:var(--p1);background:var(--warn-soft)}
+  .c-new{color:var(--accent);background:var(--accent-soft)}
+
+  .scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:.86rem}
+  th,td{text-align:left;padding:.55rem .78rem;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+  th{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--faint);font-weight:500;white-space:nowrap;background:var(--card)}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono{font-family:"IBM Plex Mono",monospace;font-size:.78rem}
+
+  .callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:.8rem 1rem;
+    border-radius:0 8px 8px 0;margin:1.1rem 0}
+  .callout.bad{border-left-color:var(--p0);background:var(--bad-soft)}
+  .callout.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+  .callout.warn{border-left-color:var(--p1);background:var(--warn-soft)}
+
+  .ddl{font-family:"IBM Plex Mono",monospace;font-size:.78rem;line-height:1.7;
+    background:var(--rule-soft);border:1px solid var(--rule);border-radius:8px;padding:.85rem 1rem;overflow-x:auto}
+
+  .tri{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);
+    border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+  .tri>div{background:var(--card);padding:1.05rem 1.15rem}
+  .tri .hd{font-family:"IBM Plex Mono",monospace;font-size:.65rem;letter-spacing:.09em;
+    text-transform:uppercase;margin-bottom:.6rem}
+  .tri .fact .hd{color:var(--ok)}
+  .tri .rec .hd{color:var(--accent)}
+  .tri .open .hd{color:var(--p1)}
+  .tri ul{margin:0;padding-left:1rem;font-size:.85rem}
+  .tri li{margin-bottom:.32rem}
+  @media(max-width:860px){.tri{grid-template-columns:1fr}}
+
+  .check{list-style:none;padding:0;margin:0}
+  .check li{position:relative;padding-left:1.9rem;margin-bottom:.55rem;font-size:.92rem}
+  .check li::before{content:"✓";position:absolute;left:0;top:0;color:var(--ok);font-weight:700}
+  .check li.x::before{content:"!";color:var(--p1)}
+
+  ul,ol{margin:0 0 1rem;padding-left:1.2rem}
+  li{margin-bottom:.3rem}
+  footer{margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--rule);color:var(--faint);font-size:.82rem}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">Final schema design review · No implementation · No files modified</div>
+  <h1>Final Schema Design Review</h1>
+  <p class="stand">
+    Remaining model and field ambiguities resolved before migration <code>0012</code>. This review
+    changes three things from the prior Foundation Design — each because inspecting the consuming
+    code contradicted the earlier assumption.
+  </p>
+
+  <div class="corr">
+    <div>
+      <div class="n">Correction 1</div>
+      <div class="t"><code>typicalValuePaise</code> removed entirely</div>
+      <div class="d">It is a second pricing concept the MVP never displays. Estimated value is not
+        in Scope Boundary §5.4. Derived at adapter time, persisted nowhere.</div>
+    </div>
+    <div>
+      <div class="n">Correction 2</div>
+      <div class="t">Evidence must persist its classification</div>
+      <div class="d">The existing mapper folds OBSERVED/INFERRED into confidence and
+        <strong>drops UNKNOWN rows</strong>. That makes a stated MVP capability unimplementable and
+        risks discounting inference twice.</div>
+    </div>
+    <div>
+      <div class="n">Correction 3</div>
+      <div class="t">Search snapshots its parameters</div>
+      <div class="d">Reading them live from ServiceProfile would let an edit retroactively rewrite
+        what a past search searched for — and make its explanations false.</div>
+    </div>
+  </div>
+</header>
+
+<section id="s1">
+  <div class="sh"><span class="sn">1</span><h2>User</h2></div>
+  <div class="ddl">users
+  id                        TEXT PK            -- uuid, opaque; never the email
+  email                     TEXT NOT NULL      -- UNIQUE, CHECK (email = lower(email))
+  name                      TEXT NULL
+  client_finder_enabled_at  TIMESTAMP(3) NULL  -- feature access (§2 of Foundation Design)
+  created_at                TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at                TIMESTAMP(3) NOT NULL</div>
+  <div class="scroll" style="margin-top:.9rem">
+    <table>
+      <thead><tr><th>Question</th><th>Decision</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td>Primary key</td><td class="mono">TEXT uuid</td><td>Matches every existing table; <code>orders.id</code>, <code>payments.id</code> are all TEXT uuid</td></tr>
+        <tr><td>Identifier</td><td>Opaque <code>id</code>, never email</td><td>Email as FK would make the address immutable and spread PII across nine tables</td></tr>
+        <tr><td>Is email required?</td><td><span class="chip c-yes">Yes</span>, NOT NULL + UNIQUE</td><td>It is the operator's handle when provisioning, and the future magic-link address. No second identifier is needed.</td></tr>
+        <tr><td>Email verification for MVP?</td><td><span class="chip c-no">No</span></td><td>Users are operator-provisioned out of band; the operator <em>is</em> the verification. A <code>verified_at</code> column would be written by nothing and read by nothing.</td></tr>
+        <tr><td>Timestamps</td><td><code>created_at</code>, <code>updated_at</code></td><td>Repository convention on all ten existing tables</td></tr>
+        <tr><td>→ access_tokens</td><td>1 : N via <code>access_tokens.user_id</code></td><td>Nullable on the token side — see §2</td></tr>
+        <tr><td>→ service_profiles</td><td>1 : N</td><td>A user may define more than one service; the MVP UI may expose only one</td></tr>
+        <tr><td>→ searches / results</td><td>1 : N, direct <code>user_id</code></td><td>Ownership is re-stated on each top-level table rather than inferred through joins</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose" style="margin-top:.8rem;font-size:.9rem;color:var(--muted)">
+    Deliberately absent: password hash, provider/subject id, avatar, locale, timezone, role,
+    last_login_at, workspace_id. None has a consumer in the MVP.
+  </p>
+</section>
+
+<section id="s2">
+  <div class="sh"><span class="sn">2</span><h2>Access tokens — minimum change</h2></div>
+  <div class="ddl">ALTER TABLE access_tokens
+  ADD COLUMN user_id TEXT NULL REFERENCES users(id) ON DELETE RESTRICT;
+CREATE INDEX access_tokens_user_id_idx ON access_tokens(user_id) WHERE user_id IS NOT NULL;</div>
+  <p class="prose" style="margin-top:.9rem">
+    One nullable column and one partial index. Nothing else: not the hash, not the TTL, not
+    <code>revoked_at</code>, not <code>last_used_at</code>, not the lowercase-email CHECK.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Row kind</th><th><code>user_id</code></th><th>Meaning</th><th>Resolved by</th><th>Grants</th></tr></thead>
+      <tbody>
+        <tr><td>Legacy / entitlement</td><td><code>NULL</code></td><td>Bearer credential for a purchased product, keyed on <code>customer_email</code></td><td class="mono">resolveAccess()</td><td>Product access only</td></tr>
+        <tr><td>Session</td><td>set</td><td>An authenticated user session</td><td class="mono">resolveSession()</td><td>Identity only</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout ok">
+    <strong>Legacy rows behave exactly as they do today.</strong> <code>resolveAccess()</code> is
+    unchanged — it looks a token up by hash, evaluates expiry and revocation, and reads
+    <code>customer_email</code>. It never consults <code>user_id</code>, so a NULL is invisible to
+    it. No backfill: existing tokens have no user, and inventing one would fabricate identity.
+  </div>
+  <div class="callout warn">
+    <strong>The two kinds must not be interchangeable, and one line enforces it.</strong>
+    <code>requireUser()</code> rejects a token whose <code>user_id IS NULL</code> — otherwise an
+    entitlement token emailed to a customer would authenticate as a Client Finder session. Without
+    that check the separation established in Decision 1 collapses at the first route.
+  </div>
+  <p class="prose" style="font-size:.9rem;color:var(--muted)">
+    Payment semantics untouched: no change to <code>orders</code>, <code>payments</code>,
+    <code>entitlements</code>, or any trigger on them.
+  </p>
+</section>
+
+<section id="s3">
+  <div class="sh"><span class="sn">3</span><h2>ServiceProfile — the seven-field issue, resolved</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Field</th><th>Classification</th><th>Persisted?</th><th>Resolution</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">service</td><td>User profile data</td><td><span class="chip c-yes">Yes</span></td><td>User-authored</td></tr>
+        <tr><td class="mono">targetCustomer</td><td>User profile data</td><td><span class="chip c-yes">Yes</span></td><td>User-authored; drives discovery query</td></tr>
+        <tr><td class="mono">geography</td><td>User profile data</td><td><span class="chip c-yes">Yes</span></td><td>User-authored; drives discovery query</td></tr>
+        <tr><td class="mono">minProjectValuePaise</td><td>User profile data</td><td><span class="chip c-yes">Yes</span></td><td>User-authored; the ranking floor</td></tr>
+        <tr style="background:var(--accent-soft)"><td class="mono">triggers</td><td><strong>Configuration / rule</strong></td><td><span class="chip c-yes">Yes</span></td><td>System-derived at profile save, not typed by the user</td></tr>
+        <tr style="background:var(--accent-soft)"><td class="mono">keywords</td><td><strong>Configuration / rule</strong></td><td><span class="chip c-yes">Yes</span></td><td>System-derived at profile save</td></tr>
+        <tr style="background:var(--accent-soft)"><td class="mono">rationale</td><td><strong>Configuration / rule</strong></td><td><span class="chip c-yes">Yes</span></td><td>System-derived at profile save</td></tr>
+        <tr style="background:var(--bad-soft)"><td class="mono">typicalValuePaise</td><td>Pricing concept</td><td><span class="chip c-no">No</span></td><td><strong>Removed.</strong> See below.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin:1.5rem 0 .55rem">Why the rule fields are configuration, yet still persisted</h3>
+  <p class="prose">
+    <code>triggers</code> is a list of <code>ResearchSignal['kind']</code> enum values —
+    <code>JOB_POST</code>, <code>FUNDING</code>, <code>TECH_STACK</code>. Asking a freelancer to
+    choose those is asking them to understand the scorer's internals, so they are
+    <strong>not user profile data</strong> and must not appear as form fields.
+  </p>
+  <p class="prose">
+    They are nonetheless <strong>persisted</strong>, for the same reason <code>scorer_version</code>
+    is persisted: an opportunity shows <em>why</em> it was selected, and that explanation must remain
+    true after the derivation logic changes. Recomputing rules at read time would silently rewrite
+    the history of past searches.
+  </p>
+  <div class="callout">
+    <strong>ServiceRule is assembled from the profile, not stored as a rule table.</strong>
+    An adapter reads the four user fields plus the three derived fields and constructs
+    <code>ServiceRule</code> for <code>suggestOffers()</code>. No <code>service_rules</code> table:
+    the relationship is 1:1 at MVP scale, and a table for a 1:1 is indirection without benefit.
+  </div>
+
+  <h3 style="margin:1.4rem 0 .55rem">Does <code>typicalValuePaise</code> duplicate <code>minProjectValuePaise</code>?</h3>
+  <div class="callout bad">
+    <strong>Semantically no; practically yes — so it is removed.</strong>
+    <ul style="margin:.55rem 0 0">
+      <li>They mean different things: typical is what an engagement is worth; minimum is the user's
+        floor for bothering.</li>
+      <li>But <code>ServiceRule.typicalValuePaise</code> exists only to populate an offer's value,
+        which populates <code>Opportunity.estimatedValuePaise</code> — and
+        <strong>estimated value is not in Scope Boundary §5.4</strong>. The MVP displays evidence,
+        score, rank, next action and offer. Not money.</li>
+      <li>Persisting it would ask the user for a number the MVP never shows, or derive it from the
+        minimum and display the floor as an estimate — which is worse than showing nothing.</li>
+    </ul>
+    <strong>Resolution:</strong> the adapter supplies <code>typicalValuePaise :=
+    minProjectValuePaise</code> to satisfy the interface, the resulting value is not persisted, and
+    <code>opportunities.estimated_value_paise</code> is <strong>dropped from the MVP model</strong>.
+    One pricing concept, not two — which is what §15's duplicate-pricing check asks for.
+  </div>
+  <div class="ddl">service_profiles
+  id                        TEXT PK
+  user_id                   TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT
+  service                   TEXT NOT NULL
+  target_customer           TEXT NOT NULL
+  geography                 TEXT NOT NULL
+  min_project_value_paise   INTEGER NOT NULL   -- CHECK (&gt; 0)
+  currency                  TEXT NOT NULL DEFAULT 'INR'
+  signal_triggers           TEXT[] NOT NULL    -- derived
+  keywords                  TEXT[] NOT NULL    -- derived
+  offer_rationale           TEXT NOT NULL      -- derived, '{signal}' template
+  created_at / updated_at</div>
+</section>
+
+<section id="s4">
+  <div class="sh"><span class="sn">4</span><h2>Company vs Prospect ownership</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Guarantee</th><th>A · Company.userId</th><th>B · Company global</th></tr></thead>
+      <tbody>
+        <tr><td>No cross-user visibility</td><td><span class="chip c-yes">Direct</span> — one predicate</td><td><span class="chip c-part">Indirect</span> — must always join via Prospect; a direct Company read leaks row existence</td></tr>
+        <tr><td>Per-user deduplication</td><td><span class="chip c-yes">Native</span> — partial unique on (user_id, domain)</td><td><span class="chip c-yes">Native</span> — global unique on domain</td></tr>
+        <tr><td>Future global dedup</td><td><span class="chip c-part">Backfill</span> — group by domain, repoint prospects</td><td><span class="chip c-yes">Already</span></td></tr>
+        <tr><td>Research provenance</td><td><span class="chip c-yes">Clean</span> — signals hang off a user-owned Prospect</td><td><span class="chip c-yes">Clean</span> — same</td></tr>
+        <tr><td>Migration path preserved</td><td><span class="chip c-yes">Yes</span> — mechanical merge</td><td><span class="chip c-no">One-way</span> — splitting merged rows is not mechanical</td></tr>
+        <tr><td>Field conflicts</td><td>None — each user's row is theirs</td><td>Two users' discovery runs return different names/descriptions for one business; needs a resolution rule</td></tr>
+        <tr><td>Erasure</td><td>Delete by <code>user_id</code></td><td>A shared row cannot be deleted with one user</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout ok">
+    <strong>Recommendation: A — Company is user-owned.</strong> Not because it is simpler. The
+    decisive argument is that <strong>the MVP is validating deduplication itself</strong>: normalize
+    and deduplicate are journey stages 3 and 4, and whether <code>domain</code> is a reliable
+    identity key is one of the things the experiment answers. Committing to a <em>global</em>
+    identity namespace before that answer is known bakes in a guess, and a wrong dedup rule in a
+    shared namespace corrupts every user's data at once rather than one user's.
+  </div>
+  <p class="prose">
+    Two design choices keep option B reachable:
+  </p>
+  <ul class="prose">
+    <li><strong>Persist <code>normalized_domain</code> explicitly</strong> rather than normalising at
+      query time. A future global merge needs a deterministic join key that was computed the same way
+      for every row.</li>
+    <li><strong>Keep Company minimal.</strong> The more descriptive fields it carries, the more
+      conflicts a future merge has to resolve. Anything user-specific belongs on Prospect.</li>
+  </ul>
+  <div class="ddl">companies
+  id                 TEXT PK
+  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT
+  name               TEXT NOT NULL
+  domain             TEXT NULL
+  normalized_domain  TEXT NULL          -- future global merge key
+  industry           TEXT NULL
+  size_band          TEXT NULL
+  country            TEXT NULL
+  created_at / updated_at
+
+  UNIQUE (user_id, normalized_domain) WHERE normalized_domain IS NOT NULL   -- partial, hand-written</div>
+</section>
+
+<section id="s5">
+  <div class="sh"><span class="sn">5</span><h2>Search</h2></div>
+  <div class="callout warn">
+    <strong>Snapshot, not dynamic read.</strong> If the worker read parameters live from
+    <code>service_profiles</code>, editing a profile would retroactively change what a completed
+    search searched for — and every opportunity's stored rationale would describe criteria that were
+    never used. Historical reproducibility requires the inputs to be frozen with the run, exactly as
+    <code>scorer_version</code> freezes the scoring logic.
+  </div>
+  <div class="ddl">searches
+  id                       TEXT PK
+  user_id                  TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT
+  service_profile_id       TEXT NOT NULL REFERENCES service_profiles(id) ON DELETE RESTRICT
+  parameters               JSONB NOT NULL     -- frozen snapshot, see below
+  status                   TEXT NOT NULL      -- PENDING RUNNING COMPLETE FAILED CANCELLED
+  requested_count          INTEGER NOT NULL DEFAULT 20
+  idempotency_key          TEXT NULL UNIQUE
+  attempts                 INTEGER NOT NULL DEFAULT 0
+  last_error               TEXT NULL
+  lease_owner              TEXT NULL
+  lease_expires_at         TIMESTAMP(3) NULL
+  requested_at             TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  started_at               TIMESTAMP(3) NULL
+  finished_at              TIMESTAMP(3) NULL
+  created_at / updated_at
+
+  INDEX (user_id, requested_at DESC)
+  INDEX (requested_at) WHERE status = 'PENDING'      -- claim query; mirrors meta_events_due_idx</div>
+  <p class="prose" style="margin-top:.9rem">
+    <code>parameters</code> holds the seven ServiceProfile values in use at creation time —
+    <code>service</code>, <code>targetCustomer</code>, <code>geography</code>,
+    <code>minProjectValuePaise</code>, <code>signalTriggers</code>, <code>keywords</code>,
+    <code>offerRationale</code>. JSONB rather than seven columns because the worker reads it as a
+    unit and nothing queries across it at MVP scale; <code>service_profile_id</code> is retained
+    separately for lineage.
+  </p>
+  <p class="prose"><strong>Result relationship:</strong> <code>prospects.search_id → searches.id</code>.
+    Opportunities reach a search transitively through their prospect; no direct
+    <code>search_id</code> on <code>opportunities</code>, which would be a second path to the same
+    fact and could disagree with the first.</p>
+</section>
+
+<section id="s6">
+  <div class="sh"><span class="sn">6</span><h2>Prospect</h2></div>
+  <div class="ddl">prospects
+  id             TEXT PK
+  user_id        TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT
+  search_id      TEXT NOT NULL REFERENCES searches(id) ON DELETE RESTRICT
+  company_id     TEXT NOT NULL REFERENCES companies(id) ON DELETE RESTRICT
+  source         TEXT NOT NULL      -- discovery provenance: which provider returned it
+  source_ref     TEXT NULL          -- the provider's own id, for re-fetch and debugging
+  full_name      TEXT NULL
+  email          TEXT NULL
+  role           TEXT NULL
+  linkedin_url   TEXT NULL
+  status         TEXT NOT NULL      -- DISCOVERED RESEARCHED SCORED REJECTED
+  unsubscribed_at TIMESTAMP(3) NULL
+  created_at / updated_at
+
+  UNIQUE (search_id, company_id)
+  INDEX (user_id) · INDEX (company_id)</div>
+  <div class="callout">
+    <strong><code>UNIQUE(search_id, company_id)</code>, not <code>(user_id, company_id)</code>.</strong>
+    Within one search a business must appear once — that is the deduplication requirement. Across
+    searches it should be allowed to reappear: a user searching again in three months wants the same
+    restaurant re-surfaced with <em>fresh</em> research, and a user-scoped constraint would silently
+    suppress it.
+  </div>
+  <p class="prose">
+    <strong>Discovery provenance</strong> is <code>source</code> + <code>source_ref</code> on the
+    prospect rather than on the company, because provenance is a fact about <em>this discovery
+    event</em>, not about the business. It also survives the future move to a shared Company table
+    unchanged.
+  </p>
+  <p class="prose" style="font-size:.9rem;color:var(--muted)">
+    <code>unsubscribed_at</code> is carried because <code>ProspectInput.contact.unsubscribed</code>
+    is a hard stop in the existing scorer — it overrides every other factor. Nothing in the MVP
+    sets it; it exists so the scorer's contract can be satisfied honestly rather than by hardcoding
+    <code>false</code>.
+  </p>
+</section>
+
+<section id="s7">
+  <div class="sh"><span class="sn">7</span><h2>Research signal / evidence</h2></div>
+  <div class="callout bad">
+    <strong>The existing mapper cannot satisfy the MVP's stated requirements.</strong>
+    <code>toResearchRows()</code> in <code>core-research/src/persist.ts</code>:
+    <pre style="margin:.55rem 0 0"><code>.filter((o) =&gt; o.classification !== 'UNKNOWN')     // UNKNOWN rows are DISCARDED
+  confidence: effectiveConfidence(observation)      // OBSERVED/INFERRED folded into a number
+  sourceUrl: observation.evidence[0]?.sourceUrl     // only the FIRST of up to 5 sources
+  weight: 0                                          // placeholder</code></pre>
+    Three consequences: the UI cannot display <em>observed / inferred / unknown</em> (Scope Boundary
+    §5.3), it cannot show more than one source (§5.6 evidence display), and — because
+    <code>effectiveConfidence</code> already halves INFERRED while the scorer's
+    <code>INFERENCE_DISCOUNT = 0.5</code> halves it again by <code>basis</code> —
+    <strong>inference can be discounted twice</strong>.
+  </div>
+  <div class="ddl">research_signals
+  id             TEXT PK
+  prospect_id    TEXT NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT
+  company_id     TEXT NOT NULL REFERENCES companies(id) ON DELETE RESTRICT
+  field          TEXT NOT NULL      -- which observation produced it
+  kind           TEXT NOT NULL      -- WEBSITE JOB_POST LINKEDIN NEWS FUNDING TECH_STACK REVIEW MANUAL
+  classification TEXT NOT NULL      -- OBSERVED | INFERRED | UNKNOWN   &lt;-- restored
+  signal         TEXT NULL          -- NULL permitted for UNKNOWN
+  confidence     INTEGER NOT NULL   -- RAW, unadjusted; CHECK 0..100
+  source_url     TEXT NULL
+  source_quote   TEXT NULL          -- the verbatim span provenance already verifies
+  observed_at    TIMESTAMP(3) NOT NULL
+  superseded_at  TIMESTAMP(3) NULL
+  created_at
+
+  INDEX (prospect_id) WHERE superseded_at IS NULL     -- the scorer reads live signals only</div>
+  <div class="callout ok">
+    <strong>Store raw confidence; discount once, at scoring time.</strong> The persisted row keeps
+    <code>classification</code> and the unadjusted <code>confidence</code>. The adapter supplies
+    <code>basis</code> to the scorer, which applies <code>INFERENCE_DISCOUNT</code> — the single
+    place a discount is applied. This also makes the row honest: a stored 80 means the source
+    asserted 80, not 80-after-a-halving-someone-has-to-remember.
+  </div>
+  <p class="prose">
+    <strong>UNKNOWN rows are kept</strong>, with <code>signal</code> NULL. They are what lets the UI
+    say “we could not establish ability to pay” instead of silently omitting a factor — and the
+    scorer already has an <code>UNKNOWN</code> basis that contributes zero.
+    <strong>Freshness</strong> needs no column: <code>observed_at</code> plus the existing
+    <code>decayFactor()</code> computes it. <strong>Supersession</strong> is an
+    <code>UPDATE</code> of <code>superseded_at</code>, never a delete.
+  </p>
+  <p class="prose" style="font-size:.9rem;color:var(--muted)">
+    Not a knowledge graph: no entities, no relations, no triples. One flat append-only table whose
+    columns map one-to-one onto what <code>ProspectInput.signals</code> consumes.
+  </p>
+</section>
+
+<section id="s8">
+  <div class="sh"><span class="sn">8</span><h2>Opportunity</h2></div>
+  <div class="ddl">opportunities
+  id                 TEXT PK
+  user_id            TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT
+  prospect_id        TEXT NOT NULL REFERENCES prospects(id) ON DELETE RESTRICT
+  stage              TEXT NOT NULL DEFAULT 'NEW'   -- NEW RESEARCHED CONTACTED REPLIED
+                                                   -- QUALIFIED PROPOSAL_SENT WON LOST PAUSED
+  detected_need      TEXT NULL       -- what the evidence indicates
+  service_offer      TEXT NULL       -- NULL = NONE, when evidence is insufficient
+  offer_rationale    TEXT NULL       -- the resolved '{signal}' template
+  next_action        TEXT NULL       -- from nextActionFor()
+  next_action_due_at TIMESTAMP(3) NULL
+  stage_changed_at   TIMESTAMP(3) NOT NULL
+  last_signal_at     TIMESTAMP(3) NULL   -- freshness + staleness input
+  created_at / updated_at
+
+  UNIQUE (prospect_id)
+  INDEX (user_id, stage)</div>
+  <div class="scroll" style="margin-top:.9rem">
+    <table>
+      <thead><tr><th>Required capability</th><th>Where it lives</th></tr></thead>
+      <tbody>
+        <tr><td>Prospect</td><td class="mono">prospect_id</td></tr>
+        <tr><td>Detected need</td><td class="mono">detected_need</td></tr>
+        <tr><td>Evidence</td><td>Via <code>prospect_id → research_signals</code> — not copied</td></tr>
+        <tr><td>Recommended offer</td><td class="mono">service_offer (NULL = NONE)</td></tr>
+        <tr><td>Confidence · inference discount · freshness</td><td>Computed by the scorer from signals; the <em>result</em> lives in <code>opportunity_scores</code></td></tr>
+        <tr><td>State</td><td class="mono">stage, stage_changed_at</td></tr>
+        <tr><td>Staleness</td><td>Derived from <code>stage_changed_at</code> / <code>last_signal_at</code> via the existing <code>STALE_AFTER_DAYS</code></td></tr>
+        <tr><td>Next action</td><td class="mono">next_action, next_action_due_at</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout bad">
+    <strong>Excluded, and the exclusion is structural.</strong> No <code>messages</code>,
+    <code>follow_ups</code>, <code>conversations</code>, <code>proposals</code>,
+    <code>activities</code> or <code>client_id</code> — no column, no foreign key, no relation.
+    Also dropped: <code>estimated_value_paise</code> (§3), <code>closed_at</code>,
+    <code>lost_reason</code>, <code>paused_from_stage</code>, <code>paused_reason</code> — the
+    close/pause lifecycle belongs to Phase 2 and nothing in the MVP journey sets it.
+  </div>
+  <p class="prose" style="font-size:.9rem;color:var(--muted)">
+    <code>UNIQUE(prospect_id)</code>: one opportunity per prospect in the MVP. A prospect with two
+    competing offers is a Phase 2 idea; allowing it now would make ranking ambiguous.
+  </p>
+</section>
+
+<section id="s9">
+  <div class="sh"><span class="sn">9</span><h2>Opportunity score</h2></div>
+  <p class="prose">
+    Mirrors the existing <code>ProspectScore</code> return shape exactly — reused, not invented.
+  </p>
+  <div class="ddl">opportunity_scores
+  id              TEXT PK
+  opportunity_id  TEXT NOT NULL REFERENCES opportunities(id) ON DELETE RESTRICT
+  total           INTEGER NOT NULL   -- CHECK 0..100
+  band            TEXT NOT NULL      -- HIGH MEDIUM LOW
+  factors         JSONB NOT NULL     -- FactorScore[]: factor, weight, raw, points, basis, reason
+  reasons         JSONB NOT NULL     -- ordered human-readable strings
+  observed_share  NUMERIC NOT NULL   -- share of the score resting on observed facts
+  cap             TEXT NULL          -- set when a rule overrode the arithmetic
+  scorer_version  TEXT NOT NULL
+  scored_at       TIMESTAMP(3) NOT NULL
+
+  INDEX (opportunity_id, scored_at DESC)</div>
+  <div class="scroll" style="margin-top:.9rem">
+    <table>
+      <thead><tr><th>Requirement</th><th>Satisfied by</th></tr></thead>
+      <tbody>
+        <tr><td>Factor values</td><td><code>factors</code> — all seven, each with weight, raw, points and basis</td></tr>
+        <tr><td>Total score</td><td><code>total</code>; weights sum to exactly 100, asserted by an existing test</td></tr>
+        <tr><td>Explainability</td><td><code>factors[].reason</code> and <code>reasons</code>, already generated by the scorer</td></tr>
+        <tr><td>Scoring version</td><td><code>scorer_version</code></td></tr>
+        <tr><td>Deterministic reproducibility</td><td>Same signals + same <code>scorer_version</code> ⇒ same total. The function is pure; nothing here introduces time or randomness.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose" style="font-size:.9rem;color:var(--muted)">
+    Append-only: re-scoring writes a new row rather than updating. Not a generic analytics
+    framework — no metric registry, no dimensions, no aggregates. One row per scoring run of one
+    opportunity.
+  </p>
+</section>
+
+<section id="s10">
+  <div class="sh"><span class="sn">10</span><h2>Feedback</h2></div>
+  <div class="ddl">feedback
+  id              TEXT PK
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT
+  opportunity_id  TEXT NOT NULL REFERENCES opportunities(id) ON DELETE RESTRICT
+  useful          BOOLEAN NOT NULL
+  reason          TEXT NULL
+  created_at      TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at      TIMESTAMP(3) NOT NULL
+
+  UNIQUE (user_id, opportunity_id)
+  INDEX (opportunity_id)</div>
+  <div class="callout">
+    <strong>Can this grow into outcome/revenue learning without importing future analytics?</strong>
+    Yes — and the shape is what makes it possible. Feedback keyed on
+    <code>(user_id, opportunity_id)</code> is already the join key every later outcome question
+    needs: <em>did you contact them</em>, <em>did they reply</em>, <em>did you win</em>. Each is a
+    future nullable column or a sibling table keyed the same way.
+    <strong>None is added now</strong> — the MVP asks one question, “would you actually contact this
+    business?”, and Scope Boundary §9 places the rest in outcome validation that may extend beyond
+    this implementation.
+  </div>
+  <p class="prose" style="font-size:.9rem;color:var(--muted)">
+    <code>reason</code> free text rather than a closed set — the MVP is discovering why
+    opportunities are rejected, and a premature enum would record only the reasons that were already
+    guessed. This remains an open question in §15 if analysability is preferred.
+  </p>
+</section>
+
+<section id="s11">
+  <div class="sh"><span class="sn">11</span><h2>User isolation</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Model</th><th>Ownership field</th><th>Repository filter</th><th>Index</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">service_profiles</td><td class="mono">user_id</td><td><code>WHERE user_id = $1</code></td><td><code>(user_id)</code></td></tr>
+        <tr><td class="mono">searches</td><td class="mono">user_id</td><td><code>WHERE user_id = $1</code></td><td><code>(user_id, requested_at DESC)</code></td></tr>
+        <tr><td class="mono">companies</td><td class="mono">user_id</td><td><code>WHERE user_id = $1</code></td><td><code>(user_id)</code></td></tr>
+        <tr><td class="mono">prospects</td><td class="mono">user_id</td><td><code>WHERE user_id = $1</code></td><td><code>(user_id)</code></td></tr>
+        <tr><td class="mono">opportunities</td><td class="mono">user_id</td><td><code>WHERE user_id = $1</code></td><td><code>(user_id, stage)</code></td></tr>
+        <tr><td class="mono">feedback</td><td class="mono">user_id</td><td><code>WHERE user_id = $1</code></td><td><code>(user_id, created_at DESC)</code></td></tr>
+        <tr style="background:var(--accent-soft)"><td class="mono">research_signals</td><td><strong>Inherited</strong> via <code>prospect_id</code></td><td><code>JOIN prospects p ON … WHERE p.user_id = $1</code></td><td><code>(prospect_id) WHERE superseded_at IS NULL</code></td></tr>
+        <tr style="background:var(--accent-soft)"><td class="mono">opportunity_scores</td><td><strong>Inherited</strong> via <code>opportunity_id</code></td><td><code>JOIN opportunities o ON … WHERE o.user_id = $1</code></td><td><code>(opportunity_id, scored_at DESC)</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <strong>Two models deliberately carry no <code>user_id</code>.</strong>
+    <code>research_signals</code> and <code>opportunity_scores</code> are leaf tables reached only
+    through an owned parent, so a denormalised owner would be a second source of truth that can
+    disagree with the first. Denormalise later only if a measured query plan demands it — and then
+    with a constraint keeping the two in step.
+  </div>
+  <h3 style="margin:1.3rem 0 .5rem">Cross-user test requirement</h3>
+  <p class="prose">One test per owned model, all the same shape: seed user A, authenticate as user
+    B, request A's row by its primary key. <strong>B must receive an empty result</strong> — not a
+    403, not a 500, and certainly not the row. Empty is the correct answer because it also avoids
+    confirming that the id exists.</p>
+</section>
+
+<section id="s12">
+  <div class="sh"><span class="sn">12</span><h2>Worker ownership</h2></div>
+  <div class="ddl">HTTP    POST /api/searches
+          requireUser()  →  userId          <span style="color:var(--ok)">server-derived from the session cookie</span>
+          INSERT searches (user_id = userId, parameters = snapshot, status='PENDING')
+
+WORKER  claim:  UPDATE searches SET status='RUNNING', lease_owner=$worker,
+                    lease_expires_at=now()+lease
+                WHERE id IN (SELECT id FROM searches
+                             WHERE status='PENDING' AND requested_at &lt;= now()
+                             ORDER BY requested_at
+                             FOR UPDATE SKIP LOCKED LIMIT $n)
+                RETURNING id, user_id, parameters
+
+        userId := row.user_id        <span style="color:var(--ok)">read from persisted state, never from a payload</span>
+        params := row.parameters     <span style="color:var(--ok)">frozen at creation, not re-read from the profile</span>
+
+        every INSERT it makes carries that user_id:
+          companies · prospects · research_signals · opportunities · opportunity_scores
+
+        settle: fenced UPDATE … WHERE id=$1 AND lease_owner=$worker</div>
+  <div class="callout ok">
+    <strong>The worker has no job payload, so there is nothing to forge.</strong> It is handed
+    nothing; it claims a row and reads ownership out of it. Because that row could only have been
+    written by a request that passed <code>requireUser()</code>, ownership is transitively bound to
+    a real session without the worker knowing sessions exist. This is the pattern the
+    <code>meta_events</code> worker already uses and is the only worker component proven against
+    real PostgreSQL.
+  </div>
+  <p class="prose">
+    The <code>lease_owner</code> fence matters for the same reason it does in
+    <code>meta_events</code>: a worker whose lease expired mid-run must not overwrite the row a new
+    worker now holds. Settle statements carry <code>AND lease_owner = $worker</code>.
+  </p>
+</section>
+
+<section id="s13">
+  <div class="sh"><span class="sn">13</span><h2>Migration 0012 — conceptual DDL</h2></div>
+  <div class="ddl">-- 0012_client_finder_mvp_base        ADDITIVE ONLY
+
+CREATE TABLE users                 (…)   + UNIQUE(email) + CHECK(email = lower(email))
+CREATE TABLE service_profiles      (…)   + CHECK(min_project_value_paise &gt; 0)
+CREATE TABLE searches              (…)   + UNIQUE(idempotency_key)
+CREATE TABLE companies             (…)
+CREATE TABLE prospects             (…)   + UNIQUE(search_id, company_id)
+CREATE TABLE research_signals      (…)   + CHECK(confidence BETWEEN 0 AND 100)
+CREATE TABLE opportunities         (…)   + UNIQUE(prospect_id)
+CREATE TABLE opportunity_scores    (…)   + CHECK(total BETWEEN 0 AND 100)
+CREATE TABLE feedback              (…)   + UNIQUE(user_id, opportunity_id)
+
+ALTER TABLE access_tokens ADD COLUMN user_id TEXT NULL
+    REFERENCES users(id) ON DELETE RESTRICT;
+
+-- hand-written (Prisma cannot express partial indexes)
+CREATE UNIQUE INDEX companies_user_domain_key
+    ON companies(user_id, normalized_domain) WHERE normalized_domain IS NOT NULL;
+CREATE INDEX research_signals_live_idx
+    ON research_signals(prospect_id)         WHERE superseded_at IS NULL;
+CREATE INDEX searches_due_idx
+    ON searches(requested_at)                WHERE status = 'PENDING';
+CREATE INDEX access_tokens_user_id_idx
+    ON access_tokens(user_id)                WHERE user_id IS NOT NULL;
+
+-- plus ordinary FK indexes on every user_id / parent_id column</div>
+  <div class="scroll" style="margin-top:1rem">
+    <table>
+      <thead><tr><th>Confirmation</th><th>Status</th><th>Basis</th></tr></thead>
+      <tbody>
+        <tr><td>Additive only</td><td><span class="chip c-yes">Confirmed</span></td><td>9 CREATE TABLE + 1 ADD COLUMN + indexes. No ALTER of an existing column.</td></tr>
+        <tr><td>No destructive operations</td><td><span class="chip c-yes">Confirmed</span></td><td>No DROP, no TRUNCATE, no type change, no NOT NULL added to an existing column.</td></tr>
+        <tr><td>No CRM tables</td><td><span class="chip c-yes">Confirmed</span></td><td>Client, Conversation, Activity, OutreachMessage, FollowUp, Proposal absent.</td></tr>
+        <tr><td>No CRM relations</td><td><span class="chip c-yes">Confirmed</span></td><td>The risk channel was <code>opportunities</code>; all six relations dropped from the reused shape.</td></tr>
+        <tr><td>No payment semantic changes</td><td><span class="chip c-yes">Confirmed</span></td><td><code>orders</code>, <code>payments</code>, <code>entitlements</code> and their triggers untouched. <code>access_tokens</code> gains a nullable column that <code>resolveAccess()</code> never reads.</td></tr>
+        <tr><td>No historical renumbering</td><td><span class="chip c-yes">Confirmed</span></td><td>0001–0011 unchanged; 9 applied rows in <code>_prisma_migrations</code> unaffected.</td></tr>
+        <tr><td>No backfilling 0005/0006</td><td><span class="chip c-yes">Confirmed</span></td><td>The gap stays open. Those names are permanently absent from every database that ran the chain.</td></tr>
+        <tr><td>No data transformation</td><td><span class="chip c-yes">Confirmed</span></td><td>No existing row is read or written. <code>access_tokens.user_id</code> stays NULL for every legacy row.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s14">
+  <div class="sh"><span class="sn">14</span><h2>Final table</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Model</th><th>MVP?</th><th>New / Reused</th><th>Owner</th><th>Key purpose</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">User</td><td><span class="chip c-yes">Yes</span></td><td>New</td><td>—</td><td>Ownership anchor and feature-access holder</td></tr>
+        <tr><td class="mono">ServiceProfile</td><td><span class="chip c-yes">Yes</span></td><td>New</td><td class="mono">user_id</td><td>What the user sells; parameterises discovery and offers</td></tr>
+        <tr><td class="mono">Search</td><td><span class="chip c-yes">Yes</span></td><td>New</td><td class="mono">user_id</td><td>Job record with frozen parameters and lease state</td></tr>
+        <tr><td class="mono">Company</td><td><span class="chip c-yes">Yes</span></td><td>New table, shape reused</td><td class="mono">user_id</td><td>Normalised business; deduplication target</td></tr>
+        <tr><td class="mono">Prospect</td><td><span class="chip c-yes">Yes</span></td><td>New table, shape reused</td><td class="mono">user_id</td><td>Discovered business within a search; research subject</td></tr>
+        <tr><td class="mono">ResearchSignal</td><td><span class="chip c-yes">Yes</span></td><td>New table, shape reused + <code>classification</code></td><td>Inherited via prospect</td><td>Evidence, provenance, freshness, supersession</td></tr>
+        <tr><td class="mono">Opportunity</td><td><span class="chip c-yes">Yes</span></td><td>New table, shape reused minus 6 relations</td><td class="mono">user_id</td><td>Evidence-backed result with offer and next action</td></tr>
+        <tr><td class="mono">OpportunityScore</td><td><span class="chip c-yes">Yes</span></td><td>New</td><td>Inherited via opportunity</td><td>Seven-factor breakdown; explainable, reproducible</td></tr>
+        <tr><td class="mono">Feedback</td><td><span class="chip c-yes">Yes</span></td><td>New</td><td class="mono">user_id</td><td>The MVP's primary validation instrument</td></tr>
+        <tr style="background:var(--warn-soft)"><td class="mono">AccessToken</td><td><span class="chip c-part">Modified</span></td><td><strong>Existing — one nullable column added</strong></td><td class="mono">user_id (nullable)</td><td>Session when set; legacy entitlement credential when NULL</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s15">
+  <div class="sh"><span class="sn">15</span><h2>Final approval check</h2></div>
+  <ul class="check">
+    <li><strong>No future CRM capability entered MVP</strong> — six models excluded as tables <em>and</em> as relations; the <code>opportunities</code> back door closed explicitly.</li>
+    <li><strong>No subscription system entered MVP</strong> — no plan, quota, billing-period or usage-meter column anywhere.</li>
+    <li><strong>No autonomous outreach entered MVP</strong> — no message, channel, send-state or schedule column. <code>unsubscribed_at</code> is a scorer input, not an outreach capability.</li>
+    <li><strong>No proposal system entered MVP</strong> — no proposal table, no version, no pricing block.</li>
+    <li><strong>No unnecessary authentication infrastructure entered MVP</strong> — one nullable column on an existing table. No sessions table, no password, no OAuth, no MFA, no roles, no workspaces.</li>
+    <li><strong>No duplicate service-pricing concepts</strong> — <code>typicalValuePaise</code> removed and <code>estimated_value_paise</code> dropped. <code>min_project_value_paise</code> is the single pricing concept.</li>
+    <li><strong>No cross-user access path exists by design</strong> — every owned model filters on <code>user_id</code>; the two leaf tables reach it through a join; no route, service or repository accepts a caller-supplied <code>userId</code>.</li>
+    <li><strong>Schema is compatible with existing architecture</strong> — TEXT uuid keys, <code>TIMESTAMP(3)</code>, <code>created_at</code>/<code>updated_at</code>, lowercase-email CHECKs, <code>ON DELETE RESTRICT</code>, partial indexes in hand-written SQL. Every convention matches migrations 0001–0011.</li>
+    <li><strong>Migration 0012 can be additive</strong> — confirmed against all eight criteria in §13.</li>
+    <li class="x"><strong>One caveat:</strong> <code>toResearchRows()</code> as written cannot populate <code>research_signals</code> — it discards classification and UNKNOWN rows. The adapter must map observations directly, or that function must be extended. This is implementation work, not a schema change, but it must not be discovered mid-build.</li>
+  </ul>
+
+  <div class="tri" style="margin-top:1.75rem">
+    <div class="fact">
+      <div class="hd">■ Verified fact</div>
+      <ul>
+        <li><code>toResearchRows</code> filters out UNKNOWN and folds classification into confidence via <code>effectiveConfidence</code>.</li>
+        <li><code>effectiveConfidence</code> halves INFERRED; the scorer's <code>INFERENCE_DISCOUNT</code> also halves by basis.</li>
+        <li><code>ServiceRule</code> requires service, triggers, keywords, typicalValuePaise, rationale.</li>
+        <li><code>ProspectScore</code> returns score, band, factors[], reasons[], observedShare, cap?.</li>
+        <li>Seven factors; weights sum to 100, asserted by an existing test.</li>
+        <li><code>FactorScore</code> carries factor, weight, raw, points, basis, reason.</li>
+        <li><code>ProspectInput.contact.unsubscribed</code> is a hard stop overriding all factors.</li>
+        <li><code>entitlements.order_id</code> is NOT NULL; <code>access_tokens</code> has no <code>user_id</code>.</li>
+        <li>Next migration number is 0012; 9 applied, none rolled back.</li>
+      </ul>
+    </div>
+    <div class="rec">
+      <div class="hd">▲ Recommended decision</div>
+      <ul>
+        <li>Remove <code>typicalValuePaise</code>; drop <code>estimated_value_paise</code>.</li>
+        <li>Persist <code>classification</code> and <strong>raw</strong> confidence; discount once, at scoring time.</li>
+        <li>Keep UNKNOWN signals with a NULL <code>signal</code> value.</li>
+        <li>Snapshot search parameters as JSONB at creation.</li>
+        <li>Company user-owned, with <code>normalized_domain</code> preserved as the future merge key.</li>
+        <li><code>UNIQUE(search_id, company_id)</code>, not <code>(user_id, company_id)</code>.</li>
+        <li><code>UNIQUE(prospect_id)</code> on opportunities — one offer per prospect for MVP.</li>
+        <li>No <code>user_id</code> on <code>research_signals</code> or <code>opportunity_scores</code>.</li>
+        <li><code>requireUser()</code> rejects tokens where <code>user_id IS NULL</code>.</li>
+        <li>No email verification column for MVP.</li>
+      </ul>
+    </div>
+    <div class="open">
+      <div class="hd">● Open question</div>
+      <ul>
+        <li><strong>Session TTL.</strong> <code>ACCESS_TOKEN_TTL_MS</code> is 30 days, chosen for a purchased-product credential. A working session likely wants less — that means a second constant.</li>
+        <li><strong>Feedback <code>reason</code>: free text or closed set?</strong> Recommended free text; a closed set is more analysable but records only anticipated reasons. Affects the column type.</li>
+        <li><strong>Cookie name</strong> — reuse <code>acos_access</code> or add <code>acos_session</code>? Separate names make the two credential kinds visible; one name is simpler.</li>
+        <li><strong>Who derives <code>signal_triggers</code>/<code>keywords</code>/<code>offer_rationale</code>?</strong> A curated catalogue matched on the service string, or an AI pass over the profile text. Changes the profile-creation path, not the schema.</li>
+        <li><strong>Prospect <code>status</code> values.</strong> Proposed DISCOVERED/RESEARCHED/SCORED/REJECTED; not specified by the PRD, which defines stages only for Opportunity.</li>
+        <li><strong>Do staging or production databases exist</strong>, and at what migration state? Only the local test database was observable.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Design review only. No Prisma schema, migration, application source, test, configuration or
+  documentation file was modified. Facts labelled verified were established by reading
+  <code>core-research/src/persist.ts</code>, <code>core-acquisition/src/prospectScore.ts</code>,
+  <code>core-acquisition/src/offer.ts</code>, <code>core-entitlements/src/access.ts</code> and
+  migrations 0001–0011, and by querying the live PostgreSQL 16.14 test instance. Conceptual DDL is
+  a proposal; column names and types are subject to the open questions above.
+</footer>
+
+</div>
+
+</body></html>

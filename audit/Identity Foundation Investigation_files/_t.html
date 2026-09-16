@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<!-- saved from url=(0092)https://7752d08c-435a-4d54-ad8a-620680b0764f.frame.claudeusercontent.com/_f/1789531695-8a58/ -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><!-- frame-runtime --><script>window.__FRAME_PREAMBLE={"v":1,"cred":"cookie","capabilities":{"artifact":"artifact.O-h4mzdy.js","assets":"assets.DhQw8DTi.js","comments":"comments.DcGvuXoo.js","db":"db.DL2sIJ17.js","downloads":"downloads.axDW2QAi.js","embed":"embed.swQslL0W.js","endpoints":"endpoints.BPfoKaE1.js","mcp":"mcp.C8qKIFvQ.js","network":"network.B5UA9Su4.js","permissions":"permissions.DWFFeHI0.js","room":"room.BF1j0KPr.js","sample":"sample.C7KQQdQj.js","self":"artifact.O-h4mzdy.js","user":"user.CCh6oTS_.js"},"transforms":"_transforms.BXjPs0fy.js","comments":"_comments.CoT-GWno.js","translate":"_translate.DqxC5ek1.js","ldx":"_ldx.CqNtBrkk.js"}                                                                                                                                                                                                                                                                                                                                                                                                             </script><script>(function(){"use strict";var Rn=3e5;function tr(t,e){try{const n=t("navigation")[0],o=[n.responseStart,n.redirectEnd-n.redirectStart,n.domContentLoadedEventStart,e()];for(let a=0;a<o.length;a++){if(!(o[a]>=0&&o[a]<=3e5))return;o[a]=o[a]|0}return o}catch{return}}var rr=["light","dark","system"],nr=/^[A-Za-z0-9_-]{1,64}$/,wt=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,or=new Set(["class","hidden","value","checked","style","title","alt","placeholder","lang","dir","role","tabindex","disabled","readonly","contenteditable","open","colspan","rowspan"]);function ar(t){const e=t.toLowerCase();return e.startsWith("data-")||e.startsWith("aria-")||or.has(e)}var bt="data-ldx-props";function sr(t,e){if(e.toLowerCase()===bt)return!0;const n=t.getAttribute(bt);if(n===null)return!1;try{const o=JSON.parse(n);if(o===null||typeof o!="object"||Array.isArray(o))return!0;const a=e.toLowerCase();return Object.keys(o).some(s=>s.toLowerCase()===a)}catch{return!0}}var Tn="http://www.w3.org/1999/xhtml",lr="http://www.w3.org/2000/svg",ir=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),cr=new Set(["script","style"]);function ur(t){const e=t.localName.toLowerCase();return t.namespaceURI==="http://www.w3.org/1999/xhtml"?!ir.has(e):t.namespaceURI===lr?!cr.has(e):!1}function Ve(t,e){return t===e||(t===160||t===32)&&(e===160||e===32)}function fr(t,e){const n=t.length,o=e.length;let a=0;for(;a<n&&a<o&&Ve(t.charCodeAt(a),e.charCodeAt(a));)a++;let s=0;for(;s<n-a&&s<o-a&&Ve(t.charCodeAt(n-1-s),e.charCodeAt(o-1-s));)s++;return{p:a,s}}function dr(t,e){const n=t.firstChild;if(t.childNodes.length!==1||n===null||n.nodeType!==Node.TEXT_NODE){t.textContent=e;return}const o=n.data,a=o.length,s=e.length,{p:c,s:d}=fr(o,e);c===a&&d===0&&a===s||n.replaceData(c,a-c-d,e.slice(c,s-d));const O=n.data,S=t.ownerDocument.getSelection?.()??null,P=S!==null&&S.rangeCount>0&&(S.anchorNode===n||S.focusNode===n)?{anchor:S.anchorNode,anchorOffset:S.anchorOffset,focus:S.focusNode,focusOffset:S.focusOffset}:null;let v=-1,T=-1;for(let h=0;h<O.length&&h<e.length;h++){const I=O.charCodeAt(h),$=e.charCodeAt(h);I!==$&&Ve(I,$)&&(v<0&&(v=h),T=h)}const m=v>=0;if(m&&n.replaceData(v,T-v+1,e.slice(v,T+1)),m&&P!==null&&P.anchor!==null&&P.focus!==null)try{S.setBaseAndExtent(P.anchor,P.anchorOffset,P.focus,P.focusOffset)}catch{}}var hr=new Set(["html","head","body","frameset"]);function pr(t){return t.namespaceURI==="http://www.w3.org/1999/xhtml"&&hr.has(t.localName)}function mr(t){if(t===null||typeof t!="object")return!1;const e=t;if(typeof e.target!="string"||!nr.test(e.target)||e.text!==void 0&&typeof e.text!="string")return!1;if(e.attrsSet!==void 0){if(e.attrsSet===null||typeof e.attrsSet!="object")return!1;for(const[n,o]of Object.entries(e.attrsSet))if(!wt.test(n)||typeof o!="string")return!1}if(e.attrsRemoved!==void 0){if(!Array.isArray(e.attrsRemoved))return!1;for(const n of e.attrsRemoved)if(typeof n!="string"||!wt.test(n))return!1}return!0}function vr(t,e){if(t===null||typeof t!="object")return!1;const{seq:n,elements:o}=t;if(typeof n!="number"||!Number.isSafeInteger(n)||!Array.isArray(o)||o.length===0||o.length>64)return!1;for(let a=0;a<o.length;a++)if(!e(o[a]))return!1;return!0}function _r(t){return t===null||typeof t!="object"?!1:vr(t.__frame_patch,mr)}function yr(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_init;return e!==null&&typeof e=="object"}function gr(t){return t!==null&&typeof t=="object"&&t.__frame_size_poke===!0}function wr(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_host_visible;return e!==null&&typeof e=="object"&&typeof e.visible=="boolean"}function br(t){if(t===null||typeof t!="object")return!1;const e=t.__frame_theme;if(e===null||typeof e!="object")return!1;const n=e.theme;return typeof n=="string"&&rr.includes(n)}var Er=["ok","empty","snapshot_error","snapshot_timeout","unclonable","oversize","unavailable","restore_error","withheld"],Sr=["TypeError","RangeError","ReferenceError","SyntaxError","DataCloneError","QuotaExceededError","AbortError","TimeoutError","SecurityError","Error","other"];function kr(t){return typeof t=="string"&&Sr.includes(t)?t:"other"}var Ar=Object.freeze({until:null,now:!1}),Rr="__claude_hot",Tr="__claude_hot_in",Or=/^__claude_hot(?:_in)?(?::|$)/,Et=/^[0-9a-z]{1,32}$/,We=t=>t===void 0?Rr:"__claude_hot:"+t,ye=t=>t===void 0?Tr:"__claude_hot_in:"+t;function Lr(t,e){const n=[];for(let o=0;o<t.length;o++){const a=t.key(o);a!==null&&a!==e&&Or.test(a)&&n.push(a)}for(const o of n)t.removeItem(o)}function Mr(t){let e=null;try{e=B(JSON.parse(t)?.hot)}catch{return null}return e===null||typeof e.k!="string"||!Et.test(e.k)?null:ae(e.g)?{k:e.k,g:e.g}:{k:e.k}}var On=262144,Pr=3e3,Nr=5e3,St=/^[a-z0-9._:-]{1,64}$/,Cr=["none","hot-restart","hard-reload"],jr=["asset","doc","added","removed"],Ir=1500,Fr=/^[0-9a-f]{64}$/;function B(t){return t!==null&&typeof t=="object"?t:null}function ae(t){return typeof t=="number"&&Number.isInteger(t)&&t>=0&&t<2**31}function kt(t){return t===void 0||typeof t=="number"&&Number.isFinite(t)}function xr(t){return t===void 0||typeof t=="string"&&St.test(t)}function At(t){const e=B(t);return e!==null&&(e.until===null||typeof e.until=="number"&&Number.isFinite(e.until))&&typeof e.now=="boolean"}function Xe(t){const e=B(t);return e!==null&&typeof e.ver=="string"&&e.ver.length<=128&&kt(e.seq)&&typeof e.handoff=="string"&&Er.includes(e.handoff)&&xr(e.note)}function Dr(t){const e=B(t);return e!==null&&ae(e.gen)&&(e.phase==="final"||e.phase==="pending")&&(e.from===null||Xe(e.from))}function Hr(t){const e=B(t);return e!==null&&e.kv===1&&ae(e.gen)&&Xe(e.from)&&Object.hasOwn(e,"data")}function qr(t){const e=B(t);return e!==null&&e.__frame_hot_snapshot===!0&&ae(e.gen)&&typeof e.timeoutMs=="number"&&e.timeoutMs>=0&&e.timeoutMs<=6e4&&(e.handoff===void 0||typeof e.handoff=="boolean")&&(e.deadline===void 0||At(e.deadline))&&kt(e.seq)&&(e.note===void 0||typeof e.note=="string")&&(e.key===void 0||typeof e.key=="string")}function Br(t){const e=B(t);return e!==null&&e.__frame_hot_start===!0&&ae(e.gen)&&Xe(e.from)}function Ur(t){return typeof t=="string"&&t.length>=1&&t.length<=128}function Rt(t){return B(t)!==null&&!Array.isArray(t)}function Gr(t){const e=B(t);return e!==null&&e.__frame_cap_grant===!0&&typeof e.cap=="string"&&Ur(e.ver)&&(e.grant===void 0||Rt(e.grant))&&(e.budgets===void 0||Rt(e.budgets)&&Object.values(e.budgets).every(Number.isFinite))&&(e.brokerGen===void 0||ae(e.brokerGen))}function zr(t){const e=B(t);return e!==null&&e.__frame_cap_rewired===!0&&(e.caps===void 0||Array.isArray(e.caps)&&e.caps.every(n=>typeof n=="string"))&&(e.brokerGen===void 0||ae(e.brokerGen))}function Tt(t){const e=B(t);return e!==null&&typeof e.ver=="string"&&e.ver.length<=128&&Number.isFinite(e.seq)}function Ot(t){if(t==null||typeof t=="string")return!0;const e=B(t);return e!==null&&typeof e.doc=="string"&&typeof e.profile=="string"}function Kr(t){const e=B(t);return e!==null&&typeof e.path=="string"&&jr.includes(e.kind)&&Ot(e.from)&&Ot(e.to)}function $r(t){return t===null?null:Object.freeze(t.filter(Kr))}function Vr(t){const e=B(t);return e!==null&&e.__frame_hot_update===!0&&Number.isFinite(e.id)&&Tt(e.from)&&Tt(e.to)&&(e.changed===null||Array.isArray(e.changed))&&Cr.includes(e.required)&&At(e.deadline)&&typeof e.verdictTimeoutMs=="number"&&e.verdictTimeoutMs>=0&&e.verdictTimeoutMs<=6e4&&(e.preflight===void 0||typeof e.preflight=="string"&&Fr.test(e.preflight))}var se=/^[\w.-]+\.js$/;function Wr(t,e,n){return n?"inert":typeof e=="string"&&se.test(e)?t?[e]:"inert":t?"inert":"framed"}var Lt=Object.freeze({[Symbol("claude.hot.restart")]:!0});function Mt(t,e){let n;try{n=t??sessionStorage}catch{return null}const o=We(e?.k),a=ye(e?.k);let s=null;try{s=n.getItem(o)}catch{}try{n.removeItem(o)}catch{}try{Lr(n,a)}catch{}let c=null;if(s!==null&&!(e!==null&&e.g===void 0))try{const d=JSON.parse(s);Hr(d)&&(e===null||d.gen===e.g)&&(c=d)}catch{}if(c===null)try{n.removeItem(a)}catch{}return c}function Xr(){const t=/^\/_f\/([^/]{1,128})\//.exec(location.pathname);return t?t[1]:""}var Yr=/^[^/\\?#]{1,128}$/,Pt=t=>Yr.test(t)&&t!=="."&&t!=="..";function Nt(t,e,n){const o=new URL(t),a="/_f/"+e+"/";if(!e||!o.pathname.startsWith(a)||!Pt(n))return null;const s=o.search.slice(1).split("&").filter(c=>!/^__frame_t(?:=|$)/.test(c)).join("&");return o.origin+"/_f/"+n+"/"+o.pathname.slice(a.length)+(s?"?"+s:"")+o.hash}var Ce="{}";function ge(t){if(!t)return null;const e={ver:t.ver,handoff:t.handoff};return t.seq!==void 0&&(e.seq=t.seq),t.note!==void 0&&(e.note=t.note),e}function Ct(t,e){return t!==null&&t.note===void 0&&e?.note!==void 0?{...t,note:e.note}:t}function jt(t){const e=t?.k;return e!==null&&typeof e=="object"?e:void 0}function Jr(t,e,n,o=null){const a=setTimeout,s=clearTimeout,c=queueMicrotask,d=performance.now.bind(performance),O=new TextEncoder;let S=null,P=null;try{S=history,P=S.replaceState.bind(S)}catch{}const v=(...r)=>{try{console.warn(...r)}catch{}};let T=Xr(),m=null;try{m=sessionStorage}catch{}const h={storage:m,fetch:typeof fetch=="function"?fetch.bind(globalThis):null,entry:location.origin+location.pathname+location.search,ver:T,key:o?.k};let I=o?.k;const $=typeof requestAnimationFrame=="function"?requestAnimationFrame:r=>a(()=>r(d()),16);let y=e?.data??{},N=ge(e?.from),A=e?.gen??0,F=e!==null,V=!1,Q=!1,W=null,Se=!1;const ke=new AbortController;let Ae=null,q=null,Re=null,Te=!1,i=()=>{};const p=new Promise(r=>{i=r});let g=!1,x=!1,C=!1,D,L=null,ce=!1,De=!1,re=!1,Oe=!1,ne=!1,de=!1;const oe=r=>{for(const u of[We(r),ye(r)])try{m?.removeItem(u)}catch{}},H=(r,u)=>{try{u!==null&&n.post(r,u)}catch{}},he=()=>ne||=re&&(q===null||Oe),X=()=>{const r={__frame_hot:!0,ready:q!==null,accept:Re!==null,demand:!0};de=!ne,de&&(r.booting=!0),g&&(r.readData=!0),C&&(r.threw=!0),L?.assess&&(r.preflight=!0),H(r,W)};let Le=!1,Me=!1,l=!1,w=!1;const _=()=>{Le||!Se||l||(Le=!0,H({__frame_reveal_hold:!0},"*"))},M=()=>new Promise(r=>{let u,f=0;const b=j=>{if(u===void 0)u=j;else if(j!==u||++f>=8){r();return}try{$(b)}catch{r()}};try{$(b)}catch{r()}}),Y=()=>{l=!0,H({__frame_reveal_ready:!0},"*")},K=r=>{Me||(Me=!0,r.then(u=>{if(u===!1)return;let f=null;try{f=L?.settle?.()??null}catch{}return(f===null?M():new Promise(b=>{a(b,50),Promise.resolve(f).then(b,b)}).then(M)).then(Y)}))},Pe=()=>{if(w||!l)return;w=!0;const r=()=>{try{L?.afterReveal?.()}catch{}};r(),M().then(()=>{r(),Y()})},He=(r=!1)=>{if(Te||q===null||!F||!Q)return;Te=!0;const u=q,f=y;c(()=>{let b;try{b=u(f)}catch(U){throw i(!1),U}let j=!1;try{j=typeof b?.then=="function"}catch{}if(!j){i(!0);return}Promise.resolve(b).then(()=>i(!0),U=>{i(!1),c(()=>{throw U})})}),K(r?p:n.dcl.then(()=>p))},qe=r=>typeof r=="string"&&St.test(r)?r:void 0,ct=r=>{const u={__frame_hot_restart:!0},f=qe(r?.note);f!==void 0&&(u.note=f),r?.required==="hard-reload"&&(u.required="hard-reload"),H(u,W)},Vt=Object.freeze({get data(){return Q||(x=!0),!F&&!g&&(g=!0,Q&&X()),y},get from(){return N},get gen(){return A},signal:ke.signal,snapshot(r){typeof r=="function"&&(Ae=r)},ready(r){typeof r!="function"||q!==null||(q=r,_(),X(),V&&H({__frame_hot_ready:!0,gen:A},W),He())},accept(r){typeof r=="function"&&(Re=r,X())},restart(r){const u={note:r?.note,required:r?.required};if(Q){ct(u);return}const f=D;D={note:qe(f?.note)??u.note,required:f?.required==="hard-reload"||u.required==="hard-reload"?"hard-reload":void 0}}});let Be=null,Wt=()=>{};const yn=new Promise(r=>{Wt=r});let gn=null;const Xt=()=>gn??=n.dcl.then(()=>{let r=!1;try{r=Be!==null&&Be.expect()}catch{}if(!r)return;const u=Be.maxMs;return new Promise(f=>{yn.then(f),a(f,u)})}),Yt=()=>{if(!ce||De||L===null)return;De=!0;const r=L;Xt().then(()=>{try{l||r.afterStart(jt(e),!1)}catch{}})},Jt=r=>{e!==null&&x&&(g=!0),y={},N=null,A=0;try{m?.removeItem(ye(o?.k))}catch{}e!==null&&!r&&K(n.dcl.then(()=>q!==null?p:void 0))},wn=()=>{ce=!0,K(Xt().then(()=>q!==null?p:void 0)),Yt()};try{addEventListener("error",()=>{C||q!==null||(C=!0,X())})}catch{}const Zt=()=>{a(()=>{!ne&&he()&&de&&X()},0)};try{re=document.readyState==="complete",re||addEventListener("load",()=>{re=!0,Zt()},{once:!0})}catch{re=!0}he(),p.then(()=>{Oe=!0,Zt()});let ue=-1,ut,ft,Ne=!0,dt=!1,ht,Ue=null;const pt=r=>{const u=Ue===null;Ue=Ne&&r[0]!=="withheld"?r:["withheld",r[1],Ce];let f=r[0];if(Ne&&f!=="withheld"){const j={ver:T,handoff:f};ut!==void 0&&(j.seq=ut),ft!==void 0&&(j.note=ft);try{if(m===null)throw new Error("no storage");m.setItem(We(I),'{"kv":1,"gen":'+ue+',"from":'+JSON.stringify(j)+(ht!==void 0?',"k":'+JSON.stringify(ht):"")+',"data":'+(f==="ok"?r[2]:Ce)+"}")}catch{f="unavailable"}}else{f="withheld",oe(I);try{L?.release?.()}catch{}}const b={__frame_hot_snapshotted:!0,gen:ue,handoff:f,bytes:r[1]};r[3]!==void 0&&(b.errName=r[3]),H(b,W),u&&(f==="snapshot_error"||f==="unclonable"||f==="oversize")&&v("claude.hot: snapshot",f,r[3])},pe=r=>{try{return kr(r?.name)}catch{return"other"}},me=(r,u,f=0)=>pt(u===void 0?[r,f,Ce]:[r,f,Ce,pe(u)]),bn=r=>{if(r.gen<=ue)return;const u=ue>=0;if(ue=r.gen,ut=r.seq,ft=qe(r.note),typeof r.key=="string"&&Et.test(r.key)&&r.key!==I&&(oe(I),I=r.key),Ne&&=r.handoff!==!1,u){Ue!==null?pt(Ue):dt&&H({__frame_hot_held:!0,gen:ue},W);return}ke.abort();const f=Object.freeze({handoff:Ne,timeoutMs:r.timeoutMs,deadline:r.deadline??Ar}),b=Ae,j=()=>{if(Ne)try{ht=L?.capture()}catch{}if(b===null){me("empty");return}let k=!1;const G=a(()=>{k||(k=!0,me("snapshot_timeout"))},Math.max(0,f.timeoutMs));Promise.resolve().then(()=>b(f)).then(ve=>{if(k)return;k=!0,s(G);let ee;try{ee=JSON.stringify(ve)}catch(mt){me("unclonable",mt);return}if(typeof ee!="string"){me("unclonable");return}let te=ee.length;try{te=O.encode(ee).length}catch{}if(te>262144){me("oversize",void 0,te);return}pt(["ok",te,ee])},ve=>{k||(k=!0,s(G),me("snapshot_error",ve))})};let U=null;try{U=L?.holdForIme()??null}catch{}if(U===null)j();else{dt=!0,H({__frame_hot_held:!0,gen:ue},W);const k=()=>{dt=!1,j()};U.then(k,k)}},En=r=>{if(!V||F||q===null||r.gen!==A)return;let u=null;try{u=Mt(m,o&&{k:o.k,g:r.gen})}catch{}if(u!==null&&u.gen!==r.gen){u=null;try{m?.removeItem(ye(o?.k))}catch{}}y=u?.data??{},N=Ct(ge(u?.from??r.from),ge(r.from)),u!==null&&(A=u.gen),F=!0,V=!1;const f=jt(u);p.then(b=>{try{b&&L?.afterStart(f,!0)}catch{}}),He(!0)};let Ge=0;const Sn=r=>{const u=Re;if(u===null||r.id<=Ge)return;Ge=r.id;const f=L?.assess;if(r.preflight===void 0||f===void 0){Qt(r,u);return}let b=!1;const j=G=>{b||(b=!0,s(k),r.id===Ge&&Qt(r,u,G))},U=()=>j(f.timeout(r)),k=a(U,Ir+100);f.run(r,window).then(j,U)},Qt=(r,u,f)=>{let b,j=!1,U=!1,k,G,ve=null;const ee=E=>{if(U)return!1;if(k!==void 0&&k!==E)return v(`claude.hot: u.${E}() ignored - u.${k}() was called first`),!1;const Z=k===void 0;return k=E,Z},te=E=>{k="restart",v(`claude.hot: ${E} - restarting`)},mt=()=>{if(!ee("adopt")||r.id!==Ge)return;const E=r.to.ver;if(ze.required!=="none"){te(`u.adopt() needs required 'none', it is '${ze.required}'`);return}if(!Pt(E)){te("u.adopt() cannot address this version");return}if(!T||E===T)return;const Z=T,J=h.entry;let Ke="",_t,_e=null,$e;try{Ke=location.href,_t=S.state,_e=Nt(Ke,Z,E),_e!==null&&(P(_t,"",_e),location.pathname.startsWith("/_f/"+E+"/")?_e=location.href:$e="navigate event canceled")}catch(gt){$e=pe(gt)}if($e!==void 0){G="adopt_failed",te(`adopt_failed ${$e}; URL not changed`);return}_e===null?(G="adopt_skipped",v(`claude.hot: adopt_skipped - page already left /_f/${Z}/; URL not changed, update still applied`)):G="adopted",T=h.ver=E;try{h.entry=Nt(J,Z,E)??J}catch{}const yt=_e;ve=()=>{if(T===E){if(yt!==null)try{if(location.href!==yt)v("claude.hot: adopt_revert_skipped - update not applied; URL left where the page navigated");else{if(P(_t,"",Ke),location.href!==Ke){v("claude.hot: adopt_revert_failed navigate event canceled - URL still at the new version");return}G="adopt_reverted",v("claude.hot: adopt_reverted - adopt() was called but the handler threw; URL restored")}}catch(gt){v(`claude.hot: adopt_revert_failed ${pe(gt)} - URL still at the new version`);return}T=h.ver=Z,h.entry=J,yt===null&&(G=void 0)}}},ze=Object.freeze({from:{ver:r.from.ver,seq:r.from.seq},to:{ver:r.to.ver,seq:r.to.seq},changed:$r(r.changed),required:r.required,deadline:r.deadline,adopt:mt,defer(){return ee("defer")&&ze.deadline.now&&te("u.defer() past the deadline"),Lt},restart(E){return ee("restart"),k==="restart"&&!U&&(b??=qe(E?.note),j||=E?.required==="hard-reload"),Lt},...f?.update}),kn=(E,Z)=>{U=!0,E==="threw"?(ve?.(),b??=pe(Z).toLowerCase()):k===void 0&&v(E==="timeout"?"claude.hot: accept handler did not answer in time - restarting":"claude.hot: accept handler settled without defer/restart/adopt - restarting");const J={__frame_hot_verdict:!0,id:r.id};J.verdict=E==="threw"||k===void 0||k==="restart"?"restart":k==="adopt"?"applied":"deferred",J.verdict==="restart"&&(j&&(J.required="hard-reload"),b!==void 0&&(J.note=b)),G!==void 0&&(J.verdict==="applied"||G!=="adopted")&&(J.adopt=G),H(Object.assign(J,f?.verdict),W)};let er=!1;const vt=(E,Z)=>er?!1:(er=!0,s(An),kn(E,Z),!0),An=a(()=>vt("timeout"),r.verdictTimeoutMs);Promise.resolve().then(()=>u(ze)).then(()=>vt("settled"),E=>{!vt("threw",E)&&k==="adopt"&&ct({note:pe(E).toLowerCase()}),v("claude.hot: accept",pe(E))})};try{t.hot===void 0&&Object.defineProperty(t,"hot",{value:Vt,writable:!1,configurable:!1,enumerable:!1})}catch{}return{hot:Vt,boot:h,afterConnect(){Se=!0,(e!==null||q!==null)&&_()},onInit(r,u){W=u,Q=!0;const f=Dr(r)?r:null;f?.phase==="final"&&e!==null&&e.gen===f.gen?(F=!0,N=Ct(N,ge(f.from)),wn()):(V=f?.phase==="pending",Jt(V),F=!V,A=f?.gen??0,N=ge(f?.from)),X(),de&&a(()=>{ne||(ne=!0,X())},Nr),V&&q!==null&&H({__frame_hot_ready:!0,gen:A},u),D!==void 0&&(ct(D),D=void 0),He()},onNoInit(){Q=!0,Jt(!1),F=!0,He()},onShell(r){return r?.__frame_revealed===!0?(Pe(),!1):qr(r)?(bn(r),!0):Br(r)?(En(r),!0):Vr(r)?(Sn(r),!0):!1},attachExtras(r){L=r,Yt(),r.assess&&X()},inSlot:()=>ye(I),hydration(r,u){Be??={expect:r,maxMs:u}},hydrated(){Wt()},carried(){return F?y:{}},presented:()=>l}}var Ln="frame_ldx_runtime",Zr="frame_ldx_build",Mn="script#an-form",Qr=256;function It(t,e,n){for(const o of t)n(o)&&t.delete(o);t.size>=Qr&&!t.has(e)&&t.delete(t.values().next().value),t.add(e)}function Ye(t,e,n){try{const o=t[e];if(typeof o!="function")return;t[e]=function(...a){const s=o.apply(this,a);try{n(this)}catch{}return s}}catch{}}var Je;function en(){if(Je)return Je;const t={media:new Set,contexts:new Set,onStart:null,onPause:null};Je=t;const e=window.HTMLMediaElement?.prototype;e&&(Ye(e,"play",a=>{It(t.media,a,s=>s.paused),t.onStart?.(a)}),Ye(e,"pause",a=>t.onPause?.(a)));const n=window.AudioContext,o=window.AudioNode?.prototype;return n&&o&&Ye(o,"connect",a=>{const s=a.context;s instanceof n&&(It(t.contexts,s,c=>c.state==="closed"),t.onStart?.(s))}),t}function tn(t){let e=window;for(let n=0;e.parent&&e.parent!==e&&n<8;n++)if(e=e.parent,t(e))return!0;return!1}function rn(){let t=null;const e=()=>t??parent,n=o=>t?o===t:tn(a=>a===o);return{post(o,a){if(t){e().postMessage(o,a);return}let s=parent;for(let c=0;c<8&&(s.postMessage(o,a),!(!s.parent||s.parent===s));c++)s=s.parent},on(o){const a=s=>{const c=s.source;n(c)&&o(s.data,s.origin,s.isTrusted,()=>{t??=c})};return addEventListener("message",a),()=>removeEventListener("message",a)},port:o=>({post(a,s){if(s?.activation){e().postMessage(a,{targetOrigin:o,includeUserActivation:!0});return}if(s?.transfer){e().postMessage(a,o,s.transfer);return}e().postMessage(a,o)},on(a,s){const c=d=>{n(d.source)&&d.origin===o&&a(d.data,d)};return addEventListener("message",c,s),()=>removeEventListener("message",c,s)}})}}function nn(){const t={post:()=>{},on:()=>()=>{}};return{...t,port:()=>t}}var Ze="__frame_scroll",on=150,an=310,sn=160,ln=3e4;function cn(){let t=0,e=!1,n=!1,o=!1,a=0,s=null;const c=y=>{try{sessionStorage.setItem(Ze,JSON.stringify({y}))}catch{}},d=()=>{if(clearTimeout(t),s===null)return;const y=s;s=null,c(y)},O=()=>{if(e){e=!1;return}n=!0,s=scrollY,clearTimeout(t),t=setTimeout(d,on)};try{addEventListener("scroll",O,{passive:!0}),addEventListener("pagehide",d)}catch{}const S=()=>{let y;try{y=sessionStorage.getItem(Ze)}catch{return null}if(y===null)return null;let N;try{N=JSON.parse(y)}catch{N=null}const A=N?.y;if(!(typeof A=="number"&&Number.isFinite(A)&&A>=0)){try{sessionStorage.removeItem(Ze)}catch{}return null}return A};let P=!1;const v=y=>{try{const N=scrollY;scrollTo({top:y,left:0,behavior:"instant"}),a=y,o=!0,clearTimeout(t),s=null,c(y);const A=scrollY;A!==N&&(e=!0),A!==y&&!P&&(P=!0,addEventListener("load",()=>{try{if(scrollY===A){const F=S();v(F!==null?F:a)}}catch{}},{once:!0}))}catch{}},T=()=>{try{return!!location.hash}catch{return!0}};let m=!1;const h=()=>{try{if(m||innerWidth>an||innerHeight>sn)return;m=!0;const y=Date.now(),N=()=>{try{removeEventListener("resize",N)}catch{}if(Date.now()-y>ln||n||T())return;const A=S();v(A!==null?A:a)};addEventListener("resize",N)}catch{}};let I=!1,$=!1;return{restore(){if(I||(I=!0,T()))return;const y=S();y!==null&&(v(y),h())},promoted(){if($||($=!0,T()))return;const y=S();y!==null?(v(y),h()):o&&v(a)}}}function un(t,e,n,o){let a=null;try{a=window.trustedTypes?.createPolicy("frame-runtime",{createScriptURL:O=>O})??null}catch{}const s=window.Worker,c=s?.prototype,d=Object.freeze({Worker:s,workerOn:c?.addEventListener,workerPost:c?.postMessage,workerTerminate:c?.terminate,fetch:window.fetch.bind(window),preventDefault:Event.prototype.preventDefault,now:Date.now,policy:a,origins:e});n(t).then(O=>O?.bootTopLevel?O.bootTopLevel(d,o):o.settle()).catch(()=>o.settle())}var Pn="modulepreload",Nn=function(t){return"/"+t},Cn={},fn=function(e,n,o){let a=Promise.resolve();function s(c){const d=new Event("vite:preloadError",{cancelable:!0});if(d.payload=c,window.dispatchEvent(d),!d.defaultPrevented)throw c}return a.then(c=>{for(const d of c||[])d.status==="rejected"&&s(d.reason);return e().catch(s)})},dn=window===top,Ft=Object.getOwnPropertyDescriptor(window,"claude"),je=Wr(dn,window.__FRAME_PREAMBLE?.topLevel,Ft?.writable===!1),Qe=typeof je=="object"&&je[0],R=Qe?nn():rn();(function(){const t=Object.defineProperty,e=globalThis,n=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let o=0;for(let a=0;a<n.length;a++){const s=n[a];try{t(e,s,{value:void 0,writable:!1,configurable:!1})}catch{try{delete e[s]}catch{}try{t(e,s,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof e[s]=="function"&&o++}if(o&&je==="framed")try{R.post({__frame_rtc_lockdown_failed:o},"*")}catch{}})();var xt=1e4,hn=2e3,et=2e3,Dt=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function Ht(t){for(const e of Dt)if(e.endsWith(":*"))try{const n=new URL(t);if(`${n.protocol}//${n.hostname}:*`===e)return!0}catch{}else if(t===e)return!0;return!1}var we=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),Ie=window.__FRAME_PREAMBLE?.transforms,tt=window.__FRAME_PREAMBLE?.comments,rt=window.__FRAME_PREAMBLE?.translate,be=window.__FRAME_PREAMBLE?.ldx;function qt(t){return fn(()=>import("/_runtime/"+t),void 0)}var Ee=new Set,pn=setTimeout,mn=800+800*Math.random();function le(t){return qt(t).catch(()=>new Promise(e=>pn(e,mn)).then(()=>qt(t+"?r=1")).then(e=>(e!==void 0&&Ee.add(t),e)))}function Bt(t,e,n){return{contract:t.contract,changes:new Set(t.changes??[]),flags:new Set(t.flags??[]),capabilities:t.capabilities??{},capBudgets:t.capBudgets??{},brokerGen:t.brokerGen,transforms:new Map,shellOrigin:e,shell:n,mount:it,hooks:Fe,pipe:()=>({wrap:(o,a)=>(...s)=>{try{return a(...s)}catch(c){return Promise.reject(c)}}})}}var fe=null,z=null;function Ut(t,e,n){try{Object.defineProperty(t,e,{value:n,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(t,e,{value:n,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var nt=!1,Fe={editBefore:null,edit:null};function vn(t,e,n=!1){const o=[];let a;if(n)try{Fe.editBefore?.(t)}catch{}for(const s of t.elements){const c=document.querySelector(`[data-id="${s.target}"]`);if(!c){a=s.target;break}if([...Object.keys(s.attrsSet??{}),...s.attrsRemoved??[]].some(d=>!ar(d)||sr(c,d))){a=s.target;break}if(s.text!==void 0&&(!ur(c)||pr(c))){a=s.target;break}for(const[d,O]of Object.entries(s.attrsSet??{}))if(!zt(c,d)){try{c.setAttribute(d,O)}catch{}Gt(c,d,O)}for(const d of s.attrsRemoved??[])zt(c,d)||(c.removeAttribute(d),Gt(c,d,null));typeof s.text=="string"&&dr(c,s.text),o.push(s.target)}if(n)try{Fe.edit?.(t.seq,o,a)}catch{}if(a!==void 0){R.post({__frame_patch_miss:{seq:t.seq}},e);return}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:t.seq,targets:o}}))}catch{}}function Gt(t,e,n){if(!(t instanceof HTMLInputElement))return;const o=e.toLowerCase();o==="checked"?t.checked=n!==null:o==="value"&&t.type!=="file"&&(t.value=n??"")}function zt(t,e){const n=e.toLowerCase(),o=t;return n==="data-id"||(n==="value"||n==="checked")&&(o.__artifactSecret===!0||/^(password|hidden|file)$/.test(o.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${t.getAttribute("autocomplete")??""} ${o.autocomplete??""}`))}function Kt(t){const e=document.documentElement;t==="light"||t==="dark"?(e.dataset.theme=t,e.style.colorScheme=t,nt=!0):nt&&(delete e.dataset.theme,e.style.colorScheme="",nt=!1)}var ie=new Map,ot=null;function at(){let t;const e={u:new Promise(n=>{t=n}),r:n=>{e.done=!0,t(n)},done:!1,nulled:!1};return e}function xe(t,e){t.nulled=!0,t.ver=e,t.r(null)}function st(t,e){for(const[n,o]of ie)o.done||(e&&o.asked?e(n,o):xe(o,t))}var _n=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),lt=!1,it=(t,e)=>{let n=ie.get(t);if(n?.nulled&&lt)n=at(),ie.set(t,n);else if(!n||n.done){n?.nulled&&z&&R.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:t,phase:"install"}},z);return}const o=typeof e=="function"?Object.setPrototypeOf(e,_n):Object.assign(Object.create(null),e);typeof o.then=="function"&&delete o.then,n.want=void 0,n.r(Object.freeze(o))};function $t(){const t=Ft?.value??{};Ut(window,"claude",t);for(const e of Object.keys(we)){if(t[e]!==void 0){Ut(t,e,t[e]);continue}ie.set(e,at())}if(t.use===void 0){const e=n=>{if(typeof n!="string"||!Object.hasOwn(we,n))return Promise.resolve(null);let o=ie.get(n);return o?(ot&&(o.nulled||o.want!==void 0)&&(o=ot(n,o)),o.asked=!0,o.u):Promise.resolve(t[n]??null)};try{Object.defineProperty(t,"use",{value:e,writable:!0,configurable:!0,enumerable:!1})}catch{}}return t}if(je==="framed"){const t=Ie&&se.test(Ie)?le(Ie).catch(()=>{}):Promise.resolve(void 0),e=i=>{if(i.type==="auxclick"&&i.button!==1)return;const p=i.target,g=p&&p.closest?p.closest("a[href],area[href]"):null;if(!g)return;const x=g.getAttribute("href");if(!x)return;let C;try{C=new URL(x,document.baseURI)}catch{return}if((C.protocol==="http:"||C.protocol==="https:")&&C.origin!==location.origin){i.preventDefault();const D=(g.getAttribute("target")??"").toLowerCase(),L=i.type==="auxclick"||i.metaKey||i.ctrlKey||i.shiftKey||i.altKey||!["","_self","_top","_parent"].includes(D);R.post({__frame_nav:!0,url:C.href,newTab:L},"*")}};addEventListener("click",e,!0),addEventListener("auxclick",e,!0);const n={},o=i=>{i.isTrusted&&(n.pointer=!0)},a=i=>{i.isTrusted&&(n.click=!0)};addEventListener("pointermove",o,{capture:!0,passive:!0}),addEventListener("click",a,{capture:!0,passive:!0});const s={cb:null};addEventListener("keydown",i=>s.cb?.(i),!0);const c={cb:null};addEventListener("keydown",i=>c.cb?.(i));const d=en();t.then(i=>i?.installEscapeForward?.(s,p=>{z&&R.post(p,z)})),t.then(i=>{try{i?.installFocusKeep?.()}catch{}}),t.then(i=>{if(!i?.wireNav)return;const p=R.port("*");i.wireNav(p),removeEventListener("click",e,!0),removeEventListener("auxclick",e,!0),removeEventListener("pointermove",o,!0),removeEventListener("click",a,!0),i.wireEngagement?.(n,p,d)});let O=null;try{O=cn()}catch{}const S=document.readyState==="loading"?new Promise(i=>document.addEventListener("DOMContentLoaded",()=>i(),{once:!0})):Promise.resolve();let P=null,v=null;try{v=Mr(window.name),P=Mt(null,v)}catch{}const T=$t();let m=null;try{m=Jr(T,P,{post:(i,p)=>R.post(i,p),dcl:S},v)}catch{}t.then(i=>{try{m&&i?.installHotExtras?.(m)}catch{}});let h=null;const I=()=>Array.isArray(h?.flags)&&h.flags.includes("frame_ldx_runtime")&&!!be&&se.test(be)&&document.querySelector("script#an-form")!==null;try{m?.hydration(I,Pr)}catch{}let $=null,y=0;const N=R.on((i,p,g,x)=>{Ht(p)&&yr(i)&&(x(),h=i.__frame_init,z=p,N(),clearTimeout(y),$?.())});R.post({__frame_connect:!0},"*");try{m?.afterConnect()}catch{}const A=setTimeout,F=clearTimeout;let V=()=>NaN,Q=()=>[];try{V=performance.now.bind(performance),Q=performance.getEntriesByType.bind(performance)}catch{}let W=0;const Se=()=>{try{R.post({__frame_alive:!0},"*")}catch{}W=A(Se,hn)},ke=()=>F(W);Se(),addEventListener("load",ke,{once:!0});const Ae=new Promise(i=>{$=i,y=setTimeout(()=>{N(),i()},xt)}),q=new WeakSet;addEventListener("error",i=>{i.target&&q.add(i.target)},!0);const Re=()=>{let i=[];try{i=[...document.querySelectorAll("link[rel~=stylesheet]:not([rel~=alternate])")].filter(g=>!g.sheet&&!g.disabled&&!q.has(g)&&g.getAttribute("href")&&URL.canParse(g.href)&&(!g.media||matchMedia(g.media).matches))}catch{}let p=i.length;return p===0?Promise.resolve():new Promise(g=>{try{const x=et-V(),C=A(g,x>0?x<et?x:et:0),D=()=>{--p===0&&(F(C),g())};for(const L of i)L.addEventListener("load",D,{once:!0}),L.addEventListener("error",D,{once:!0})}catch{g()}})};S.then(()=>{try{O?.restore()}catch{}}),Promise.all([Ae,S,t]).then(([,,i])=>{if(h?.hostOverlays!==!0||!z)return;let p=!1;try{p=i?.declaresCover?.()===!0}catch{}R.post({__frame_layout:{cover:p}},z)});const Te={cb:null};R.on((i,p)=>{if(Ht(p)&&gr(i)){try{O?.promoted()}catch{}Te.cb?.()}}),Ae.then(async()=>{if(!h||!z){st();try{m?.onNoInit()}catch{}return}if(Kt(h.theme),h.hostVisible===!1&&t.then(l=>l?.applyHostVisible?.(!1,d)),h.hostKeys!==void 0){const l=z,w=h.hostKeys;t.then(_=>_?.installHostKeyForward?.(c,w,M=>R.post(M,l)))}try{m?.onInit(h.hot,z)}catch{}const i=z,p=R.port(i),g=(l,w)=>R.post({__frame_cap_telemetry:{kind:"cap-load-error",cap:l,phase:w}},i),x=l=>R.post({__frame_cap_recovered:{cap:l}},i);let C=h.brokerGen;const D=()=>m?.boot.ver??"",L=D(),ce=(l,w)=>{const _=D();F(w.t),w.want=_,w.t=A(()=>{w.done||xe(w,_)},xt),R.post({__frame_cap_want:!0,cap:l,ver:_},i)},De=(l,w)=>{const _=ie.get(l.cap),M=we[l.cap];if(!w||!_||_.done||_.want!==l.ver||!se.test(M))return;if(F(_.t),_.want=void 0,C=l.brokerGen??C,l.ver!==D()){ce(l.cap,_);return}if(!l.grant||l.cap==="network"){xe(_,l.ver);return}const Y=fe,K=fe={...Y,capabilities:{...Y.capabilities,[l.cap]:l.grant},capBudgets:{...Y.capBudgets,[l.cap]:{...Y.capBudgets[l.cap],...l.budgets}}};le(M).then(Pe=>{Ee.has(M)&&x(l.cap),K.brokerGen=C,lt=!0;try{Pe?.install?.(K)}catch{g(l.cap,"install")}finally{lt=!1}},()=>g(l.cap)).then(()=>{_.done||xe(_,l.ver)})};let re=!1,Oe=!1;R.on((l,w,_)=>{if(w!==i)return;try{if(m?.onShell(l))return}catch{}if(br(l)&&Kt(l.__frame_theme.theme),Gr(l)&&De(l,_),_&&zr(l)&&(C=l.brokerGen??C),wr(l)){const K=l.__frame_host_visible.visible;t.then(Pe=>Pe?.applyHostVisible?.(K,d))}_r(l)&&vn(l.__frame_patch,i,_);const M=l?.__fc_mode;M&&typeof M=="object"&&!re&&tt&&se.test(tt)&&(re=!0,le(tt).then(K=>K.install?.(i,M.on===!0,p)).catch(()=>{}));const Y=l?.__ft_cmd;Y&&typeof Y=="object"&&!Oe&&rt&&se.test(rt)&&(Oe=!0,le(rt).then(K=>K.install?.(i,Y,p)).catch(()=>{}))});const ne=Object.keys(h.capabilities??{}).filter(l=>Object.hasOwn(we,l)).map(l=>[l,we[l]]).filter(l=>typeof l[1]=="string"&&se.test(l[1])),de=await Promise.allSettled(ne.map(([,l])=>le(l))),oe=await t,H=i;if(oe?.buildBoot||g("_transforms"),oe?.buildBoot)try{fe=oe.buildBoot(h,oe.TRANSFORMS??{},{shellOrigin:H,mount:it,hooks:Fe,shell:p},l=>R.post({__frame_cap_telemetry:l},H))}catch{g("_transforms","install"),fe=Bt(h,H,p)}else fe=Bt(h,H,p);oe?.buildBoot&&Ee.has(Ie??"")&&x("_transforms");const he=fe;he.brokerGen=C,de.forEach((l,w)=>{const[_,M]=ne[w];if(l.status!=="fulfilled"){g(_);return}Ee.has(M)&&x(_);try{l.value?.install?.(he)}catch{g(_,"install")}});const X=h.capWants===!0;X&&(ot=(l,w)=>{const _=D();if(!_)return w;if(!w.nulled)return w.want!==_&&ce(l,w),w;if(_===w.ver)return w;const M=at();return ie.set(l,M),ce(l,M),M}),st(L,X&&D()!==L?ce:void 0),await S,await Re(),ke();const Le=tr(Q,V);R.post(Le?{__frame_ready:!0,nav:Le}:{__frame_ready:!0},z),t.then(l=>l?.installSizeReporter?.(H,Te,p));let Me=!1;try{Me=I()}catch{}be&&Me?le(be).then(l=>l?.boot?.({shellOrigin:i,build:he.flags.has(Zr),hot:m?.hot??null,carried:m?.carried(),presented:()=>m?.presented()??!0})).catch(()=>!1).then(l=>{m?.hydrated(),l!==!0?g("_ldx"):Ee.has(be)&&x("_ldx")}):m?.hydrated()})}else Qe&&($t(),un(Qe,Dt,le,{settle:st,mount:it}))})();</script><!-- /frame-runtime --><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>Identity Foundation Investigation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+<link rel="stylesheet" href="./css2">
+
+<style>
+  :root{
+    --paper:#F6F7F9;--card:#FFFFFF;--ink:#131820;--muted:#5B6673;--faint:#8A939F;
+    --rule:#DDE2E8;--rule-soft:#EAEEF2;--accent:#1F5FA8;--accent-soft:#E8F0F9;
+    --p0:#B3261E;--p1:#A65B00;--p2:#1F5FA8;--p3:#6B7784;--ok:#1B6B4A;
+    --ok-soft:#E6F2EC;--warn-soft:#FBF0E0;--bad-soft:#FAE9E8;
+    --shadow:0 1px 2px rgba(19,24,32,.05),0 8px 24px -12px rgba(19,24,32,.12);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --paper:#0F1216;--card:#161B21;--ink:#E6E9ED;--muted:#9AA5B1;--faint:#6F7A86;
+    --rule:#262D36;--rule-soft:#1E242B;--accent:#7FB0E8;--accent-soft:#16222F;
+    --p0:#F08078;--p1:#E0A33F;--p2:#7FB0E8;--p3:#8A939F;--ok:#62BD94;
+    --ok-soft:#12241C;--warn-soft:#251C0E;--bad-soft:#2A1614;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }}
+  :root[data-theme="dark"]{
+    --paper:#0F1216;--card:#161B21;--ink:#E6E9ED;--muted:#9AA5B1;--faint:#6F7A86;
+    --rule:#262D36;--rule-soft:#1E242B;--accent:#7FB0E8;--accent-soft:#16222F;
+    --p0:#F08078;--p1:#E0A33F;--p2:#7FB0E8;--p3:#8A939F;--ok:#62BD94;
+    --ok-soft:#12241C;--warn-soft:#251C0E;--bad-soft:#2A1614;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{background:var(--paper);color:var(--ink);margin:0;font-size:15.5px;line-height:1.6;
+    font-family:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:74rem;margin:0 auto;padding:0 1.5rem 6rem}
+  .prose{max-width:60rem}
+  h1,h2,h3,h4{font-family:Fraunces,Georgia,serif;font-weight:600;text-wrap:balance;margin:0}
+  h1{font-size:clamp(2rem,4.5vw,3rem);line-height:1.05;letter-spacing:-.02em}
+  h2{font-size:clamp(1.3rem,2.3vw,1.7rem);letter-spacing:-.01em}
+  h3{font-size:1.05rem}
+  h4{font-size:.98rem}
+  p{margin:0 0 1rem}
+  a{color:var(--accent)}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.87em}
+  code{background:var(--rule-soft);padding:.1em .38em;border-radius:3px;word-break:break-word}
+  pre{background:var(--rule-soft);border:1px solid var(--rule);border-radius:6px;padding:.7rem .85rem;
+    overflow-x:auto;margin:.5rem 0;font-size:.79rem;line-height:1.5}
+  pre code{background:none;padding:0}
+
+  header.mast{border-bottom:1px solid var(--rule);padding:4.5rem 0 2rem;margin-bottom:2.25rem}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:1rem}
+  .stand{font-size:1.08rem;color:var(--muted);max-width:44rem;margin-top:1.1rem}
+
+  .verdict{border:1px solid var(--p0);background:var(--bad-soft);border-radius:12px;
+    padding:1.4rem 1.6rem;margin:2rem 0 0}
+  .verdict .lbl{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--p0);margin-bottom:.5rem}
+  .verdict .ans{font-family:Fraunces,serif;font-size:clamp(1.5rem,3.5vw,2.1rem);line-height:1.1;font-weight:600}
+
+  section{margin:3rem 0 0;scroll-margin-top:1rem}
+  .sh{display:flex;align-items:baseline;gap:.75rem;border-bottom:1px solid var(--rule);
+    padding-bottom:.5rem;margin-bottom:1.3rem}
+  .sn{font-family:"IBM Plex Mono",monospace;font-size:.8rem;color:var(--faint);flex:none}
+
+  .chip{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.06em;
+    text-transform:uppercase;padding:.2em .55em;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+  .c-yes{color:var(--ok);background:var(--ok-soft)}
+  .c-no{color:var(--p0);background:var(--bad-soft)}
+  .c-part{color:var(--p1);background:var(--warn-soft)}
+  .c-new{color:var(--accent);background:var(--accent-soft)}
+  .c-p0{color:var(--p0);background:var(--bad-soft)}
+  .c-p1{color:var(--p1);background:var(--warn-soft)}
+  .c-p2{color:var(--p2);background:var(--accent-soft)}
+  .c-p3{color:var(--p3)}
+
+  .scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:.87rem}
+  th,td{text-align:left;padding:.6rem .8rem;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+  th{font-family:"IBM Plex Mono",monospace;font-size:.67rem;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--faint);font-weight:500;white-space:nowrap;background:var(--card)}
+  tbody tr:last-child td{border-bottom:0}
+  td.mono{font-family:"IBM Plex Mono",monospace;font-size:.79rem}
+  .num{font-variant-numeric:tabular-nums}
+
+  .callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:.85rem 1rem;
+    border-radius:0 8px 8px 0;margin:1.2rem 0}
+  .callout.bad{border-left-color:var(--p0);background:var(--bad-soft)}
+  .callout.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+
+  .qa{border:1px solid var(--rule);border-radius:10px;background:var(--card);padding:1rem 1.15rem;margin-bottom:.7rem}
+  .qa .q{font-weight:600;font-size:.95rem;margin-bottom:.35rem}
+  .qa .a{font-size:.9rem;color:var(--muted)}
+  .qa .a strong{color:var(--ink)}
+
+  .ledger{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);
+    border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+  .ledger>div{background:var(--card);padding:1.1rem 1.2rem}
+  .ledger .hd{font-family:"IBM Plex Mono",monospace;font-size:.67rem;letter-spacing:.09em;
+    text-transform:uppercase;margin-bottom:.7rem}
+  .ledger .have .hd{color:var(--ok)}
+  .ledger .need .hd{color:var(--p0)}
+  .ledger ul{margin:0;padding-left:1.1rem;font-size:.89rem}
+  .ledger li{margin-bottom:.32rem}
+  @media(max-width:760px){.ledger{grid-template-columns:1fr}}
+
+  .graph{font-family:"IBM Plex Mono",monospace;font-size:.82rem;line-height:1.75;
+    background:var(--rule-soft);border:1px solid var(--rule);border-radius:8px;padding:1rem 1.15rem;overflow-x:auto}
+
+  .steps{counter-reset:s;list-style:none;padding:0;margin:0}
+  .steps>li{counter-increment:s;position:relative;padding-left:2.6rem;margin-bottom:1rem}
+  .steps>li::before{content:counter(s);position:absolute;left:0;top:.05rem;width:1.75rem;height:1.75rem;
+    border-radius:50%;background:var(--accent);color:var(--card);display:grid;place-items:center;
+    font-family:"IBM Plex Mono",monospace;font-size:.78rem}
+  .steps h4{margin-bottom:.25rem}
+
+  .tri{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);
+    border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+  .tri>div{background:var(--card);padding:1.1rem 1.2rem}
+  .tri .hd{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.09em;
+    text-transform:uppercase;margin-bottom:.65rem}
+  .tri .fact .hd{color:var(--ok)}
+  .tri .rec .hd{color:var(--accent)}
+  .tri .open .hd{color:var(--p1)}
+  .tri ul{margin:0;padding-left:1.05rem;font-size:.86rem}
+  .tri li{margin-bottom:.35rem}
+  @media(max-width:860px){.tri{grid-template-columns:1fr}}
+
+  ul,ol{margin:0 0 1rem;padding-left:1.2rem}
+  li{margin-bottom:.32rem}
+  footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--rule);color:var(--faint);font-size:.82rem}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">C-2 follow-on · Identity dependency · Investigation only</div>
+  <h1>Identity Foundation Investigation</h1>
+  <p class="stand">
+    The MVP data model requires user ownership on every table. This establishes the smallest safe
+    identity foundation — traced through actual execution, not inferred from filenames.
+  </p>
+
+  <div class="verdict">
+    <div class="lbl">1 · Authentication status</div>
+    <div class="ans">NOT IMPLEMENTED</div>
+    <p style="margin:.9rem 0 0;font-size:.93rem;color:var(--muted);max-width:44rem">
+      Not “partial”. There is no middleware, no session, no auth provider, no auth secret, no
+      ownership check, and no authorization test anywhere in the repository. What <em>does</em>
+      exist is a tested <strong>bearer-token primitive built for entitlements</strong> — valuable
+      as a foundation, but it is not authentication and it has never been wired to an HTTP request.
+    </p>
+  </div>
+</header>
+
+<section id="trace">
+  <div class="sh"><span class="sn">▸</span><h2>What tracing found</h2></div>
+  <div class="callout bad">
+    <strong>The one cookie-reading function in the repository ignores the cookie.</strong>
+    <pre><code>// apps/web/src/server/access.ts
+export async function currentAccess(): Promise&lt;AccessResolution&gt; {
+  return ANONYMOUS;          // &lt;- hardcoded constant, cookie never read
+}</code></pre>
+    Three pages call it (<code>/access</code>, <code>/access/[productId]</code>,
+    <code>/upsell/[productId]</code>) and all three receive anonymous unconditionally.
+    <code>readAccessToken()</code> sits directly above it with <strong>zero callers</strong>, and
+    the <code>acos_access</code> cookie is <strong>never set anywhere</strong> — no
+    <code>cookies().set</code>, no <code>Set-Cookie</code>, in any file.
+  </div>
+  <p class="prose">
+    This is the safe failure direction and the file says so deliberately — protected pages send
+    visitors to checkout rather than opening up. But it means the access-control path has never
+    executed, and no test exercises it.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Mechanism</th><th>Present?</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Next.js middleware</td><td><span class="chip c-no">No</span></td><td class="mono">no middleware.ts anywhere in apps/web</td></tr>
+        <tr><td>Auth provider</td><td><span class="chip c-no">No</span></td><td>no next-auth, @auth/*, lucia, clerk, supabase, firebase, passport</td></tr>
+        <tr><td>JWT / session library</td><td><span class="chip c-no">No</span></td><td>no jsonwebtoken, jose, iron-session in any package.json</td></tr>
+        <tr><td>Session handling</td><td><span class="chip c-no">No</span></td><td>no session store, no session table, no session type</td></tr>
+        <tr><td>Cookie issuance</td><td><span class="chip c-no">No</span></td><td>the cookie is read in one dead function and set nowhere</td></tr>
+        <tr><td>Auth secret in config</td><td><span class="chip c-no">No</span></td><td>only <code>DOWNLOAD_GRANT_SECRET</code>; no SESSION/JWT/AUTH/COOKIE secret</td></tr>
+        <tr><td>Ownership check</td><td><span class="chip c-no">No</span></td><td>no <code>userId</code>, <code>ownerId</code> or <code>user_id</code> predicate in any route or repository</td></tr>
+        <tr><td>Authorization test</td><td><span class="chip c-no">No</span></td><td>every 401 in the suite is a <strong>webhook signature</strong> rejection, not user authz</td></tr>
+        <tr><td>Identity table</td><td><span class="chip c-no">No</span></td><td>live DB holds 11 tables; none is a user table</td></tr>
+        <tr><td>Token primitive</td><td><span class="chip c-yes">Yes</span></td><td><code>access_tokens</code> + mint/hash/verify, tested</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="a">
+  <div class="sh"><span class="sn">A</span><h2>Identity — the seven questions</h2></div>
+
+  <div class="qa"><div class="q">1. What is the canonical user identifier?</div>
+    <div class="a"><strong>None exists.</strong> The closest thing is
+      <code>orders.customer_email</code> / <code>entitlements.customer_email</code> — a
+      lowercase-constrained email used as a natural key. There is no opaque user id anywhere in the
+      live schema.</div></div>
+
+  <div class="qa"><div class="q">2. Where does it originate?</div>
+    <div class="a"><strong>The request body.</strong> <code>customerEmail</code> arrives in the
+      create-order payload, validated by Zod only as a well-formed address. Nothing binds it to a
+      verified identity.</div></div>
+
+  <div class="qa"><div class="q">3. How is it authenticated?</div>
+    <div class="a"><strong>It is not.</strong> Checkout is deliberately anonymous — payment
+      authenticity comes from the Razorpay webhook HMAC, not from the caller. That is correct for a
+      funnel and provides nothing the MVP can build on.</div></div>
+
+  <div class="qa"><div class="q">4. How is it passed to application services?</div>
+    <div class="a">As a plain function argument. <code>createOrder(body, …)</code> receives the
+      parsed body; <code>resolveAccess(repo, token)</code> receives a raw token string. There is no
+      request context, no async-local storage, no <code>ctx</code> object.</div></div>
+
+  <div class="qa"><div class="q">5. How is it persisted?</div>
+    <div class="a">As a denormalised email column on <code>orders</code>,
+      <code>entitlements</code> and <code>access_tokens</code>, each with a
+      <code>lower()</code> CHECK constraint. No foreign key to any identity table, because none
+      exists.</div></div>
+
+  <div class="qa"><div class="q">6. How is ownership enforced?</div>
+    <div class="a"><strong>It is not enforced anywhere.</strong> Grep across every route and every
+      repository returns no ownership predicate. Entitlement checks are
+      <em>entitlement</em> checks (does this email own this product), not tenancy checks.</div></div>
+
+  <div class="qa"><div class="q">7. Can one user access another user's data?</div>
+    <div class="a"><strong>The question does not yet apply — and that is the risk.</strong> No
+      user-owned data exists, so there is nothing to cross. The moment the MVP tables land, every
+      one of them will need a predicate that the codebase has never written once. There is no
+      existing pattern to copy and no test to imitate.</div></div>
+</section>
+
+<section id="b">
+  <div class="sh"><span class="sn">B</span><h2>The existing User model</h2></div>
+  <div class="callout bad">
+    <strong>It exists only in the root <code>schema.prisma</code> — the file the C-2 investigation
+    recommends deleting.</strong> It is not in the authoritative schema, not in any migration, and
+    not in the live database.
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Aspect</th><th>Finding</th></tr></thead>
+      <tbody>
+        <tr><td>Fields</td><td class="mono">id · email · name · createdAt · updatedAt</td></tr>
+        <tr><td>Credential fields</td><td><strong>None.</strong> No password hash, no provider, no external subject id, no email-verified flag</td></tr>
+        <tr><td>Constraints</td><td>Unique on <code>email</code> (Prisma-level only; never migrated)</td></tr>
+        <tr><td>Indexes</td><td>None beyond the implied unique</td></tr>
+        <tr><td>Relationships</td><td><code>companies · leads · opportunities · clients · activities</code> — two of which (<code>clients</code>, <code>activities</code>) are deferred CRM</td></tr>
+        <tr><td>Sufficient for MVP?</td><td><span class="chip c-part">As a shape, yes</span> — it is an ownership anchor, which is all the MVP needs</td></tr>
+        <tr><td>Additional fields required?</td><td><strong>One</strong>, and only if magic-link auth is chosen: a verified-at timestamp. Nothing else.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose" style="margin-top:.9rem">
+    The model is a <em>record</em> of a user, not an authentication mechanism. Adopting its shape
+    therefore does not decide how anyone logs in — that decision is still open and is listed in
+    section 6. Deliberately not recommended: password hash, MFA fields, role/permission columns,
+    workspace or tenant columns. None is required by any MVP exit criterion, and PRD §39 places
+    workspace/tenant and subscription ownership behind “production SaaS usage”.
+  </p>
+</section>
+
+<section id="c">
+  <div class="sh"><span class="sn">C</span><h2>API authorization — traced</h2></div>
+  <p class="prose">The only state-changing request in the repository, traced end to end:</p>
+  <div class="graph">POST /api/payments/create-order
+  ↓  <span style="color:var(--p0)">NO authentication step — no middleware, no session lookup</span>
+  ↓  clientIpOf(request)            ← x-forwarded-for, caller-controlled
+  ↓  request.json()                 ← body
+  ↓  createOrderRequestSchema.safeParse(body).strict()
+  ↓     customerEmail               <span style="color:var(--p0)">← CALLER-SUPPLIED, unverified</span>
+  ↓  createOrder(body, config, { razorpay, orders })
+  ↓  createPrismaOrderRepository(prisma)
+  ↓  INSERT INTO orders (customer_email, …)   <span style="color:var(--p0)">no ownership predicate</span></div>
+
+  <h3 style="margin:1.6rem 0 .6rem">Is <code>userId</code> guaranteed rather than caller-supplied?</h3>
+  <p class="prose">
+    Neither. <strong>There is no <code>userId</code> in the request path at all.</strong> The
+    identity-shaped value that does flow — <code>customerEmail</code> — is caller-supplied with no
+    server-side binding whatsoever.
+  </p>
+  <div class="callout">
+    <strong>This is not currently a vulnerability, and it will become one.</strong> For anonymous
+    checkout, a self-declared email is correct: you are naming where the product should be
+    delivered, and money is verified by webhook signature rather than by the claim. But it means
+    the repository contains <em>no example</em> of server-bound identity. The MVP will introduce
+    the first one, so the pattern must be established deliberately rather than copied.
+  </div>
+  <h3 style="margin:1.4rem 0 .5rem">Endpoints taking identity from request data</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Endpoint</th><th>Identity source</th><th>Bound?</th><th>Acceptable?</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">POST /api/payments/create-order</td><td>body <code>customerEmail</code></td><td><span class="chip c-no">No</span></td><td>Yes — anonymous checkout by design</td></tr>
+        <tr><td class="mono">POST /api/webhooks/razorpay</td><td>HMAC over raw body</td><td><span class="chip c-yes">Yes</span></td><td>Yes — cryptographically bound sender</td></tr>
+        <tr><td class="mono">POST /api/payments/verify</td><td>—</td><td>—</td><td>Returns 501; unimplemented</td></tr>
+        <tr><td class="mono">GET /api/health · /api/ready</td><td>—</td><td>—</td><td>Yes — deliberately unauthenticated probes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="d">
+  <div class="sh"><span class="sn">D</span><h2>Worker ownership</h2></div>
+  <p class="prose">
+    The existing worker has a <code>workerId</code>, and it is worth being precise about what that
+    is: a <strong>process identity used for lease fencing</strong> — proving which worker holds a
+    row — not a user identity. The claim statement has no ownership predicate; it takes any due
+    row.
+  </p>
+  <div class="callout ok">
+    <strong>The existing pattern is already the safe one, and it generalises.</strong> The worker
+    never receives identity from a caller. It reads a persisted row, and everything it needs comes
+    from that row. Applied to search:
+  </div>
+  <div class="graph">HTTP  POST /api/searches
+        ↓   authenticate  → userId  <span style="color:var(--ok)">(server-derived, never from the body)</span>
+        ↓   INSERT searches (user_id = userId, status = 'PENDING')
+        ↓   respond 202 + searchId
+
+WORKER  claim: SELECT … WHERE status='PENDING' … FOR UPDATE SKIP LOCKED
+        ↓   userId := row.user_id   <span style="color:var(--ok)">(read from persisted state)</span>
+        ↓   every write carries that user_id
+        ↓   companies / prospects / research / opportunities / scores</div>
+  <p class="prose">
+    The rule to encode: <strong>the worker derives ownership from the row it claimed, never from
+    job payload it was handed.</strong> Because the row was written by an authenticated request,
+    ownership is transitively bound to a real session without the worker knowing anything about
+    sessions. No identity propagation, no signed job payloads, no token passed to the worker —
+    all of which would be larger and weaker.
+  </p>
+  <div class="callout">
+    <strong>One consequence worth deciding now:</strong> if a user is deleted while a search is
+    running, the worker will write rows for an owner that no longer exists. A foreign key with
+    <code>ON DELETE RESTRICT</code> — matching how <code>orders</code> is already protected —
+    makes that a loud failure rather than orphaned data.
+  </div>
+</section>
+
+<section id="e">
+  <div class="sh"><span class="sn">E</span><h2>MVP data model</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Model</th><th>Required?</th><th>Why</th><th>Existing equivalent?</th><th>New?</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="mono">User</td><td><span class="chip c-yes">Yes</span></td>
+          <td>Ownership anchor. Every other MVP table hangs off it; user isolation is an exit criterion.</td>
+          <td>Root schema only — never migrated</td><td><span class="chip c-new">New table</span></td>
+        </tr>
+        <tr>
+          <td class="mono">Session</td><td><span class="chip c-part">Conditional</span></td>
+          <td>Only if <code>access_tokens</code> is <em>not</em> extended. See §2 — reusing the existing token table avoids a second credential store.</td>
+          <td><code>access_tokens</code> (email-scoped, no user_id)</td><td>Prefer extend</td>
+        </tr>
+        <tr>
+          <td class="mono">ServiceProfile</td><td><span class="chip c-yes">Yes</span></td>
+          <td>Journey stage 1. PRD §40 lists 13 fields; Scope Boundary §5.1 requires 4. Build the 4.</td>
+          <td>None anywhere</td><td><span class="chip c-new">New</span></td>
+        </tr>
+        <tr>
+          <td class="mono">Search</td><td><span class="chip c-yes">Yes</span></td>
+          <td>Journey stage 2 and the job record. Carries the status the product surface shows and the ownership the worker reads.</td>
+          <td>None anywhere</td><td><span class="chip c-new">New</span></td>
+        </tr>
+        <tr>
+          <td class="mono">Company</td><td><span class="chip c-yes">Yes</span></td>
+          <td>The discovered business after normalisation; the dedup target. See §F for the ownership decision.</td>
+          <td>Root schema <code>Company</code> — usable shape</td><td><span class="chip c-new">New table</span></td>
+        </tr>
+        <tr>
+          <td class="mono">Prospect</td><td><span class="chip c-yes">Yes</span></td>
+          <td>What gets researched and scored. Root schema calls it <code>Lead</code>; rename for consistency with the PRD journey wording.</td>
+          <td>Root schema <code>Lead</code> — drop CRM relations and the denormalised score</td><td><span class="chip c-new">New table</span></td>
+        </tr>
+        <tr>
+          <td class="mono">ResearchSignal</td><td><span class="chip c-yes">Yes</span></td>
+          <td>Journey stages 5–7 in one append-only table: evidence, provenance, confidence, freshness, supersession.</td>
+          <td>Root <code>LeadResearch</code> is a <strong>field-for-field superset</strong> of <code>LeadResearchRow</code> in core-research</td><td><span class="chip c-new">New table</span></td>
+        </tr>
+        <tr>
+          <td class="mono">Opportunity</td><td><span class="chip c-yes">Yes</span></td>
+          <td>Journey stage 10. <code>serviceOffer</code> must be nullable to express NONE when evidence is insufficient.</td>
+          <td>Root <code>Opportunity</code> — strip six CRM relations</td><td><span class="chip c-new">New table</span></td>
+        </tr>
+        <tr>
+          <td class="mono">OpportunityScore</td><td><span class="chip c-yes">Yes</span></td>
+          <td>Stages 11–12. Separate from Opportunity so the seven factors stay explainable and ranking is reproducible.</td>
+          <td>None — root schema has only a bare <code>Lead.score</code> integer</td><td><span class="chip c-new">New</span></td>
+        </tr>
+        <tr>
+          <td class="mono">Feedback</td><td><span class="chip c-yes">Yes</span></td>
+          <td>Stages 15–16 and the MVP's primary validation instrument.</td>
+          <td>None anywhere</td><td><span class="chip c-new">New</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose" style="margin-top:.9rem;font-size:.9rem;color:var(--muted)">
+    Not every candidate survived unchanged: <code>Session</code> is conditional rather than
+    required, and <code>Prospect</code> is a rename of an existing shape rather than a new concept.
+    Nine tables if <code>access_tokens</code> is extended; ten if a separate session store is
+    chosen.
+  </p>
+</section>
+
+<section id="f">
+  <div class="sh"><span class="sn">F</span><h2>Ownership graph</h2></div>
+  <div class="graph">User (id)
+ ├─ ServiceProfile        user_id  FK → User
+ │   └─ Search            user_id + service_profile_id
+ │        └─ Prospect     user_id + search_id + company_id
+ │             ├─ ResearchSignal   prospect_id   (append-only)
+ │             └─ Opportunity      user_id + prospect_id
+ │                  ├─ OpportunityScore   opportunity_id
+ │                  └─ Feedback           user_id + opportunity_id
+ └─ Company              user_id  FK → User</div>
+
+  <h3 style="margin:1.6rem 0 .6rem">Where Company fits — and the shared-vs-owned decision</h3>
+  <p class="prose">
+    The user asked for this to be decided explicitly against deduplication <em>and</em> multi-user
+    isolation. The two pull in opposite directions.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th></th><th>Globally shared Company</th><th>User-owned Company</th></tr></thead>
+      <tbody>
+        <tr><td>Deduplication</td><td>One row per real business; strongest dedup</td><td>Dedup scoped per user; the same restaurant may exist twice across two users</td></tr>
+        <tr><td>Research cost</td><td>Research reusable across users — cheaper at scale</td><td>Research repeated per user — more model spend</td></tr>
+        <tr><td>Isolation</td><td><span class="chip c-no">Leaks</span> — row existence, timestamps and research reveal what other users are pursuing</td><td><span class="chip c-yes">Clean</span> — every row has one owner</td></tr>
+        <tr><td>Erasure / PII</td><td>Hard — a shared row cannot be deleted with one user</td><td>Simple — delete by <code>user_id</code></td></tr>
+        <tr><td>Consent</td><td>Requires deciding whether A's research may serve B</td><td>No question arises</td></tr>
+        <tr><td>Query shape</td><td>Every read needs a join to prove entitlement to the row</td><td>Every read filters on one column</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout ok" style="margin-top:1rem">
+    <strong>Recommendation: user-owned for the MVP.</strong> Four reasons, in order of weight:
+    <ol style="margin:.6rem 0 0">
+      <li><strong>Isolation is an exit criterion; cost efficiency is not.</strong> Sharing trades
+        the thing being validated for an optimisation that only matters at a scale the MVP will not
+        reach.</li>
+      <li><strong>The MVP dedup requirement is per-user</strong> — “one business appears to the
+        user once” (Scope Boundary §3 stage 4). Global uniqueness is a stronger guarantee than
+        anything asked for.</li>
+      <li><strong>Sharing raises a consent question the MVP should not answer</strong>: may one
+        user's research serve another? That is a product and privacy decision, not a schema
+        detail.</li>
+      <li><strong>Reversibility.</strong> Going user-owned → shared later is a deduplicating
+        backfill. Going shared → user-owned later means splitting rows whose provenance has already
+        been merged. The cheap mistake is the reversible one.</li>
+    </ol>
+  </div>
+  <p class="prose">
+    Concretely: <code>Company</code> carries <code>user_id</code>, with a partial unique index on
+    <code>(user_id, domain) WHERE domain IS NOT NULL</code> as the dedup key. Prisma cannot express
+    a partial unique index, so it goes in hand-written SQL — the same treatment
+    <code>payments_one_captured_per_order</code> already receives.
+  </p>
+</section>
+
+<section id="g">
+  <div class="sh"><span class="sn">G</span><h2>CRM boundary</h2></div>
+  <div class="callout ok">
+    <strong>Confirmed excluded.</strong> None of the six deferred models appears in the graph above,
+    and no MVP journey stage reads or writes any of them.
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Model</th><th>In MVP model?</th><th>Technically required?</th><th>Deferred by</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">Client</td><td><span class="chip c-no">No</span></td><td>No — nothing in stages 1–16 references a closed client</td><td>Scope Boundary §6.3</td></tr>
+        <tr><td class="mono">Conversation</td><td><span class="chip c-no">No</span></td><td>No — no MVP stage holds a dialogue</td><td>§6.3</td></tr>
+        <tr><td class="mono">Activity</td><td><span class="chip c-no">No</span></td><td>No — MVP needs no activity feed</td><td>§6.3</td></tr>
+        <tr><td class="mono">OutreachMessage</td><td><span class="chip c-no">No</span></td><td>No — MVP ends at feedback, before contact</td><td>§6.2, Phase 2</td></tr>
+        <tr><td class="mono">FollowUp</td><td><span class="chip c-no">No</span></td><td>No — requires outreach to exist first</td><td>§6.2, Phase 2</td></tr>
+        <tr><td class="mono">Proposal</td><td><span class="chip c-no">No</span></td><td>No</td><td>§6.4, Phase 3</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="prose" style="margin-top:.8rem">
+    The one place this could leak in silently is <code>Opportunity</code>. The root schema's
+    version declares <code>messages</code>, <code>followUps</code>, <code>conversations</code>,
+    <code>proposals</code>, <code>activities</code> and <code>client</code> relations. Copying it
+    wholesale would pull all six deferred tables in through the back door — <strong>a relation is
+    a scope decision.</strong>
+  </p>
+</section>
+
+<section id="h">
+  <div class="sh"><span class="sn">H</span><h2>Migration safety</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Question</th><th>Verified answer</th></tr></thead>
+      <tbody>
+        <tr><td>Current migration state</td><td>9 applied in <code>_prisma_migrations</code>, none rolled back. Disk matches exactly.</td></tr>
+        <tr><td>Next valid number</td><td><strong>0012.</strong> Highest applied is <code>0011_webhook_payload_retention</code>.</td></tr>
+        <tr><td>Is 0012 actually correct?</td><td><strong>Yes</strong>, and the gap at 0005/0006 must stay open. Those names are permanently absent from every database that ran the chain; a new migration sorting <em>before</em> nine applied ones would apply out of order, since Prisma checks only whether a name is recorded.</td></tr>
+        <tr><td>Do environments differ?</td><td><strong>Unknown — only one environment was observable.</strong> The local test database is at 0011. No staging or production database was reachable from this investigation, so this cannot be confirmed and must be checked before deploying.</td></tr>
+        <tr><td>Shadow database risk</td><td><code>migrate dev</code> creates a shadow database and replays the whole chain. Two consequences: it needs CREATE DATABASE privileges, and <strong>after the root <code>schema.prisma</code> is removed</strong> the replay is unambiguous. Run <code>migrate dev</code> only from <code>packages/db</code>; <code>migrate deploy</code> uses no shadow database and is what CI runs.</td></tr>
+        <tr><td>Can the migration be additive?</td><td><strong>Yes, entirely.</strong> New tables only — no <code>ALTER</code> or <code>DROP</code> against the ten existing ones. Unless <code>access_tokens</code> is extended with <code>user_id</code>, which is one nullable <code>ADD COLUMN</code> plus an index.</td></tr>
+        <tr><td>Does existing data need transformation?</td><td><strong>No.</strong> No existing row acquires an owner. If <code>access_tokens</code> is extended, <code>user_id</code> must be nullable — existing tokens are entitlement credentials with no user, and backfilling them would invent identities.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="arch">
+  <div class="sh"><span class="sn">2</span><h2>Identity architecture</h2></div>
+
+  <h3 style="margin:0 0 .7rem">What can be reused, and what must be built</h3>
+  <div class="ledger">
+    <div class="have">
+      <div class="hd">■ Already built and tested</div>
+      <ul>
+        <li><code>access_tokens</code> table — opaque token, <strong>only the sha256 hash stored</strong>, TTL, <code>revoked_at</code>, <code>last_used_at</code></li>
+        <li><code>mintAccessToken()</code> — 32 bytes of CSPRNG, base64url</li>
+        <li><code>hashAccessToken()</code> and a timing-safe comparison</li>
+        <li><code>reissueAccessToken()</code> — magic-link issuance with an <strong>enumeration-safe</strong> identical refusal</li>
+        <li><code>REISSUE_EMAIL_POLICY</code> (3/15min) and <code>REISSUE_IP_POLICY</code> (10/15min)</li>
+        <li><code>createPgRateLimiter</code> — shared counters across replicas</li>
+        <li><code>ACCESS_COOKIE</code> name and the httpOnly intent</li>
+        <li>HMAC signed-capability pattern in <code>downloadGrant.ts</code> — a worked example of layered checks</li>
+        <li>Env validation with secret-name redaction in <code>packages/config</code></li>
+      </ul>
+    </div>
+    <div class="need">
+      <div class="hd">▲ Missing</div>
+      <ul>
+        <li>A <code>users</code> table and an opaque user id</li>
+        <li><code>user_id</code> on <code>access_tokens</code> (it is email-scoped today)</li>
+        <li>Cookie <em>issuance</em> — nothing sets a cookie anywhere</li>
+        <li>A verification step in the request path — <code>currentAccess()</code> returns a constant</li>
+        <li>A request-context mechanism to carry <code>userId</code> into services</li>
+        <li>An ownership predicate — the codebase has never written one</li>
+        <li>An auth secret in config, distinct from <code>DOWNLOAD_GRANT_SECRET</code></li>
+        <li><strong>Email transport</strong> — blocks magic-link login entirely</li>
+        <li>Any authorization test</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="margin:1.75rem 0 .7rem">Recommended minimum architecture</h3>
+  <p class="prose">
+    The existing token system is an <strong>entitlement bearer credential keyed on email</strong>,
+    not an identity system: issuance is gated on <code>listActive()</code> returning purchases, and
+    there is no user concept. It is nonetheless the right foundation, because the hard parts —
+    hash-only storage, TTL, revocation, timing-safe comparison, rate-limited issuance, enumeration
+    safety — are built and tested.
+  </p>
+  <div class="callout">
+    <strong>Extend it; do not build a second credential store.</strong>
+    <ol style="margin:.6rem 0 0">
+      <li>Add a <code>users</code> table: <code>id</code>, <code>email</code> (unique, lowercase CHECK), <code>name</code>, <code>created_at</code>, <code>updated_at</code>.</li>
+      <li>Add a nullable <code>user_id</code> to <code>access_tokens</code>, with an index. Existing rows keep <code>user_id IS NULL</code> and remain entitlement credentials.</li>
+      <li>Session = a token row with a non-null <code>user_id</code>. Same mint, same hash-only storage, same revocation — one mechanism, two purposes, distinguished by a column.</li>
+      <li>Add a server-only <code>requireUser()</code> helper that reads the cookie, looks up the hash, checks expiry and revocation, and returns <code>userId</code> — or throws. Every MVP route calls it first and takes <code>userId</code> from nowhere else.</li>
+      <li>Every MVP repository method takes <code>userId</code> as its first argument and filters on it. No method accepts an unfiltered read.</li>
+    </ol>
+  </div>
+  <div class="callout bad">
+    <strong>Login is blocked by a dependency outside this investigation.</strong> Magic-link is the
+    natural mechanism — the issuance, rate-limiting and enumeration-safety are already written —
+    but there is <strong>no email transport in the repository</strong> (audit PE-02). Two ways
+    forward, and this needs a decision:
+    <ul style="margin:.6rem 0 0">
+      <li><strong>(a)</strong> Implement email transport first, then self-service magic-link login. Larger, and unblocks paid-product delivery too.</li>
+      <li><strong>(b)</strong> Provision the handful of MVP validation users <strong>out of band</strong> — a seeding script issuing a token directly — and defer self-service signup. The controlled scenario (one service, one city, restaurants) implies a small, known set of validators.</li>
+    </ul>
+    <strong>(b) is the smaller safe foundation</strong> and is what “minimum required for the MVP”
+    points at. It keeps the same session mechanism, so (a) later adds a login route and changes
+    nothing else.
+  </div>
+  <p class="prose" style="font-size:.9rem;color:var(--muted)">
+    Deliberately excluded: passwords, OAuth, MFA, refresh-token rotation, roles and permissions,
+    workspaces, tenant hierarchies, and device management. None is required by any exit criterion,
+    and PRD §39 places workspace/tenant behind production SaaS.
+  </p>
+</section>
+
+<section id="risks">
+  <div class="sh"><span class="sn">4</span><h2>Authorization risks</h2></div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Risk</th><th>Status</th><th>Sev</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">AZ-1</td><td>No ownership predicate has ever been written in this codebase</td><td>Verified</td><td><span class="chip c-p1">P1</span></td><td>No pattern to copy; the first MVP repository sets the precedent for all others</td></tr>
+        <tr><td class="mono">AZ-2</td><td>Zero authorization tests exist</td><td>Verified</td><td><span class="chip c-p1">P1</span></td><td>Every 401 in the suite is a webhook signature check</td></tr>
+        <tr><td class="mono">AZ-3</td><td><code>currentAccess()</code> returns a constant and ignores the cookie</td><td>Verified</td><td><span class="chip c-p2">P2</span></td><td>Safe today (fails closed). Becomes dangerous the moment someone “wires it up” without reviewing callers</td></tr>
+        <tr><td class="mono">AZ-4</td><td><code>readAccessToken()</code> is dead code with no callers</td><td>Verified</td><td><span class="chip c-p3">P3</span></td><td>Invites use without the verification step that must accompany it</td></tr>
+        <tr><td class="mono">AZ-5</td><td>No middleware — authorization must be per-route</td><td>Verified</td><td><span class="chip c-p2">P2</span></td><td>A forgotten <code>requireUser()</code> is an unprotected endpoint with no global backstop</td></tr>
+        <tr><td class="mono">AZ-6</td><td><code>access_tokens</code> has no <code>user_id</code></td><td>Verified</td><td><span class="chip c-p2">P2</span></td><td>Today a token maps to an email, not an account</td></tr>
+        <tr><td class="mono">AZ-7</td><td>Identity as email would make it immutable and spread PII</td><td>Verified</td><td><span class="chip c-p2">P2</span></td><td>Email as FK across nine tables blocks address change and complicates erasure — use an opaque id</td></tr>
+        <tr><td class="mono">AZ-8</td><td><code>x-forwarded-for</code> trusted unconditionally</td><td>Verified</td><td><span class="chip c-p1">P1</span></td><td>Pre-existing (audit SEC-02). Would also undermine any login rate limit</td></tr>
+        <tr><td class="mono">AZ-9</td><td>Rate limiter degrades to per-process memory off <code>NODE_ENV</code></td><td>Verified</td><td><span class="chip c-p1">P1</span></td><td>Pre-existing (audit SEC-03). Directly weakens login throttling if reused</td></tr>
+        <tr><td class="mono">AZ-10</td><td>Worker could write rows for a deleted owner</td><td>Projected</td><td><span class="chip c-p2">P2</span></td><td>Not yet reachable. <code>ON DELETE RESTRICT</code> makes it loud, matching <code>orders</code></td></tr>
+        <tr><td class="mono">AZ-11</td><td>Sharing one secret across grants and sessions</td><td>Projected</td><td><span class="chip c-p2">P2</span></td><td>Reusing <code>DOWNLOAD_GRANT_SECRET</code> for sessions couples two rotation lifetimes — use a separate key</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="plan">
+  <div class="sh"><span class="sn">5</span><h2>Migration plan</h2></div>
+  <p class="prose"><em>Sequence only. Nothing executed, nothing created.</em></p>
+  <ol class="steps">
+    <li><h4>Decide the two open questions in section 6</h4>
+      <p class="prose">Login mechanism (a or b) and Company ownership. Both change the DDL, so both precede any schema edit.</p></li>
+    <li><h4>Complete C-2 steps 1–3 first</h4>
+      <p class="prose">Delete the root <code>schema.prisma</code> and pin the schema path. Doing identity work while two schemas resolve by working directory risks writing models into the wrong file — and the shadow database replays whichever one is found.</p></li>
+    <li><h4>Add the identity models to the authoritative schema</h4>
+      <p class="prose"><code>users</code>, plus nullable <code>user_id</code> on <code>access_tokens</code>. Nothing else in this step.</p></li>
+    <li><h4>Add the seven MVP domain models</h4>
+      <p class="prose">ServiceProfile, Search, Company, Prospect, ResearchSignal, Opportunity, OpportunityScore, Feedback — each with <code>user_id</code> and <code>ON DELETE RESTRICT</code> to <code>users</code>.</p></li>
+    <li><h4>Author <code>0012_client_finder_mvp_base</code></h4>
+      <p class="prose">One additive migration. Hand-written SQL for what Prisma cannot express: the partial unique index on <code>(user_id, domain)</code>, and the lowercase CHECK on <code>users.email</code> matching the convention in 0004.</p></li>
+    <li><h4>Add an auth secret to <code>packages/config</code></h4>
+      <p class="prose">Distinct from <code>DOWNLOAD_GRANT_SECRET</code>, minimum 32 characters, listed in <code>SECRET_KEYS</code> so it is redacted and boot-validated like the rest.</p></li>
+    <li><h4>Implement <code>requireUser()</code> and one protected route</h4>
+      <p class="prose">One route establishes the pattern every other copies. Do not build nine routes before proving one.</p></li>
+    <li><h4>Write the isolation test before the second route</h4>
+      <p class="prose">Two users, one dataset: user B must receive empty, not user A's rows — and not a 500. This is the test that makes AZ-1 and AZ-2 stop being risks.</p></li>
+    <li><h4>Verify the chain and the suite</h4>
+      <p class="prose"><code>db-migrate-deploy.sh --check</code> on a scratch database; then the full pipeline. The new migration runs in every temp database across all 22 integration suites.</p></li>
+  </ol>
+</section>
+
+<section id="decisions">
+  <div class="sh"><span class="sn">6</span><h2>Decisions requiring approval</h2></div>
+  <div class="tri">
+    <div class="fact">
+      <div class="hd">■ Verified facts</div>
+      <ul>
+        <li>No middleware, auth provider, JWT/session library, or auth secret exists.</li>
+        <li><code>currentAccess()</code> returns a hardcoded constant; the cookie is never read or set.</li>
+        <li><code>readAccessToken()</code> has zero callers.</li>
+        <li>No ownership predicate exists in any route or repository.</li>
+        <li>No authorization test exists; all 401s are webhook signature checks.</li>
+        <li>The live database has 11 tables and no identity table.</li>
+        <li><code>access_tokens</code> is keyed on <code>customer_email</code> with no <code>user_id</code>.</li>
+        <li>The only <code>User</code> model is in the root schema C-2 recommends deleting, and has no credential fields.</li>
+        <li><code>customerEmail</code> is caller-supplied with no server-side binding.</li>
+        <li><code>workerId</code> is a lease-fencing process identity, not a user identity.</li>
+        <li>Next valid migration number is 0012; 9 applied, none rolled back.</li>
+        <li>No email transport exists anywhere in the repository.</li>
+      </ul>
+    </div>
+    <div class="rec">
+      <div class="hd">▲ Recommended</div>
+      <ul>
+        <li>Status is <strong>NOT IMPLEMENTED</strong>, not partial.</li>
+        <li>Extend <code>access_tokens</code> with <code>user_id</code> rather than building a second credential store.</li>
+        <li>Opaque <code>users.id</code> as the ownership anchor — never email as a foreign key.</li>
+        <li><code>Company</code> is <strong>user-owned</strong>, with a partial unique index on <code>(user_id, domain)</code>.</li>
+        <li>Worker derives ownership from the claimed row, never from a job payload.</li>
+        <li><code>ON DELETE RESTRICT</code> to <code>users</code> on every MVP table.</li>
+        <li>A separate auth secret; do not reuse <code>DOWNLOAD_GRANT_SECRET</code>.</li>
+        <li>Out-of-band user provisioning for MVP validation; defer self-service signup.</li>
+        <li><code>requireUser()</code> per route, since there is no middleware backstop.</li>
+        <li>Write the two-user isolation test before the second protected route.</li>
+      </ul>
+    </div>
+    <div class="open">
+      <div class="hd">● Unresolved — needs your decision</div>
+      <ul>
+        <li><strong>Login mechanism:</strong> implement email transport for magic-link (a), or provision validation users out of band (b)? This gates the DDL.</li>
+        <li><strong>Is the Client Finder MVP gated behind the ₹1,499 purchase?</strong> If yes, identity and entitlement converge and <code>access_tokens</code> needs far less change. If no, they must stay separate. Nothing in the repository answers this.</li>
+        <li><strong>ServiceProfile field set:</strong> PRD §40 lists 13 fields; Scope Boundary §5.1 requires 4. Recommend the 4 — but that is a scope conflict between two governing documents.</li>
+        <li><strong>Do staging or production databases exist</strong>, and at what migration state? Only the local test database was observable.</li>
+        <li><strong>Session lifetime.</strong> <code>ACCESS_TOKEN_TTL_MS</code> is 30 days, chosen for a purchased-product credential. That may be wrong for a working session.</li>
+        <li><strong>Prospect vs Lead naming.</strong> The PRD journey says prospect; the existing shape says Lead. Cosmetic, but it should be settled once.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Investigation only. No Prisma schema, migration, application source, test, configuration or
+  documentation file was modified. Findings labelled verified were established by reading the
+  repository and by querying the live PostgreSQL 16.14 test instance
+  (<code>pg_tables</code>, <code>_prisma_migrations</code>, <code>information_schema</code>).
+  Execution was traced from route handler to repository rather than inferred from file or symbol
+  names. Model shapes and the recommended architecture are recommendations derived from those
+  facts, from PRD V2.0 §§39–42, and from <code>MVP_SCOPE_BOUNDARY.md</code> §§3 and 5.
+</footer>
+
+</div>
+
+</body></html>

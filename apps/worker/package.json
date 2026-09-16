@@ -1,0 +1,32 @@
+{
+  "name": "@acos/worker",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "echo 'integration tests for worker live in /tests/integration' && exit 0"
+  },
+  "dependencies": {
+    "@acos/core-capi": "workspace:*",
+    "@acos/core-entitlements": "workspace:*",
+    "@acos/db": "workspace:*",
+    "@acos/config": "workspace:*",
+    "@acos/observability": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  },
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./metaEvents": "./src/metaEvents/index.ts"
+  }
+}

@@ -1,0 +1,734 @@
+// -----------------------------------------------------------------------
+// Prisma schema — commerce core + Meta attribution + operational
+// reconciliation tables.
+//
+// Scope is deliberately exactly six models, per spec: Order, Payment,
+// WebhookEvent, MetaEvent, IdempotencyReconciliation,
+// ProductionIndexMigration. Customer and product information are stored
+// directly on Order (denormalized) rather than via separate Users/
+// Products tables, since no such tables were requested and the funnel's
+// products are a small fixed catalog, not a table that needs its own
+// lifecycle.
+//
+// STRUCTURE ONLY: this file contains no application/business logic.
+//
+// TWO CONSTRAINTS THIS SCHEMA CANNOT EXPRESS NATIVELY (Prisma limitation,
+// not an oversight) — both MUST be added as hand-written SQL in the first
+// migration before this schema is considered production-complete:
+//   1. CHECK (amount_paise > 0) on orders and payments.
+//   2. Partial unique index on payments: only one CAPTURED payment per
+//      order — i.e. CREATE UNIQUE INDEX ... ON payments(order_id) WHERE
+//      status = 'CAPTURED'.
+// See the full constraint-by-constraint explanation delivered alongside
+// this file.
+// -----------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =========================================================================
+// Enums
+// =========================================================================
+
+enum OrderStatus {
+  CREATED
+  ATTEMPTED
+  PAID
+  FAILED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+enum MetaEventStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  DEAD_LETTER
+}
+
+enum IdempotencyRecordType {
+  ORDER
+  PAYMENT
+  WEBHOOK_EVENT
+  META_EVENT
+}
+
+enum IdempotencyReconciliationStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  IGNORED
+}
+
+enum ProductionIndexMigrationStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  ROLLED_BACK
+}
+
+// =========================================================================
+// Order
+// =========================================================================
+
+model Order {
+  id String @id @default(uuid())
+
+  razorpayOrderId String @unique @map("razorpay_order_id")
+
+  // --- Customer information (denormalized: no separate Users table) ---
+  customerName  String  @map("customer_name")
+  customerEmail String  @map("customer_email")
+  customerPhone String? @map("customer_phone")
+
+  // --- Product information (denormalized: no separate Products table) ---
+  productSlug String @map("product_slug")
+  productName String @map("product_name")
+
+  amountPaise Int         @map("amount_paise")
+  currency    String      @default("INR")
+  status      OrderStatus @default(CREATED)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  payments      Payment[]
+  webhookEvents WebhookEvent[]
+  metaEvents    MetaEvent[]
+
+  @@index([customerEmail])
+  @@index([status])
+  @@index([productSlug])
+  @@map("orders")
+}
+
+// =========================================================================
+// Payment
+// =========================================================================
+
+model Payment {
+  id String @id @default(uuid())
+
+  razorpayPaymentId String @unique @map("razorpay_payment_id")
+
+  orderId String @map("order_id")
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  amountPaise Int    @map("amount_paise")
+  currency    String @default("INR")
+  status      PaymentStatus
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // NOTE: "only one CAPTURED payment per order" is enforced by a partial
+  // unique index added via hand-written migration SQL (Prisma cannot
+  // express a WHERE clause on a unique index). See migration notes.
+
+  @@index([orderId])
+  @@index([status])
+  @@map("payments")
+}
+
+// =========================================================================
+// WebhookEvent
+// =========================================================================
+
+model WebhookEvent {
+  id String @id @default(uuid())
+
+  razorpayEventId String @unique @map("razorpay_event_id")
+  eventName       String @map("event_name")
+
+  orderId String? @map("order_id")
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  // --- Processing metadata ---
+  payload         Json
+  signatureValid  Boolean   @map("signature_valid")
+  receivedAt      DateTime  @default(now()) @map("received_at")
+  processedAt     DateTime? @map("processed_at")
+  processingError String?   @map("processing_error")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@index([eventName])
+  @@index([processedAt])
+  @@map("webhook_events")
+}
+
+// =========================================================================
+// MetaEvent
+// =========================================================================
+
+model MetaEvent {
+  id String @id @default(uuid())
+
+  // Deterministic, stable event id (e.g. sha256-derived from payment/order
+  // id) — this is what lets Meta's own dedup work across retries and
+  // across client-Pixel + server-CAPI double reporting.
+  metaEventId String @unique @map("meta_event_id")
+
+  orderId String @map("order_id")
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  eventName  String @map("event_name")
+  product    String
+  valuePaise Int    @map("value_paise")
+  currency   String @default("INR")
+
+  status        MetaEventStatus @default(PENDING)
+  attempts      Int             @default(0)
+  nextAttemptAt DateTime        @default(now()) @map("next_attempt_at")
+
+  // --- Lease locking: prevents two concurrent worker instances from
+  // dispatching the same event. Complements (does not replace) `SELECT
+  // ... FOR UPDATE SKIP LOCKED` at the query layer — the lease survives
+  // a worker crash mid-dispatch, whereas a DB row lock is released the
+  // instant the transaction ends. ---
+  leaseOwner     String?   @map("lease_owner")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+
+  lastError String? @map("last_error")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status, nextAttemptAt])
+  @@index([orderId])
+  @@index([leaseExpiresAt])
+  @@map("meta_events")
+}
+
+// =========================================================================
+// IdempotencyReconciliation
+// =========================================================================
+//
+// Operational table: when a duplicate-processing anomaly is *detected*
+// (e.g. a unique-constraint violation is caught rather than silently
+// hit, or a reconciliation job finds two rows that should be one), a
+// case is opened here for a human to review and close out. This table
+// is not part of the hot payment path — it exists so violations of the
+// idempotency guarantees elsewhere in the schema are auditable and
+// actionable rather than just logged and forgotten.
+
+model IdempotencyReconciliation {
+  id String @id @default(uuid())
+
+  recordType   IdempotencyRecordType @map("record_type")
+  duplicateKey String                @map("duplicate_key")
+
+  // Snapshot of the conflicting record(s) at detection time, for
+  // inspection without needing to reconstruct history from other tables.
+  snapshot    Json
+  recordCount Int @map("record_count")
+
+  status     IdempotencyReconciliationStatus @default(OPEN)
+  resolution String?
+  resolvedBy String?                         @map("resolved_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // One open case per (recordType, duplicateKey): repeated detections of
+  // the same collision should increment recordCount on the existing case,
+  // not spawn new ones.
+  @@unique([recordType, duplicateKey], name: "idempotency_reconciliation_unique_case")
+  @@index([status])
+  @@map("idempotency_reconciliations")
+}
+
+// =========================================================================
+// ProductionIndexMigration
+// =========================================================================
+//
+// Tracks index-creation operations that must run OUTSIDE Prisma's normal
+// transactional migration wrapper — specifically `CREATE INDEX
+// CONCURRENTLY`, which Postgres forbids inside a transaction block and
+// which Prisma's default `migrate deploy` wraps in one. This table is
+// the audit/status ledger for those out-of-band operations (see
+// architecture §9 Migration Strategy) so a partially-applied concurrent
+// index build is visible and re-driveable rather than silently unknown.
+
+model ProductionIndexMigration {
+  id String @id @default(uuid())
+
+  migrationName String @map("migration_name")
+  indexName     String @map("index_name")
+
+  status      ProductionIndexMigrationStatus @default(PENDING) @map("deployment_status")
+  startedAt   DateTime?                      @map("start_time")
+  completedAt DateTime?                      @map("completion_time")
+  error       String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Re-running the deploy script for the same concurrent index build must
+  // be a safe no-op / resumable check, not a duplicate tracking row.
+  @@unique([migrationName, indexName], name: "production_index_migration_unique")
+  @@index([status])
+  @@map("production_index_migrations")
+}
+
+// =========================================================================
+// CLIENT ACQUISITION ENGINE
+// =========================================================================
+// Pipeline: FIND -> RESEARCH -> PERSONALIZE -> CONTACT -> FOLLOW UP ->
+//           QUALIFY -> PROPOSE -> TRACK -> IMPROVE
+//
+// THE PIPELINE OBJECT IS `Opportunity`, NOT `Lead`. A lead is a person and
+// persists; an opportunity is one hypothesis about that person ("this
+// service, this quarter, this value") and is what moves, stalls and
+// closes. Modelling stage on Lead would make a second approach next year
+// overwrite the history of the first.
+//
+// TRACK and IMPROVE are deliberately NOT stages. Nothing waits in them —
+// they are reads across closed opportunities (conversion rates, which
+// message angle wins). Encoding them as stages would create rows that can
+// never leave. See core-acquisition for where they live instead.
+// =========================================================================
+
+enum OpportunityStage {
+  NEW
+  RESEARCHED
+  CONTACTED
+  REPLIED        // a reply is a state, not a flag — the sequence stops here
+  QUALIFIED
+  PROPOSAL_SENT
+  WON
+  LOST
+  PAUSED         // deferred, not closed; remembers what it was paused from
+}
+
+enum LeadStatus {
+  NEW
+  ACTIVE      // has an open opportunity
+  NURTURING   // no open opportunity, worth revisiting
+  CLIENT
+  DISQUALIFIED
+  UNSUBSCRIBED // hard stop; never contact again
+}
+
+enum OutreachChannel {
+  EMAIL
+  LINKEDIN
+  TWITTER
+  FORM
+}
+
+enum MessageStatus {
+  DRAFT
+  QUEUED
+  SENT
+  DELIVERED
+  BOUNCED
+  REPLIED
+  FAILED
+}
+
+enum FollowUpStatus {
+  SCHEDULED
+  SENT
+  CANCELLED
+  SUPERSEDED // a reply arrived; the touch is no longer wanted
+}
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  WITHDRAWN
+}
+
+enum ResearchSourceKind {
+  WEBSITE
+  JOB_POST
+  LINKEDIN
+  NEWS
+  FUNDING
+  TECH_STACK
+  REVIEW
+  MANUAL
+}
+
+enum ActivityKind {
+  LEAD_SOURCED
+  RESEARCH_ADDED
+  OPPORTUNITY_OPENED
+  STAGE_CHANGED
+  MESSAGE_DRAFTED
+  MESSAGE_SENT
+  REPLY_RECEIVED
+  FOLLOW_UP_SCHEDULED
+  FOLLOW_UP_SENT
+  PROPOSAL_SENT
+  PROPOSAL_ANSWERED
+  OPPORTUNITY_CLOSED
+  CLIENT_CREATED
+  NOTE
+}
+
+// ---- User: the freelancer operating the engine -------------------------
+
+model User {
+  id    String @id @default(uuid())
+  email String @unique
+  name  String?
+
+  // Everything below is scoped to a user. This is a single-operator tool
+  // per account, so every query filters on userId — there is no shared
+  // lead pool and no cross-user visibility.
+  companies     Company[]
+  leads         Lead[]
+  opportunities Opportunity[]
+  clients       Client[]
+  activities    Activity[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("acq_users")
+}
+
+// ---- Company -----------------------------------------------------------
+
+model Company {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name String
+  // Deduplication key. Normalised (lowercase, no www, no protocol) before
+  // storage so "Acme.com" and "https://www.acme.com/" are one company.
+  domain String?
+
+  industry     String?
+  sizeBand     String? @map("size_band") // "1-10", "11-50", ...
+  country      String?
+  description  String?
+
+  leads    Lead[]
+  research LeadResearch[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // One company per domain per user. Nullable domains are excluded via a
+  // partial index in the migration (Prisma cannot express that).
+  @@index([userId])
+  @@index([userId, name])
+  @@map("acq_companies")
+}
+
+// ---- Lead: a person ----------------------------------------------------
+
+model Lead {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyId String?  @map("company_id")
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  fullName String? @map("full_name")
+  email    String?
+  role     String?
+  linkedinUrl String? @map("linkedin_url")
+  timezone String?
+
+  status LeadStatus @default(NEW)
+
+  // WHO SHOULD I CONTACT: a 0-100 score recomputed from research signals.
+  // Stored rather than computed at query time so a list of 5,000 leads can
+  // be ordered in the database.
+  score       Int      @default(0)
+  scoredAt    DateTime? @map("scored_at")
+  scoreReason String?  @map("score_reason")
+
+  // Hard suppression. Checked before every send, independently of status.
+  unsubscribedAt DateTime? @map("unsubscribed_at")
+
+  research      LeadResearch[]
+  opportunities Opportunity[]
+  conversations Conversation[]
+  activities    Activity[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@index([userId, score])
+  @@index([companyId])
+  @@map("acq_leads")
+}
+
+// ---- LeadResearch: WHY should I contact them ---------------------------
+
+model LeadResearch {
+  id     String @id @default(uuid())
+  leadId String @map("lead_id")
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  companyId String?  @map("company_id")
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  kind ResearchSourceKind
+
+  // The signal itself, in the operator's words: "hiring 3 content writers",
+  // "site has no analytics". This is what a personalised opening line is
+  // built from.
+  signal String
+  // Where it came from, so a claim in an email can be traced.
+  sourceUrl String? @map("source_url")
+  // 0-100. Research is evidence of varying quality; a job post is stronger
+  // than an inference from a homepage.
+  confidence Int @default(50)
+  // How much this signal contributes to the lead score.
+  weight Int @default(0)
+
+  // Append-only: superseded findings are marked, never edited, so the
+  // reason a lead was contacted last March is still recoverable.
+  supersededAt DateTime? @map("superseded_at")
+
+  observedAt DateTime @default(now()) @map("observed_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([leadId, supersededAt])
+  @@index([companyId])
+  @@map("acq_lead_research")
+}
+
+// ---- Opportunity: the pipeline object ----------------------------------
+
+model Opportunity {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  leadId String @map("lead_id")
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  stage OpportunityStage @default(NEW)
+
+  // WHAT SERVICE SHOULD I OFFER: the hypothesis being tested.
+  serviceOffer String  @map("service_offer")
+  // Why this service suits this lead — derived from research, shown to the
+  // operator so the pitch is never a guess they have to reconstruct.
+  offerRationale String? @map("offer_rationale")
+
+  estimatedValuePaise Int?   @map("estimated_value_paise")
+  currency            String @default("INR")
+
+  // Set when the stage last changed. Staleness ("what should I do next")
+  // is measured from here, not from createdAt.
+  stageChangedAt DateTime @default(now()) @map("stage_changed_at")
+
+  closedAt   DateTime? @map("closed_at")
+  lostReason String?   @map("lost_reason")
+
+  // Pausing is a first-class decision, so resuming is not a guess.
+  pausedFromStage OpportunityStage? @map("paused_from_stage")
+  pausedReason    String?           @map("paused_reason")
+  pausedUntil     DateTime?         @map("paused_until")
+
+  messages      OutreachMessage[]
+  followUps     FollowUp[]
+  conversations Conversation[]
+  proposals     Proposal[]
+  activities    Activity[]
+  client        Client?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, stage])
+  @@index([userId, stageChangedAt])
+  @@index([leadId])
+  @@map("acq_opportunities")
+}
+
+// ---- OutreachMessage: WHAT should I say --------------------------------
+
+model OutreachMessage {
+  id            String      @id @default(uuid())
+  opportunityId String      @map("opportunity_id")
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  conversationId String?       @map("conversation_id")
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  channel OutreachChannel
+  status  MessageStatus   @default(DRAFT)
+
+  subject String?
+  body    String
+
+  // Which research signals this message was built from. Lets IMPROVE ask
+  // "which angle converts" rather than only "which template".
+  angle String?
+  // Sequence position: 0 is the first touch, 1+ are follow-ups.
+  sequenceIndex Int @default(0) @map("sequence_index")
+
+  scheduledAt DateTime? @map("scheduled_at")
+  sentAt      DateTime? @map("sent_at")
+  repliedAt   DateTime? @map("replied_at")
+  failureReason String? @map("failure_reason")
+
+  followUp FollowUp?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([opportunityId, sequenceIndex])
+  @@index([status, scheduledAt])
+  @@map("acq_outreach_messages")
+}
+
+// ---- FollowUp: WHEN should I follow up ---------------------------------
+
+model FollowUp {
+  id            String      @id @default(uuid())
+  opportunityId String      @map("opportunity_id")
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  // The message this follow-up chases.
+  parentMessageId String?          @unique @map("parent_message_id")
+  parentMessage   OutreachMessage? @relation(fields: [parentMessageId], references: [id], onDelete: SetNull)
+
+  status   FollowUpStatus @default(SCHEDULED)
+  dueAt    DateTime       @map("due_at")
+  sentAt   DateTime?      @map("sent_at")
+  attempt  Int            @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status, dueAt])
+  @@index([opportunityId])
+  @@map("acq_follow_ups")
+}
+
+// ---- Conversation: the thread ------------------------------------------
+
+model Conversation {
+  id     String @id @default(uuid())
+  leadId String @map("lead_id")
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  opportunityId String?      @map("opportunity_id")
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  channel OutreachChannel
+  // Provider thread id (email Message-ID root, LinkedIn thread). Used to
+  // attach inbound replies to the right opportunity.
+  externalThreadId String? @map("external_thread_id")
+
+  lastInboundAt  DateTime? @map("last_inbound_at")
+  lastOutboundAt DateTime? @map("last_outbound_at")
+
+  messages OutreachMessage[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([leadId])
+  @@index([externalThreadId])
+  @@map("acq_conversations")
+}
+
+// ---- Proposal ----------------------------------------------------------
+
+model Proposal {
+  id            String      @id @default(uuid())
+  opportunityId String      @map("opportunity_id")
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  status ProposalStatus @default(DRAFT)
+
+  title      String
+  scope      String
+  amountPaise Int    @map("amount_paise")
+  currency   String @default("INR")
+
+  sentAt     DateTime? @map("sent_at")
+  answeredAt DateTime? @map("answered_at")
+  expiresAt  DateTime? @map("expires_at")
+  declineReason String? @map("decline_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([opportunityId, status])
+  @@map("acq_proposals")
+}
+
+// ---- Client: a won opportunity -----------------------------------------
+
+model Client {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One client record per won opportunity, so revenue is attributable to
+  // the outreach that produced it.
+  opportunityId String      @unique @map("opportunity_id")
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict)
+
+  name             String
+  contractValuePaise Int    @map("contract_value_paise")
+  currency         String  @default("INR")
+  startedAt        DateTime @default(now()) @map("started_at")
+  endedAt          DateTime? @map("ended_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("acq_clients")
+}
+
+// ---- Activity: append-only event log -----------------------------------
+
+model Activity {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  leadId String? @map("lead_id")
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  opportunityId String?      @map("opportunity_id")
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  kind    ActivityKind
+  summary String
+  // Structured detail (previous stage, message id, score delta).
+  detail  Json?
+
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId, occurredAt])
+  @@index([opportunityId, occurredAt])
+  @@index([leadId, occurredAt])
+  @@map("acq_activities")
+}

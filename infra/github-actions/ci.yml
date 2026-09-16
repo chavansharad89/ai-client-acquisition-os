@@ -1,0 +1,7 @@
+# MOVED to /.github/workflows/ci.yml
+#
+# A workflow file outside .github/workflows/ is never executed by GitHub
+# Actions, so everything that lived here — lint, typecheck, tests — had
+# never run on a single commit. This file is kept as a pointer so anyone
+# who goes looking for CI in the place it used to be finds out where it
+# went, rather than editing a file with no effect.

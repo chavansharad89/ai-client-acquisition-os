@@ -1,0 +1,28 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# build output
+.next
+dist
+.turbo
+build
+
+# env
+.env
+.env.local
+.env.*.local
+
+# testing
+coverage
+
+# prisma
+packages/db/prisma/dev.db
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# os
+.DS_Store

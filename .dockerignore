@@ -1,0 +1,55 @@
+# Docker build context exclusions.
+# ---------------------------------------------------------------------------
+# Both Dockerfiles run `COPY . .` in their build stage. Without this file that
+# copies the entire working tree — including .env — into an image layer, and
+# layers are permanent: a later stage that does not carry the file forward
+# does not remove it from the image's history. Anyone who can pull the image
+# can `docker save` it and read RAZORPAY_WEBHOOK_SECRET in plaintext.
+#
+# The webhook secret is the worst of the three, because this architecture
+# treats a correctly signed webhook as the single source of payment truth —
+# holding it means minting entitlements without paying.
+#
+# Keep the negation (!.env.example) after the .env* rule: order matters, and
+# the example file carries no values, only key names the build may reference.
+# ---------------------------------------------------------------------------
+
+# --- secrets: the reason this file exists ---
+.env*
+!.env.example
+
+# --- version control history (carries deleted secrets even if HEAD is clean) ---
+.git
+.gitignore
+
+# --- dependencies: reinstalled inside the image from the committed lockfile ---
+# Also a large speed win: these never need to enter the build context.
+node_modules
+.pnpm-store
+
+# --- build output and caches: rebuilt inside the image ---
+.turbo
+.next
+dist
+build
+
+# --- test and coverage artefacts ---
+coverage
+
+# --- logs, which routinely contain request payloads and identifiers ---
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# --- local tooling that no build step reads ---
+.DS_Store
+.vscode
+.idea
+
+# --- local database files ---
+packages/db/prisma/dev.db
+
+# DELIBERATELY NOT EXCLUDED, because the build needs them:
+#   package.json, pnpm-lock.yaml, pnpm-workspace.yaml, turbo.json
+#   tsconfig*.json, apps/**, packages/**, scripts/**
+#   packages/db/prisma/schema.prisma and its migrations

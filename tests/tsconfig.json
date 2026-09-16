@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // No rootDir: these tests never emit, and the route-level suite
+    // deliberately imports apps/web source to exercise the real handler.
+    "outDir": "dist",
+  },
+  "include": ["**/*.ts"]
+}

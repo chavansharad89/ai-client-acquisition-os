@@ -1,0 +1,36 @@
+{
+  "name": "ai-client-acquisition-os",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Commerce core + funnel (Starter Kit -> Launch Kit -> Client Acquisition System) and future Client Acquisition OS.",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@9.7.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint --continue",
+    "lint:fix": "turbo run lint --continue -- --fix",
+    "typecheck": "turbo run typecheck --continue",
+    "test": "turbo run test --continue",
+    "test:integration": "turbo run test:integration --continue",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @acos/db run generate",
+    "db:migrate:dev": "pnpm --filter @acos/db run migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @acos/db run migrate:deploy",
+    "db:studio": "pnpm --filter @acos/db run studio",
+    "prepare": "echo 'TODO: wire up husky/lint-staged if pre-commit hooks are desired'",
+    "db:indexes:deploy": "./scripts/db-indexes-deploy.sh",
+    "db:indexes:verify": "./scripts/db-indexes-deploy.sh --dry-run"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.0",
+    "typescript": "^5.6.0",
+    "prettier": "^3.3.0",
+    "eslint": "^9.10.0",
+    "@types/node": "^22.5.0",
+    "vitest": "^2.0.0"
+  }
+}

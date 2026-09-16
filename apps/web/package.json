@@ -1,0 +1,40 @@
+{
+  "name": "@acos/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "echo 'integration tests for web live in /tests/integration' && exit 0"
+  },
+  "dependencies": {
+    "@acos/catalog": "workspace:*",
+    "@acos/config": "workspace:*",
+    "@acos/core-acquisition": "workspace:*",
+    "@acos/core-capi": "workspace:*",
+    "@acos/core-entitlements": "workspace:*",
+    "@acos/core-payments": "workspace:*",
+    "@acos/db": "workspace:*",
+    "@acos/observability": "workspace:*",
+    "@acos/rate-limit": "workspace:*",
+    "@acos/shared-types": "workspace:*",
+    "next": "^14.2.0",
+    "pg": "^8.13.0",
+    "razorpay": "^2.9.4",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "eslint-config-next": "^14.2.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  }
+}
