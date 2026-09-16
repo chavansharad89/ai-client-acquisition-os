@@ -17,6 +17,7 @@ export default defineWorkspace([
   'packages/core-service-profile/vitest.config.ts',
   'packages/core-acquisition/vitest.config.ts',
   'packages/core-capi/vitest.config.ts',
+  'packages/core-discovery/vitest.config.ts',
   'packages/core-reconciliation/vitest.config.ts',
   'packages/core-research/vitest.config.ts',
   'packages/db/vitest.config.ts',

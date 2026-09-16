@@ -175,6 +175,28 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.20.2)
 
+  packages/core-discovery:
+    dependencies:
+      '@acos/core-entitlements':
+        specifier: workspace:*
+        version: link:../core-entitlements
+      '@acos/core-identity':
+        specifier: workspace:*
+        version: link:../core-identity
+      '@acos/core-search':
+        specifier: workspace:*
+        version: link:../core-search
+    devDependencies:
+      '@types/node':
+        specifier: ^22.5.0
+        version: 22.20.2
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.20.2)
+
   packages/core-entitlements:
     dependencies:
       '@acos/catalog':
@@ -421,6 +443,9 @@ importers:
       '@acos/core-capi':
         specifier: workspace:*
         version: link:../packages/core-capi
+      '@acos/core-discovery':
+        specifier: workspace:*
+        version: link:../packages/core-discovery
       '@acos/core-entitlements':
         specifier: workspace:*
         version: link:../packages/core-entitlements
