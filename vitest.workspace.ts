@@ -13,6 +13,7 @@ export default defineWorkspace([
   'packages/core-proposal/vitest.config.ts',
   'packages/core-payments/vitest.config.ts',
   'packages/core-entitlements/vitest.config.ts',
+  'packages/core-identity/vitest.config.ts',
   'packages/core-acquisition/vitest.config.ts',
   'packages/core-capi/vitest.config.ts',
   'packages/core-reconciliation/vitest.config.ts',
