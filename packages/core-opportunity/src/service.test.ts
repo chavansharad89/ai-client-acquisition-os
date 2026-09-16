@@ -1,3 +1,4 @@
+import { scoreProspect, type ProspectInput } from '@acos/core-acquisition';
 import type { ProspectRepository, StoredProspect } from '@acos/core-discovery';
 import { hashAccessToken } from '@acos/core-entitlements';
 import {
@@ -5,14 +6,29 @@ import {
   type IdentityRepository,
   type StoredSessionToken,
 } from '@acos/core-identity';
-import type { ResearchSignalRepository, StoredResearchSignal } from '@acos/core-research';
+import {
+  toScoringSignals,
+  type ResearchSignalRepository,
+  type StoredResearchSignal,
+} from '@acos/core-research';
 import type { SearchRepository, StoredSearch } from '@acos/core-search';
 import type { ServiceProfileFields } from '@acos/core-service-profile';
 import { describe, expect, it } from 'vitest';
 
-import { CreateOpportunityValidationError, OpportunityProspectNotFoundError } from './errors';
-import { createOpportunity, type OpportunityDeps } from './service';
-import { fakeOpportunityRepository } from './testSupport';
+import {
+  CreateOpportunityValidationError,
+  OpportunityNotFoundError,
+  OpportunityProspectNotFoundError,
+} from './errors';
+import {
+  createOpportunity,
+  getOpportunityScore,
+  scoreOpportunity,
+  SCORER_VERSION,
+  type OpportunityDeps,
+  type OpportunityScoreDeps,
+} from './service';
+import { fakeOpportunityRepository, fakeOpportunityScoreRepository } from './testSupport';
 
 // UNIT tests (fakes only — see
 // tests/integration/opportunity.integration.test.ts for the real-Postgres
@@ -168,17 +184,19 @@ function deps(
   prospects: StoredProspect[],
   searches: StoredSearch[],
   signals: StoredResearchSignal[] = [],
-): OpportunityDeps {
+): OpportunityDeps & OpportunityScoreDeps {
   const identity = fakeIdentity({
     ...sessionFor('token-a', 'user_a'),
     ...sessionFor('token-b', 'user_b'),
   });
+  const opportunities = fakeOpportunityRepository();
   return {
     identity,
     prospects: fakeProspectRepository(prospects),
     searches: fakeSearchRepository(searches),
     signals: fakeResearchSignalRepository(signals),
-    opportunities: fakeOpportunityRepository(),
+    opportunities,
+    scores: fakeOpportunityScoreRepository(opportunities.rows),
   };
 }
 
@@ -278,5 +296,253 @@ describe('createOpportunity', () => {
     expect(second.needDetected).toEqual(first.needDetected);
     expect(second.offer).toEqual(first.offer);
     expect(second.state).toEqual(first.state);
+  });
+});
+
+// ---- Phase 10: scoreOpportunity / getOpportunityScore -------------------
+// Mirrors tests/integration/opportunity-score.integration.test.ts's
+// real-Postgres proof of the same ownership boundary and migration
+// 0018 schema.
+
+const NOW = new Date('2026-07-01T09:00:00.000Z');
+
+/**
+ * Builds the exact ProspectInput scoreOpportunity() is documented to
+ * construct (see service.ts's neutralScoringInputs()/
+ * serviceFitFromOffer()), so tests can verify the wiring produces
+ * precisely what a direct scoreProspect() call would — without
+ * re-deriving prospectScore.ts's own arithmetic (covered by that
+ * package's own prospectScore.test.ts) and without inventing any new
+ * detection logic of its own.
+ */
+function expectedInput(
+  storedSignals: StoredResearchSignal[],
+  offer?: { fit: number; service: string },
+): ProspectInput {
+  const { signals } = toScoringSignals(storedSignals);
+  return {
+    signals,
+    icp: {
+      industryMatch: { value: null, basis: 'UNKNOWN' },
+      sizeMatch: { value: null, basis: 'UNKNOWN' },
+      geoMatch: { value: null, basis: 'UNKNOWN' },
+    },
+    abilityToPay: { value: null, basis: 'UNKNOWN' },
+    urgency: { value: null, basis: 'UNKNOWN' },
+    serviceFit: offer
+      ? {
+          value: offer.fit,
+          basis: 'OBSERVED',
+          note: `service fit ${offer.fit}/100 (recommended offer: ${offer.service})`,
+        }
+      : { value: null, basis: 'UNKNOWN' },
+    contact: { hasEmail: false, hasLinkedIn: false, hasPhone: false, unsubscribed: false },
+  };
+}
+
+describe('scoreOpportunity', () => {
+  it('derives serviceFit from Opportunity.offer.fit and persists every factor (weight/raw/points/basis/reason)', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+
+    const expected = scoreProspect(
+      expectedInput([matchingSignal()], {
+        fit: opportunity.offer!.fit,
+        service: opportunity.offer!.service,
+      }),
+      NOW,
+    );
+
+    expect(stored.opportunityId).toBe(opportunity.id);
+    expect(stored.total).toBe(expected.score);
+    expect(stored.band).toBe(expected.band);
+    expect(stored.factors).toHaveLength(7);
+    expect(stored.factors).toEqual(expected.factors);
+    expect(stored.reasons).toEqual(expected.reasons);
+    expect(stored.observedShare).toBe(expected.observedShare);
+    expect(stored.cap).toEqual(expected.cap);
+    expect(stored.scorerVersion).toBe(SCORER_VERSION);
+    expect(stored.scoredAt).toEqual(NOW);
+
+    const serviceFit = stored.factors.find((f) => f.factor === 'serviceFit')!;
+    expect(serviceFit.basis).toBe('OBSERVED');
+    expect(serviceFit.raw).toBeCloseTo(opportunity.offer!.fit / 100, 5);
+  });
+
+  it('uses the scorer’s neutral/UNKNOWN representation for icp, abilityToPay, urgency and contact — never inventing detection logic', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+    const byFactor = Object.fromEntries(stored.factors.map((f) => [f.factor, f]));
+
+    expect(byFactor.icpFit!.basis).toBe('UNKNOWN');
+    expect(byFactor.icpFit!.points).toBe(0);
+    expect(byFactor.abilityToPay!.basis).toBe('UNKNOWN');
+    expect(byFactor.abilityToPay!.points).toBe(0);
+    expect(byFactor.urgency!.basis).toBe('UNKNOWN');
+    expect(byFactor.urgency!.points).toBe(0);
+    // contactability has no UNKNOWN basis in the scorer's own contract
+    // (prospectScore.ts always reports it OBSERVED) — "no channels known"
+    // is expressed as zero channels, not a fabricated one.
+    expect(byFactor.contactability!.raw).toBe(0);
+    expect(byFactor.contactability!.points).toBe(0);
+  });
+
+  it('AC-14: an Opportunity with NO SUITABLE OFFER scores serviceFit as UNKNOWN, never a fabricated offer', async () => {
+    const d = deps([seedProspect()], [seedSearch()], []);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    expect(opportunity.offer).toBeUndefined();
+
+    const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+    const serviceFit = stored.factors.find((f) => f.factor === 'serviceFit')!;
+
+    expect(serviceFit.basis).toBe('UNKNOWN');
+    expect(serviceFit.raw).toBe(0);
+    expect(serviceFit.points).toBe(0);
+  });
+
+  it('applies the inference discount exactly once for an INFERRED signal reaching the scorer', async () => {
+    // 100 halved ONCE by toScoringSignals -> 50 -> just clears
+    // prospectScore.ts's own confidence>=50 gate for visibleProblem, so
+    // the signal counts at raw 0.5. A second, doubled discount would
+    // produce 25 -> below the gate -> raw 0, basis UNKNOWN instead.
+    const inferred = matchingSignal({
+      classification: 'INFERRED',
+      confidence: 100,
+      basis: 'reasoned from job posts',
+      observedAt: NOW,
+    });
+    const d = deps([seedProspect()], [seedSearch()], [inferred]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+    const visibleProblem = stored.factors.find((f) => f.factor === 'visibleProblem')!;
+
+    expect(visibleProblem.basis).toBe('OBSERVED');
+    expect(visibleProblem.raw).toBeCloseTo(0.5, 5);
+  });
+
+  it('adapts a mixed OBSERVED/INFERRED/UNKNOWN signal batch identically to a direct scoreProspect() call', async () => {
+    const observed = matchingSignal({ id: 's1', classification: 'OBSERVED', confidence: 90 });
+    const inferred = matchingSignal({
+      id: 's2',
+      classification: 'INFERRED',
+      confidence: 60,
+      basis: 'reasoned',
+      kind: 'REVIEW',
+      signal: 'slow support response times',
+    });
+    const unknown = matchingSignal({
+      id: 's3',
+      classification: 'UNKNOWN',
+      signal: null,
+      confidence: 0,
+    });
+    const mixedSignals = [observed, inferred, unknown];
+    const d = deps([seedProspect()], [seedSearch()], mixedSignals);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+    const expected = scoreProspect(
+      expectedInput(
+        mixedSignals,
+        opportunity.offer && { fit: opportunity.offer.fit, service: opportunity.offer.service },
+      ),
+      NOW,
+    );
+
+    expect(stored.factors).toEqual(expected.factors);
+    expect(stored.total).toBe(expected.score);
+  });
+
+  it('is deterministic — scoring the same Opportunity twice with the same inputs produces an identical score', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const first = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+    const second = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+
+    expect(second.total).toBe(first.total);
+    expect(second.band).toBe(first.band);
+    expect(second.factors).toEqual(first.factors);
+    expect(second.scorerVersion).toBe(first.scorerVersion);
+  });
+
+  it('re-scoring replaces the current score in place — one row per Opportunity, never a second', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const first = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+    const later = new Date(NOW.getTime() + 86_400_000);
+    const second = await scoreOpportunity(d, 'token-a', opportunity.id, later);
+
+    expect(second.id).toBe(first.id);
+    expect(second.scoredAt).toEqual(later);
+
+    const current = await getOpportunityScore(d, 'token-a', opportunity.id, later);
+    expect(current).toEqual(second);
+  });
+
+  it('rejects an unauthenticated call before touching any repository', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    await expect(scoreOpportunity(d, null, opportunity.id)).rejects.toBeInstanceOf(
+      UnauthenticatedError,
+    );
+  });
+
+  it('a different authenticated user cannot score another user’s Opportunity — treated as not found', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    await expect(scoreOpportunity(d, 'token-b', opportunity.id, NOW)).rejects.toBeInstanceOf(
+      OpportunityNotFoundError,
+    );
+  });
+
+  it('an unknown opportunityId is rejected', async () => {
+    const d = deps([], [], []);
+
+    await expect(scoreOpportunity(d, 'token-a', 'does-not-exist', NOW)).rejects.toBeInstanceOf(
+      OpportunityNotFoundError,
+    );
+  });
+});
+
+describe('getOpportunityScore', () => {
+  it('returns null when the Opportunity has never been scored', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    await expect(getOpportunityScore(d, 'token-a', opportunity.id, NOW)).resolves.toBeNull();
+  });
+
+  it('returns the persisted score after scoreOpportunity', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+
+    await expect(getOpportunityScore(d, 'token-a', opportunity.id, NOW)).resolves.toEqual(stored);
+  });
+
+  it('a different user cannot read another user’s OpportunityScore — isolation, not retrieve-then-filter', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+
+    await expect(getOpportunityScore(d, 'token-b', opportunity.id, NOW)).resolves.toBeNull();
+  });
+
+  it('rejects an unauthenticated read', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    await expect(getOpportunityScore(d, null, opportunity.id, NOW)).rejects.toBeInstanceOf(
+      UnauthenticatedError,
+    );
   });
 });

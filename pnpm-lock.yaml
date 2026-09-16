@@ -480,6 +480,9 @@ importers:
       '@acos/catalog':
         specifier: workspace:*
         version: link:../packages/catalog
+      '@acos/core-acquisition':
+        specifier: workspace:*
+        version: link:../packages/core-acquisition
       '@acos/core-capi':
         specifier: workspace:*
         version: link:../packages/core-capi

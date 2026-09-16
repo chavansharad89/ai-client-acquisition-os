@@ -1,13 +1,19 @@
-import { suggestOffers } from '@acos/core-acquisition';
+import { scoreProspect, suggestOffers, type ProspectInput } from '@acos/core-acquisition';
 import type { ProspectRepository } from '@acos/core-discovery';
 import { requireUser, type IdentityRepository } from '@acos/core-identity';
-import type { ResearchSignalRepository } from '@acos/core-research';
+import { toScoringSignals, type ResearchSignalRepository } from '@acos/core-research';
 import type { SearchRepository } from '@acos/core-search';
 
 import { toOfferSignals, toServiceRule } from './adapters';
 import { OpportunityNotFoundError, OpportunityProspectNotFoundError } from './errors';
 import type { OpportunityRepository } from './repository';
-import type { CreateOpportunityInput, StoredOpportunity } from './types';
+import type { OpportunityScoreRepository } from './scoreRepository';
+import type {
+  CreateOpportunityInput,
+  DetectedOffer,
+  StoredOpportunity,
+  StoredOpportunityScore,
+} from './types';
 import { validateCreateOpportunityInput } from './validation';
 
 // Application/service boundary.
@@ -118,4 +124,128 @@ export async function listOpportunities(
 ): Promise<readonly StoredOpportunity[]> {
   const userId = await requireUser(deps.identity, rawToken, now);
   return deps.opportunities.list(userId);
+}
+
+// ---- Phase 10: OpportunityScore persistence (migration 0018) ----------
+// Wires @acos/core-acquisition's existing, unmodified scoreProspect()
+// (PRD V2.1 "SEVEN-FACTOR SCORING — AUTHORITATIVE MODEL": no replacement
+// scoring framework) onto a persisted Opportunity. An explicit operation,
+// deliberately not called from createOpportunity() above — Opportunity
+// creation and scoring are separate steps in the MVP journey.
+//
+// Identifies the scorer build that produced a row (PRD V2.1:
+// "scorerVersion is what allows a ranking to be reproduced after weights
+// change"). No versioning scheme exists elsewhere in the repository;
+// this is the smallest stable constant Phase 10 needs. Bump it only if
+// prospectScore.ts's algorithm or FACTOR_WEIGHTS changes.
+export const SCORER_VERSION = 'prospectScore-v1';
+
+/**
+ * `ProspectInput` minus `signals` and `serviceFit` — @acos/core-research's
+ * `ScoreResearchedProspectInput` already documents that ICP fit, ability
+ * to pay, urgency and contact channels come from systems this repository
+ * does not build (ICP matching, ability-to-pay/urgency detection,
+ * contact-channel capture). Phase 10 does not invent them: every one of
+ * these Claims is given the scorer's own UNKNOWN/neutral representation
+ * — `{ value: null, basis: 'UNKNOWN' }` for icp/abilityToPay/urgency (the
+ * same shape scoreProspect() already treats as "no contribution", see
+ * prospectScore.ts's `combineBasis`/`known.length === 0` handling) and
+ * no known contact channels for `contact`. Only `serviceFit` is filled
+ * in below, from the Opportunity's own persisted offer.
+ */
+function neutralScoringInputs(): Omit<ProspectInput, 'signals' | 'serviceFit'> {
+  return {
+    icp: {
+      industryMatch: { value: null, basis: 'UNKNOWN' },
+      sizeMatch: { value: null, basis: 'UNKNOWN' },
+      geoMatch: { value: null, basis: 'UNKNOWN' },
+    },
+    abilityToPay: { value: null, basis: 'UNKNOWN' },
+    urgency: { value: null, basis: 'UNKNOWN' },
+    contact: { hasEmail: false, hasLinkedIn: false, hasPhone: false, unsubscribed: false },
+  };
+}
+
+/**
+ * Derives `serviceFit` from the Opportunity's own persisted offer
+ * (Phase 10 Decision 1) rather than a fresh ServiceProfile lookup — the
+ * offer already IS the caller's service matched against this Prospect's
+ * evidence (R-11/R-12). `undefined` (AC-14's NO SUITABLE OFFER) becomes
+ * the scorer's own UNKNOWN representation — never a fabricated offer or
+ * a default to the caller's service.
+ */
+function serviceFitFromOffer(offer: DetectedOffer | undefined): ProspectInput['serviceFit'] {
+  if (!offer) return { value: null, basis: 'UNKNOWN' };
+  return {
+    value: offer.fit,
+    basis: 'OBSERVED',
+    note: `service fit ${offer.fit}/100 (recommended offer: ${offer.service})`,
+  };
+}
+
+export interface OpportunityScoreDeps {
+  identity: IdentityRepository;
+  opportunities: OpportunityRepository;
+  signals: ResearchSignalRepository;
+  scores: OpportunityScoreRepository;
+}
+
+/**
+ * Scores one of the caller's own Opportunities (R-14/R-15/R-17) and
+ * persists the result as that Opportunity's current score (migration
+ * 0018's `UNIQUE(opportunity_id)` — re-scoring replaces, never appends).
+ *
+ * Ownership is resolved through Opportunity (`deps.opportunities.getById`
+ * — the only place `opportunityId` is checked against the caller);
+ * `deps.signals.listByProspect` re-checks ownership independently via
+ * its own join to `prospects`, the same belt-and-suspenders convention
+ * `createOpportunity` and `scoreResearchedProspect` already use.
+ *
+ * The seven-factor algorithm itself is @acos/core-acquisition's
+ * scoreProspect(), unmodified; `signals` is adapted from this
+ * Opportunity's Prospect's persisted, currently-active ResearchSignals
+ * via @acos/core-research's toScoringSignals(), which applies the
+ * inference discount exactly once, by classification. See
+ * neutralScoringInputs() and serviceFitFromOffer() for how the
+ * remaining, not-yet-built factors are supplied.
+ */
+export async function scoreOpportunity(
+  deps: OpportunityScoreDeps,
+  rawToken: string | undefined | null,
+  opportunityId: string,
+  now: Date = new Date(),
+): Promise<StoredOpportunityScore> {
+  const userId = await requireUser(deps.identity, rawToken, now);
+
+  const opportunity = await deps.opportunities.getById(userId, opportunityId);
+  if (!opportunity) throw new OpportunityNotFoundError(opportunityId);
+
+  const storedSignals = await deps.signals.listByProspect(userId, opportunity.prospectId);
+  const { signals } = toScoringSignals(storedSignals);
+
+  const input: ProspectInput = {
+    ...neutralScoringInputs(),
+    serviceFit: serviceFitFromOffer(opportunity.offer),
+    signals,
+  };
+
+  const score = scoreProspect(input, now);
+
+  return deps.scores.upsert(opportunity.id, score, SCORER_VERSION, now);
+}
+
+/**
+ * Reads one of the caller's own OpportunityScores. Returns `null` when
+ * the Opportunity has never been scored, or does not resolve to one the
+ * caller owns — indistinguishable from "not yet scored", the same
+ * convention @acos/core-opportunity's other reads use for an unowned id.
+ */
+export async function getOpportunityScore(
+  deps: Pick<OpportunityScoreDeps, 'identity' | 'scores'>,
+  rawToken: string | undefined | null,
+  opportunityId: string,
+  now: Date = new Date(),
+): Promise<StoredOpportunityScore | null> {
+  const userId = await requireUser(deps.identity, rawToken, now);
+  return deps.scores.getByOpportunityId(userId, opportunityId);
 }

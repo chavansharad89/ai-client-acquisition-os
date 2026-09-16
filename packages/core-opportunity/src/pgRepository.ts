@@ -8,8 +8,8 @@ import type { DetectedOffer, OpportunityState, StoredOpportunity } from './types
 // Raw SQL against a `pg`-style executor, matching @acos/core-research's
 // pgRepository.ts (migration 0017) — Prisma is not the query layer for
 // acquisition-domain tables. Opportunity carries its own user_id (unlike
-// research_signals — DEC-008 applies only to that table and to
-// opportunity_scores, out of scope here).
+// research_signals and opportunity_scores — DEC-008's two ownership-
+// inheritance exceptions; see ./scorePgRepository.ts for the latter).
 // -----------------------------------------------------------------------
 
 interface OpportunityRow {

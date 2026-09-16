@@ -1,5 +1,8 @@
+import type { ProspectScore } from '@acos/core-acquisition';
+
 import type { OpportunityRepository } from './repository';
-import type { DetectedOffer, StoredOpportunity } from './types';
+import type { OpportunityScoreRepository } from './scoreRepository';
+import type { DetectedOffer, StoredOpportunity, StoredOpportunityScore } from './types';
 
 /**
  * In-memory repository enforcing the same ownership + one-per-Prospect
@@ -47,6 +50,58 @@ export function fakeOpportunityRepository(
 
     async list(userId: string) {
       return rows.filter((row) => row.userId === userId);
+    },
+  };
+}
+
+/**
+ * In-memory OpportunityScoreRepository enforcing the same ownership-
+ * through-Opportunity boundary the database's join does. Takes the same
+ * `opportunities` array a fakeOpportunityRepository() was seeded with
+ * (or its live `.rows`) so ownership reflects the current state of that
+ * fake, exactly like the real repository's JOIN to `opportunities`.
+ * `upsert()` replaces the existing row for an `opportunityId`, mirroring
+ * migration 0018's `UNIQUE(opportunity_id)` upsert — never a second row.
+ */
+export function fakeOpportunityScoreRepository(
+  opportunities: readonly StoredOpportunity[],
+): OpportunityScoreRepository & { rows: StoredOpportunityScore[] } {
+  const rows: StoredOpportunityScore[] = [];
+  let counter = 0;
+
+  return {
+    rows,
+
+    async upsert(
+      opportunityId: string,
+      score: ProspectScore,
+      scorerVersion: string,
+      scoredAt: Date,
+    ) {
+      const index = rows.findIndex((row) => row.opportunityId === opportunityId);
+      const existing = index === -1 ? undefined : rows[index];
+      const stored: StoredOpportunityScore = {
+        id: existing?.id ?? `opportunity_score_${(counter += 1)}`,
+        opportunityId,
+        total: score.score,
+        band: score.band,
+        factors: score.factors,
+        reasons: score.reasons,
+        observedShare: score.observedShare,
+        cap: score.cap,
+        scorerVersion,
+        scoredAt,
+        createdAt: existing?.createdAt ?? scoredAt,
+      };
+      if (index === -1) rows.push(stored);
+      else rows[index] = stored;
+      return stored;
+    },
+
+    async getByOpportunityId(userId: string, opportunityId: string) {
+      const owned = opportunities.some((o) => o.id === opportunityId && o.userId === userId);
+      if (!owned) return null;
+      return rows.find((row) => row.opportunityId === opportunityId) ?? null;
     },
   };
 }
