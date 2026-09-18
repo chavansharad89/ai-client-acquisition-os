@@ -89,6 +89,18 @@ export function createPgOpportunityScoreRepository(sql: SqlExecutor): Opportunit
       const row = rows[0] as OpportunityScoreRow | undefined;
       return row ? mapRow(row) : null;
     },
+
+    async listByUserId(userId: string): Promise<readonly StoredOpportunityScore[]> {
+      const { rows } = await sql.query(
+        `SELECT os.id, os.opportunity_id, os.total, os.band, os.factors, os.reasons,
+                os.observed_share, os.cap, os.scorer_version, os.scored_at, os.created_at
+           FROM opportunity_scores os
+           JOIN opportunities o ON o.id = os.opportunity_id
+          WHERE o.user_id = $1`,
+        [userId],
+      );
+      return (rows as OpportunityScoreRow[]).map(mapRow);
+    },
   };
 }
 

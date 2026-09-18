@@ -103,5 +103,10 @@ export function fakeOpportunityScoreRepository(
       if (!owned) return null;
       return rows.find((row) => row.opportunityId === opportunityId) ?? null;
     },
+
+    async listByUserId(userId: string) {
+      const ownedIds = new Set(opportunities.filter((o) => o.userId === userId).map((o) => o.id));
+      return rows.filter((row) => ownedIds.has(row.opportunityId));
+    },
   };
 }

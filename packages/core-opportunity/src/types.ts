@@ -70,3 +70,16 @@ export interface StoredOpportunityScore {
   scoredAt: Date;
   createdAt: Date;
 }
+
+/**
+ * One entry of rankOpportunities()'s result (Phase 11, R-15/AC-17).
+ * `rank` is the 1-based ranked position; `score` is the Opportunity's
+ * own persisted OpportunityScore row, carried through unmodified —
+ * ranking only orders what scoreOpportunity() already persisted, never
+ * recomputes or mutates a score.
+ */
+export interface RankedOpportunity {
+  opportunityId: string;
+  rank: number;
+  score: StoredOpportunityScore;
+}

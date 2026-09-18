@@ -1,4 +1,9 @@
-import { scoreProspect, type ProspectInput } from '@acos/core-acquisition';
+import {
+  rankProspects,
+  scoreProspect,
+  type ProspectInput,
+  type ProspectScore,
+} from '@acos/core-acquisition';
 import type { ProspectRepository, StoredProspect } from '@acos/core-discovery';
 import { hashAccessToken } from '@acos/core-entitlements';
 import {
@@ -23,6 +28,7 @@ import {
 import {
   createOpportunity,
   getOpportunityScore,
+  rankOpportunities,
   scoreOpportunity,
   SCORER_VERSION,
   type OpportunityDeps,
@@ -544,5 +550,253 @@ describe('getOpportunityScore', () => {
     await expect(getOpportunityScore(d, null, opportunity.id, NOW)).rejects.toBeInstanceOf(
       UnauthenticatedError,
     );
+  });
+});
+
+// ---- Phase 11: rankOpportunities ----------------------------------------
+// Mirrors tests/integration/opportunity-ranking.integration.test.ts's
+// real-Postgres proof of the same ownership boundary. Scores are seeded
+// directly via d.scores.upsert() with hand-built ProspectScore values —
+// rankOpportunities() only orders already-persisted scores, so these
+// tests do not need to re-derive scoreOpportunity()'s own wiring
+// (covered above) or prospectScore.ts's arithmetic (covered by that
+// package's own tests).
+
+/** A minimal, valid ProspectScore for seeding — only `score`/`observedShare`/`id` drive ranking order. */
+function sampleScore(overrides: Partial<ProspectScore> = {}): ProspectScore {
+  const base: ProspectScore = {
+    score: 50,
+    band: 'MEDIUM',
+    factors: [
+      {
+        factor: 'icpFit',
+        weight: 20,
+        raw: 0.5,
+        points: 10,
+        basis: 'OBSERVED',
+        reason: 'Observed: sample signal',
+      },
+    ],
+    reasons: ['Observed: sample signal (+10)'],
+    observedShare: 0.5,
+  };
+  return { ...base, ...overrides };
+}
+
+describe('rankOpportunities', () => {
+  it('orders scored Opportunities by total score, descending (R-15/AC-17)', async () => {
+    const d = deps(
+      [
+        seedProspect({ id: 'prospect_1' }),
+        seedProspect({ id: 'prospect_2', companyId: 'company_2' }),
+        seedProspect({ id: 'prospect_3', companyId: 'company_3' }),
+      ],
+      [seedSearch()],
+    );
+    const opp1 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    const opp2 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
+    const opp3 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_3' }, NOW);
+    await d.scores.upsert(opp1.id, sampleScore({ score: 80 }), 'v1', NOW);
+    await d.scores.upsert(opp2.id, sampleScore({ score: 50 }), 'v1', NOW);
+    await d.scores.upsert(opp3.id, sampleScore({ score: 90 }), 'v1', NOW);
+
+    const ranked = await rankOpportunities(d, 'token-a', NOW);
+
+    expect(ranked.map((r) => r.opportunityId)).toEqual([opp3.id, opp1.id, opp2.id]);
+    expect(ranked.map((r) => r.rank)).toEqual([1, 2, 3]);
+  });
+
+  it('matches rankProspects() called directly on the same candidates — the comparator is not reimplemented', async () => {
+    const d = deps(
+      [
+        seedProspect({ id: 'prospect_1' }),
+        seedProspect({ id: 'prospect_2', companyId: 'company_2' }),
+        seedProspect({ id: 'prospect_3', companyId: 'company_3' }),
+      ],
+      [seedSearch()],
+    );
+    const opp1 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    const opp2 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
+    const opp3 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_3' }, NOW);
+    const s1 = await d.scores.upsert(
+      opp1.id,
+      sampleScore({ score: 65, observedShare: 0.4 }),
+      'v1',
+      NOW,
+    );
+    const s2 = await d.scores.upsert(
+      opp2.id,
+      sampleScore({ score: 65, observedShare: 0.9 }),
+      'v1',
+      NOW,
+    );
+    const s3 = await d.scores.upsert(
+      opp3.id,
+      sampleScore({ score: 30, observedShare: 0.1 }),
+      'v1',
+      NOW,
+    );
+
+    const direct = rankProspects(
+      [s1, s2, s3].map((s) => ({
+        id: s.opportunityId,
+        score: {
+          score: s.total,
+          band: s.band,
+          factors: s.factors,
+          reasons: s.reasons,
+          observedShare: s.observedShare,
+          ...(s.cap !== undefined ? { cap: s.cap } : {}),
+        },
+      })),
+    );
+
+    const ranked = await rankOpportunities(d, 'token-a', NOW);
+
+    expect(ranked.map((r) => r.opportunityId)).toEqual(direct.map((c) => c.id));
+  });
+
+  it('breaks a tie on total score by observedShare, descending', async () => {
+    const d = deps(
+      [
+        seedProspect({ id: 'prospect_1' }),
+        seedProspect({ id: 'prospect_2', companyId: 'company_2' }),
+      ],
+      [seedSearch()],
+    );
+    const low = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    const high = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
+    await d.scores.upsert(low.id, sampleScore({ score: 70, observedShare: 0.2 }), 'v1', NOW);
+    await d.scores.upsert(high.id, sampleScore({ score: 70, observedShare: 0.8 }), 'v1', NOW);
+
+    const ranked = await rankOpportunities(d, 'token-a', NOW);
+
+    expect(ranked.map((r) => r.opportunityId)).toEqual([high.id, low.id]);
+  });
+
+  it('breaks a tie on total score and observedShare by opportunity id, ascending', async () => {
+    const d = deps(
+      [
+        seedProspect({ id: 'prospect_1' }),
+        seedProspect({ id: 'prospect_2', companyId: 'company_2' }),
+      ],
+      [seedSearch()],
+    );
+    const first = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    const second = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
+    expect(first.id < second.id).toBe(true);
+    await d.scores.upsert(first.id, sampleScore({ score: 60, observedShare: 0.5 }), 'v1', NOW);
+    await d.scores.upsert(second.id, sampleScore({ score: 60, observedShare: 0.5 }), 'v1', NOW);
+
+    const ranked = await rankOpportunities(d, 'token-a', NOW);
+
+    expect(ranked.map((r) => r.opportunityId)).toEqual([first.id, second.id]);
+  });
+
+  it('excludes an Opportunity that has never been scored', async () => {
+    const d = deps(
+      [
+        seedProspect({ id: 'prospect_1' }),
+        seedProspect({ id: 'prospect_2', companyId: 'company_2' }),
+      ],
+      [seedSearch()],
+    );
+    const scored = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    const unscored = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
+    await d.scores.upsert(scored.id, sampleScore(), 'v1', NOW);
+
+    const ranked = await rankOpportunities(d, 'token-a', NOW);
+
+    expect(ranked).toHaveLength(1);
+    expect(ranked[0]!.opportunityId).toBe(scored.id);
+    expect(ranked.some((r) => r.opportunityId === unscored.id)).toBe(false);
+  });
+
+  it("does not include another user's Opportunities, even when scored higher", async () => {
+    const d = deps(
+      [
+        seedProspect({ id: 'prospect_1' }),
+        seedProspect({
+          id: 'prospect_2',
+          userId: 'user_b',
+          searchId: 'search_2',
+          companyId: 'company_2',
+        }),
+      ],
+      [seedSearch(), seedSearch({ id: 'search_2', userId: 'user_b' })],
+    );
+    const mine = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    const theirs = await createOpportunity(d, 'token-b', { prospectId: 'prospect_2' }, NOW);
+    await d.scores.upsert(mine.id, sampleScore({ score: 40 }), 'v1', NOW);
+    await d.scores.upsert(theirs.id, sampleScore({ score: 99 }), 'v1', NOW);
+
+    const ranked = await rankOpportunities(d, 'token-a', NOW);
+
+    expect(ranked).toHaveLength(1);
+    expect(ranked[0]!.opportunityId).toBe(mine.id);
+  });
+
+  it('rejects an unauthenticated call before touching the repository', async () => {
+    const d = deps([seedProspect()], [seedSearch()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    await d.scores.upsert(opportunity.id, sampleScore(), 'v1', NOW);
+
+    await expect(rankOpportunities(d, null, NOW)).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+
+  it('is deterministic — two identical calls produce an identical order', async () => {
+    const d = deps(
+      [
+        seedProspect({ id: 'prospect_1' }),
+        seedProspect({ id: 'prospect_2', companyId: 'company_2' }),
+        seedProspect({ id: 'prospect_3', companyId: 'company_3' }),
+      ],
+      [seedSearch()],
+    );
+    const opp1 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    const opp2 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
+    const opp3 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_3' }, NOW);
+    await d.scores.upsert(opp1.id, sampleScore({ score: 80 }), 'v1', NOW);
+    await d.scores.upsert(opp2.id, sampleScore({ score: 50 }), 'v1', NOW);
+    await d.scores.upsert(opp3.id, sampleScore({ score: 90 }), 'v1', NOW);
+
+    const first = await rankOpportunities(d, 'token-a', NOW);
+    const second = await rankOpportunities(d, 'token-a', NOW);
+
+    expect(second).toEqual(first);
+  });
+
+  it('returns an empty array when the user has no scored Opportunities', async () => {
+    const d = deps([], []);
+
+    await expect(rankOpportunities(d, 'token-a', NOW)).resolves.toEqual([]);
+  });
+
+  it('ranks a single scored Opportunity as rank 1', async () => {
+    const d = deps([seedProspect()], [seedSearch()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    const stored = await d.scores.upsert(opportunity.id, sampleScore(), 'v1', NOW);
+
+    const ranked = await rankOpportunities(d, 'token-a', NOW);
+
+    expect(ranked).toEqual([{ opportunityId: opportunity.id, rank: 1, score: stored }]);
+  });
+
+  it('is a pure read — no repository row is created, removed or mutated', async () => {
+    const d = deps([seedProspect()], [seedSearch()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    await d.scores.upsert(opportunity.id, sampleScore(), 'v1', NOW);
+
+    const opportunities = d.opportunities as ReturnType<typeof fakeOpportunityRepository>;
+    const scores = d.scores as ReturnType<typeof fakeOpportunityScoreRepository>;
+    const opportunityRows = opportunities.rows;
+    const scoreRows = scores.rows;
+
+    await rankOpportunities(d, 'token-a', NOW);
+
+    expect(opportunities.rows).toBe(opportunityRows);
+    expect(scores.rows).toBe(scoreRows);
+    expect(opportunities.rows).toHaveLength(1);
+    expect(scores.rows).toHaveLength(1);
   });
 });

@@ -28,4 +28,13 @@ export interface OpportunityScoreRepository {
 
   /** Only this user's own score, reached through Opportunity ownership — never a global lookup. */
   getByOpportunityId(userId: string, opportunityId: string): Promise<StoredOpportunityScore | null>;
+
+  /**
+   * Every current score belonging to this user's own Opportunities
+   * (Phase 11, R-15/AC-17) — reached the same way as
+   * getByOpportunityId, through Opportunity ownership, never a global
+   * list. Unordered: ./service's rankOpportunities() orders the result
+   * via @acos/core-acquisition's rankProspects(), unmodified.
+   */
+  listByUserId(userId: string): Promise<readonly StoredOpportunityScore[]>;
 }

@@ -1,4 +1,10 @@
-import { scoreProspect, suggestOffers, type ProspectInput } from '@acos/core-acquisition';
+import {
+  rankProspects,
+  scoreProspect,
+  suggestOffers,
+  type ProspectInput,
+  type ProspectScore,
+} from '@acos/core-acquisition';
 import type { ProspectRepository } from '@acos/core-discovery';
 import { requireUser, type IdentityRepository } from '@acos/core-identity';
 import { toScoringSignals, type ResearchSignalRepository } from '@acos/core-research';
@@ -11,6 +17,7 @@ import type { OpportunityScoreRepository } from './scoreRepository';
 import type {
   CreateOpportunityInput,
   DetectedOffer,
+  RankedOpportunity,
   StoredOpportunity,
   StoredOpportunityScore,
 } from './types';
@@ -248,4 +255,57 @@ export async function getOpportunityScore(
 ): Promise<StoredOpportunityScore | null> {
   const userId = await requireUser(deps.identity, rawToken, now);
   return deps.scores.getByOpportunityId(userId, opportunityId);
+}
+
+// ---- Phase 11: Opportunity ranking (R-15/AC-17) ------------------------
+// A pure read over what Phase 10 already persisted. Orders the caller's
+// own OpportunityScores via @acos/core-acquisition's rankProspects()
+// (PRD V2.1 Stage O: "order opportunities deterministically") —
+// unmodified, the same comparator core-acquisition's own
+// prospectScore.test.ts already proves: score.score desc, then
+// observedShare desc, then id asc. Never recomputes a score, never
+// touches the scoring algorithm or the inference discount, never
+// mutates a row. Unscored Opportunities (no row in opportunity_scores)
+// cannot be represented as a { id, score: ProspectScore } candidate and
+// so are naturally absent from the result — not filtered out by any
+// logic of this function's own.
+
+/** Reconstructs the ProspectScore shape rankProspects() sorts on, from a persisted row. */
+function toProspectScore(row: StoredOpportunityScore): ProspectScore {
+  return {
+    score: row.total,
+    band: row.band,
+    factors: row.factors,
+    reasons: row.reasons,
+    observedShare: row.observedShare,
+    ...(row.cap !== undefined ? { cap: row.cap } : {}),
+  };
+}
+
+/**
+ * Ranks all of the caller's own, already-scored Opportunities (R-15).
+ * Ownership is enforced by `deps.scores.listByUserId` itself, the same
+ * boundary getOpportunityScore already relies on — this function adds
+ * no ownership check of its own beyond `requireUser`.
+ */
+export async function rankOpportunities(
+  deps: Pick<OpportunityScoreDeps, 'identity' | 'scores'>,
+  rawToken: string | undefined | null,
+  now: Date = new Date(),
+): Promise<readonly RankedOpportunity[]> {
+  const userId = await requireUser(deps.identity, rawToken, now);
+  const rows = await deps.scores.listByUserId(userId);
+
+  const candidates = rows.map((row) => ({
+    id: row.opportunityId,
+    score: toProspectScore(row),
+    row,
+  }));
+  const ranked = rankProspects(candidates);
+
+  return ranked.map((entry, index) => ({
+    opportunityId: entry.id,
+    rank: index + 1,
+    score: entry.row,
+  }));
 }
