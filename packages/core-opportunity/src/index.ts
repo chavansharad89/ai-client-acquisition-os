@@ -13,8 +13,12 @@
 // Also owns Opportunity staleness (PRD V2.1 R-19, Stage S, migration
 // 0019) — classifying whether an Opportunity's evidence is still
 // current via @acos/core-acquisition's classifyStaleness(), independent
-// of `state`.
-// Does NOT own Next Action, CRM, or Outreach — see MVP_SCOPE_BOUNDARY.md.
+// of `state`. Also owns Opportunity Next Action (PRD V2.1 R-20/AC-21,
+// Stage T) — recommending what the caller should do next via
+// @acos/core-acquisition's recommendOpportunityAction(), derived at read
+// time from `state`/`needDetected`/`staleness` already persisted, never
+// stored itself.
+// Does NOT own CRM or Outreach — see MVP_SCOPE_BOUNDARY.md §6.2-6.4.
 //
 // Must NOT: accept a caller-supplied userId anywhere, or reimplement
 // @acos/core-acquisition's suggestOffers()/scoreProspect()/rankProspects().
@@ -39,6 +43,7 @@ export {
   classifyOpportunityStaleness,
   createOpportunity,
   getOpportunity,
+  getOpportunityNextAction,
   getOpportunityScore,
   listOpportunities,
   rankOpportunities,

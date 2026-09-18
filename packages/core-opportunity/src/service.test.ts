@@ -28,6 +28,7 @@ import {
 import {
   classifyOpportunityStaleness,
   createOpportunity,
+  getOpportunityNextAction,
   getOpportunityScore,
   rankOpportunities,
   scoreOpportunity,
@@ -36,6 +37,7 @@ import {
   type OpportunityScoreDeps,
 } from './service';
 import { fakeOpportunityRepository, fakeOpportunityScoreRepository } from './testSupport';
+import type { StoredOpportunity } from './types';
 
 // UNIT tests (fakes only — see
 // tests/integration/opportunity.integration.test.ts for the real-Postgres
@@ -915,6 +917,159 @@ describe('classifyOpportunityStaleness', () => {
 
     await expect(
       classifyOpportunityStaleness(d, 'token-b', opportunity.id, NOW),
+    ).rejects.toBeInstanceOf(OpportunityNotFoundError);
+  });
+});
+
+// ---- Phase 13: getOpportunityNextAction (R-20/AC-21) ---------------------
+// Mirrors tests/integration/opportunity-next-action.integration.test.ts's
+// real-Postgres proof of the same ownership boundary.
+
+/** A fully custom StoredOpportunity row, for states/combinations the real
+ * service cannot yet produce (e.g. RESEARCHED — no transition into it is
+ * implemented by this phase; see service.ts's createOpportunity doc). */
+function seedOpportunity(overrides: Partial<StoredOpportunity> = {}): StoredOpportunity {
+  return {
+    id: 'opportunity_1',
+    userId: 'user_a',
+    prospectId: 'prospect_1',
+    state: 'NEW',
+    needDetected: true,
+    offer: {
+      service: 'AI content system',
+      rationale: 'hiring a content writer',
+      estimatedValuePaise: 5_000_000,
+      fit: 80,
+      basedOn: ['signal_1'],
+    },
+    staleness: 'FRESH',
+    stalenessComputedAt: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+describe('getOpportunityNextAction', () => {
+  it('recommends CONSIDER_OFFER for a freshly created, NEW, FRESH opportunity', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const action = await getOpportunityNextAction(d, 'token-a', opportunity.id, NOW);
+
+    expect(action.kind).toBe('CONSIDER_OFFER');
+  });
+
+  it('recommends HOLD when no need was detected (AC-14 NO SUITABLE OFFER)', async () => {
+    const d = deps([seedProspect()], [seedSearch()], []);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const action = await getOpportunityNextAction(d, 'token-a', opportunity.id, NOW);
+
+    expect(action.kind).toBe('HOLD');
+  });
+
+  it('recommends REFRESH_RESEARCH once Phase 12 staleness classification has marked the evidence STALE', async () => {
+    const d = deps(
+      [seedProspect()],
+      [seedSearch()],
+      [matchingSignal({ observedAt: new Date('2026-01-01T00:00:00.000Z') })],
+    );
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    await classifyOpportunityStaleness(d, 'token-a', opportunity.id, NOW);
+
+    const action = await getOpportunityNextAction(d, 'token-a', opportunity.id, NOW);
+
+    expect(action.kind).toBe('REFRESH_RESEARCH');
+  });
+
+  it('recommends REFRESH_RESEARCH once Phase 12 staleness classification has marked the evidence SUPERSEDED', async () => {
+    const d = deps([seedProspect()], [seedSearch()], []);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    // needDetected is false here (no signals), so seed a detected offer
+    // directly to isolate the staleness precedence from the HOLD case.
+    const opportunities = d.opportunities as ReturnType<typeof fakeOpportunityRepository>;
+    opportunities.rows[0] = { ...opportunities.rows[0]!, needDetected: true };
+    await classifyOpportunityStaleness(d, 'token-a', opportunity.id, NOW);
+
+    const action = await getOpportunityNextAction(d, 'token-a', opportunity.id, NOW);
+
+    expect(action.kind).toBe('REFRESH_RESEARCH');
+  });
+
+  it('recommends REVIEW_EVIDENCE for a RESEARCHED, FRESH opportunity', async () => {
+    const opportunities = fakeOpportunityRepository([
+      seedOpportunity({ state: 'RESEARCHED', staleness: 'FRESH' }),
+    ]);
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    const action = await getOpportunityNextAction(
+      { identity, opportunities },
+      'token-a',
+      'opportunity_1',
+      NOW,
+    );
+
+    expect(action.kind).toBe('REVIEW_EVIDENCE');
+  });
+
+  it('never persists or mutates the Opportunity — a pure read', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+    const before = { ...opportunities.rows[0]! };
+
+    await getOpportunityNextAction({ identity, opportunities }, 'token-a', 'opportunity_1', NOW);
+
+    expect(opportunities.rows[0]).toEqual(before);
+  });
+
+  it('is deterministic — the same persisted Opportunity recommends identically every call', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    const first = await getOpportunityNextAction(
+      { identity, opportunities },
+      'token-a',
+      'opportunity_1',
+      NOW,
+    );
+    const second = await getOpportunityNextAction(
+      { identity, opportunities },
+      'token-a',
+      'opportunity_1',
+      NOW,
+    );
+
+    expect(second).toEqual(first);
+  });
+
+  it('rejects an unauthenticated call', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    await expect(
+      getOpportunityNextAction({ identity, opportunities }, null, 'opportunity_1', NOW),
+    ).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+
+  it('an unknown opportunityId is rejected', async () => {
+    const opportunities = fakeOpportunityRepository([]);
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    await expect(
+      getOpportunityNextAction({ identity, opportunities }, 'token-a', 'does-not-exist', NOW),
+    ).rejects.toBeInstanceOf(OpportunityNotFoundError);
+  });
+
+  it("a different authenticated user cannot read another user's Opportunity — treated as not found", async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const identity = fakeIdentity({
+      ...sessionFor('token-a', 'user_a'),
+      ...sessionFor('token-b', 'user_b'),
+    });
+
+    await expect(
+      getOpportunityNextAction({ identity, opportunities }, 'token-b', 'opportunity_1', NOW),
     ).rejects.toBeInstanceOf(OpportunityNotFoundError);
   });
 });

@@ -1,8 +1,10 @@
 import {
   classifyStaleness,
   rankProspects,
+  recommendOpportunityAction,
   scoreProspect,
   suggestOffers,
+  type OpportunityAction,
   type ProspectInput,
   type ProspectScore,
 } from '@acos/core-acquisition';
@@ -353,4 +355,42 @@ export async function classifyOpportunityStaleness(
   const updated = await deps.opportunities.updateStaleness(userId, opportunityId, staleness, now);
   if (!updated) throw new OpportunityNotFoundError(opportunityId);
   return updated;
+}
+
+// ---- Phase 13: Opportunity Next Action (R-20/AC-21) --------------------
+// Recommends what the caller should do next with one of their own
+// Opportunities, via @acos/core-acquisition's recommendOpportunityAction()
+// (PRD V2.1 Stage T) — unmodified, over fields this Opportunity already
+// persists (`state`, `needDetected`, `staleness`). Derived at read time,
+// never persisted: unlike staleness, a Next Action needs no new evidence
+// fetch to justify caching, and a stored value would go stale as `now`
+// advances without any Opportunity mutation. Deliberately does not reuse
+// @acos/core-acquisition's nextAction.ts — that engine assumes the
+// nine-stage CRM pipeline (CONTACTED, REPLIED, QUALIFIED, PROPOSAL_SENT,
+// follow-up cadence) the MVP Opportunity does not have, and MVP_SCOPE_
+// BOUNDARY.md §6.2-6.4 places outreach/CRM/proposal actions out of scope.
+
+/**
+ * Recommends a Next Action for one of the caller's own Opportunities
+ * (R-20/AC-21). Ownership is resolved through `deps.opportunities.getById`
+ * — the only place `opportunityId` is checked against the caller, the
+ * same boundary `classifyOpportunityStaleness` and `getOpportunityScore`
+ * use for their own reads.
+ */
+export async function getOpportunityNextAction(
+  deps: Pick<OpportunityDeps, 'identity' | 'opportunities'>,
+  rawToken: string | undefined | null,
+  opportunityId: string,
+  now: Date = new Date(),
+): Promise<OpportunityAction> {
+  const userId = await requireUser(deps.identity, rawToken, now);
+
+  const opportunity = await deps.opportunities.getById(userId, opportunityId);
+  if (!opportunity) throw new OpportunityNotFoundError(opportunityId);
+
+  return recommendOpportunityAction({
+    state: opportunity.state,
+    needDetected: opportunity.needDetected,
+    staleness: opportunity.staleness,
+  });
 }

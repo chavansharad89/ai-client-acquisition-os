@@ -123,6 +123,9 @@ export type { LeadScore, ResearchSignal, ResearchSourceKind, ScoreComponent } fr
 export { classifyStaleness } from './staleness';
 export type { OpportunityStaleness } from './staleness';
 
+export { recommendOpportunityAction } from './opportunityAction';
+export type { OpportunityAction, OpportunityActionInput, OpportunityActionKind } from './opportunityAction';
+
 export {
   allowedTransitions,
   assertTransition,
