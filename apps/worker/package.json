@@ -14,12 +14,18 @@
   },
   "dependencies": {
     "@acos/core-capi": "workspace:*",
+    "@acos/core-discovery": "workspace:*",
     "@acos/core-entitlements": "workspace:*",
+    "@acos/core-opportunity": "workspace:*",
+    "@acos/core-research": "workspace:*",
+    "@acos/core-search": "workspace:*",
     "@acos/db": "workspace:*",
     "@acos/config": "workspace:*",
-    "@acos/observability": "workspace:*"
+    "@acos/observability": "workspace:*",
+    "pg": "^8.13.0"
   },
   "devDependencies": {
+    "@types/pg": "^8.11.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^2.0.0"
@@ -27,6 +33,7 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./metaEvents": "./src/metaEvents/index.ts"
+    "./metaEvents": "./src/metaEvents/index.ts",
+    "./searchWorker": "./src/searchWorker/index.ts"
   }
 }

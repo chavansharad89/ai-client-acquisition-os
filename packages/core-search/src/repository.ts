@@ -45,4 +45,59 @@ export interface SearchRepository {
     options: { lastError: string | null },
     now: Date,
   ): Promise<StoredSearch | null>;
+
+  // ---- Worker-only operations (R-34) --------------------------------------
+  // Every method below is deliberately NOT scoped by userId: a worker is
+  // handed nothing and has no session (PRD V2.1 "WORKER OWNERSHIP") — it
+  // claims a row across all users and reads user_id out of what it claimed.
+  // Concurrency safety (no two workers claiming the same row) and fencing
+  // (a stale worker cannot overwrite a live one) are the implementation's
+  // job — see ./pgRepository's `FOR UPDATE SKIP LOCKED` claim, mirroring
+  // apps/worker/src/metaEvents/pgRepository.ts's proven pattern.
+
+  /**
+   * Atomically claims exactly one eligible PENDING Search for this worker:
+   * moves it to RUNNING, stamps `lease_owner`/`lease_expires_at`, and
+   * increments `attempts` (the same convention `transition()` already uses
+   * for entry into RUNNING). Returns null when no PENDING Search is
+   * available. Two concurrent callers must never receive the same row.
+   */
+  claimNextPending(input: {
+    workerId: string;
+    now: Date;
+    leaseExpiresAt: Date;
+  }): Promise<StoredSearch | null>;
+
+  /**
+   * Recovers Searches whose RUNNING lease has expired (a crashed worker):
+   * returns them to PENDING, clearing `lease_owner`/`lease_expires_at`.
+   * Unconditional — never gated on `attempts` — and never charges an
+   * attempt, because a crash proves nothing about whether the work itself
+   * would have failed (mirrors `metaEvents.releaseExpiredLeases`). Returns
+   * the number of rows recovered.
+   */
+  releaseExpiredLeases(input: { now: Date }): Promise<number>;
+
+  /**
+   * Settles a claimed Search as successfully completed: RUNNING -> COMPLETE.
+   * Fenced on `lease_owner` — returns false (fenced) if this worker no
+   * longer holds the lease, in which case nothing was written.
+   */
+  completeClaimed(input: { id: string; workerId: string; now: Date }): Promise<boolean>;
+
+  /**
+   * Settles a claimed Search's failed execution attempt: if the row's
+   * current `attempts` is below `maxAttempts`, returns it to PENDING
+   * (retry-eligible); once `attempts` has reached `maxAttempts`, moves it
+   * to the terminal FAILED state instead. `last_error` is written either
+   * way. Fenced on `lease_owner` — returns null (fenced) if this worker no
+   * longer holds the lease, in which case nothing was written.
+   */
+  recordAttemptFailure(input: {
+    id: string;
+    workerId: string;
+    now: Date;
+    error: string;
+    maxAttempts: number;
+  }): Promise<'PENDING' | 'FAILED' | null>;
 }

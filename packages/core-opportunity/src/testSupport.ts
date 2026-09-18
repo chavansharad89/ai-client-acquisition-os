@@ -57,6 +57,10 @@ export function fakeOpportunityRepository(
       return rows.find((row) => row.id === id && row.userId === userId) ?? null;
     },
 
+    async findByProspectId(userId: string, prospectId: string) {
+      return rows.find((row) => row.prospectId === prospectId && row.userId === userId) ?? null;
+    },
+
     async list(userId: string) {
       return rows.filter((row) => row.userId === userId);
     },

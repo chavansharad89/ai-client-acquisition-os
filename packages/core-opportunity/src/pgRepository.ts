@@ -72,6 +72,15 @@ export function createPgOpportunityRepository(sql: SqlExecutor): OpportunityRepo
       return row ? mapRow(row) : null;
     },
 
+    async findByProspectId(userId: string, prospectId: string): Promise<StoredOpportunity | null> {
+      const { rows } = await sql.query(
+        `SELECT ${COLUMNS} FROM opportunities WHERE prospect_id = $2 AND user_id = $1`,
+        [userId, prospectId],
+      );
+      const row = rows[0] as OpportunityRow | undefined;
+      return row ? mapRow(row) : null;
+    },
+
     async list(userId: string): Promise<readonly StoredOpportunity[]> {
       const { rows } = await sql.query(
         `SELECT ${COLUMNS} FROM opportunities WHERE user_id = $1 ORDER BY created_at, id`,

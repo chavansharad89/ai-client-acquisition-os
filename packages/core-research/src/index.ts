@@ -86,7 +86,12 @@ export type { RunResearchValidationReason } from './signalErrors';
 
 export { PROSPECT_ID_MAX_LENGTH, validateRunResearchInput } from './validation';
 
-export { listResearchSignals, runResearch, scoreResearchedProspect } from './service';
+export {
+  listResearchSignals,
+  runResearch,
+  runResearchForOwner,
+  scoreResearchedProspect,
+} from './service';
 export type {
   ResearchDeps,
   ResearchedProspectScore,

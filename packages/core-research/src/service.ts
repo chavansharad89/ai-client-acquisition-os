@@ -49,6 +49,22 @@ export async function runResearch(
   now: Date = new Date(),
 ): Promise<ResearchRunResult> {
   const userId = await requireUser(deps.identity, rawToken, now);
+  return runResearchForOwner(deps, userId, input, now);
+}
+
+/**
+ * Same behavior as {@link runResearch}, for a caller that has already
+ * resolved a trusted `userId` by some means other than a session token —
+ * specifically, a worker that claimed a Search row and is reading
+ * ownership out of it (R-34's "WORKER OWNERSHIP"). Not reachable from any
+ * HTTP path — only `runResearch()` (token-authenticated) is.
+ */
+export async function runResearchForOwner(
+  deps: Omit<ResearchDeps, 'identity'>,
+  userId: string,
+  input: RunResearchInput,
+  now: Date = new Date(),
+): Promise<ResearchRunResult> {
   const { prospectId } = validateRunResearchInput(input);
 
   const prospect = await deps.prospects.getById(userId, prospectId);

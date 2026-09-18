@@ -115,6 +115,18 @@ function fakeSearchRepository(seed: StoredSearch[] = []): SearchRepository {
     async transition() {
       throw new Error('not used by these tests');
     },
+    async claimNextPending() {
+      throw new Error('not used by these tests');
+    },
+    async releaseExpiredLeases() {
+      throw new Error('not used by these tests');
+    },
+    async completeClaimed() {
+      throw new Error('not used by these tests');
+    },
+    async recordAttemptFailure() {
+      throw new Error('not used by these tests');
+    },
   };
 }
 

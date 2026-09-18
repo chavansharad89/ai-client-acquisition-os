@@ -29,5 +29,5 @@ export {
 } from './errors';
 export type { DiscoveryValidationReason } from './errors';
 
-export { runDiscovery } from './service';
+export { runDiscovery, runDiscoveryForOwner } from './service';
 export type { DiscoveryDeps, DiscoveryRunResult } from './service';

@@ -56,6 +56,7 @@ export type { OpportunityScoreRepository } from './scoreRepository';
 export {
   classifyOpportunityStaleness,
   createOpportunity,
+  createOpportunityForOwner,
   getFeedback,
   getOpportunity,
   getOpportunityNextAction,

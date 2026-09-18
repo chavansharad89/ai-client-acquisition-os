@@ -136,6 +136,106 @@ export function createPgSearchRepository(sql: SqlExecutor): SearchRepository {
       const row = rows[0] as SearchRow | undefined;
       return row ? mapRow(row) : null;
     },
+
+    // ---- Worker-only operations (R-34) -----------------------------------
+    // Not scoped by user_id — a worker has no session and reads user_id out
+    // of whatever it claims. Mirrors
+    // apps/worker/src/metaEvents/pgRepository.ts's proven claim/fence SQL.
+
+    async claimNextPending({
+      workerId,
+      now,
+      leaseExpiresAt,
+    }: {
+      workerId: string;
+      now: Date;
+      leaseExpiresAt: Date;
+    }): Promise<StoredSearch | null> {
+      const { rows } = await sql.query(
+        `UPDATE searches AS s
+            SET status = 'RUNNING',
+                lease_owner = $1,
+                lease_expires_at = $2,
+                attempts = attempts + 1,
+                updated_at = $3
+          WHERE s.id IN (
+                  SELECT c.id
+                    FROM searches AS c
+                   WHERE c.status = 'PENDING'
+                   ORDER BY c.created_at ASC
+                     FOR UPDATE SKIP LOCKED
+                   LIMIT 1
+                )
+      RETURNING ${COLUMNS}`,
+        [workerId, leaseExpiresAt, now],
+      );
+      const row = rows[0] as SearchRow | undefined;
+      return row ? mapRow(row) : null;
+    },
+
+    async releaseExpiredLeases({ now }: { now: Date }): Promise<number> {
+      const { rowCount } = await sql.query(
+        `UPDATE searches
+            SET status = 'PENDING',
+                lease_owner = NULL,
+                lease_expires_at = NULL,
+                updated_at = $1
+          WHERE status = 'RUNNING'
+            AND lease_expires_at IS NOT NULL
+            AND lease_expires_at <= $1`,
+        [now],
+      );
+      return rowCount ?? 0;
+    },
+
+    async completeClaimed({
+      id,
+      workerId,
+      now,
+    }: {
+      id: string;
+      workerId: string;
+      now: Date;
+    }): Promise<boolean> {
+      const { rowCount } = await sql.query(
+        `UPDATE searches
+            SET status = 'COMPLETE',
+                lease_owner = NULL,
+                lease_expires_at = NULL,
+                updated_at = $3
+          WHERE id = $1 AND status = 'RUNNING' AND lease_owner = $2`,
+        [id, workerId, now],
+      );
+      return (rowCount ?? 0) > 0;
+    },
+
+    async recordAttemptFailure({
+      id,
+      workerId,
+      now,
+      error,
+      maxAttempts,
+    }: {
+      id: string;
+      workerId: string;
+      now: Date;
+      error: string;
+      maxAttempts: number;
+    }): Promise<'PENDING' | 'FAILED' | null> {
+      const { rows } = await sql.query(
+        `UPDATE searches
+            SET status = CASE WHEN attempts >= $4 THEN 'FAILED' ELSE 'PENDING' END,
+                last_error = $5,
+                lease_owner = NULL,
+                lease_expires_at = NULL,
+                updated_at = $3
+          WHERE id = $1 AND status = 'RUNNING' AND lease_owner = $2
+          RETURNING status`,
+        [id, workerId, now, maxAttempts, error],
+      );
+      const row = rows[0] as { status: 'PENDING' | 'FAILED' } | undefined;
+      return row ? row.status : null;
+    },
   };
 }
 

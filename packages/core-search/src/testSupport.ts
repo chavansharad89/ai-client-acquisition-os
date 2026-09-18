@@ -78,5 +78,94 @@ export function fakeSearchRepository(
       rows[index] = updated;
       return updated;
     },
+
+    // ---- Worker-only operations (R-34) — mirrors ./pgRepository exactly ---
+
+    async claimNextPending({
+      workerId,
+      now,
+      leaseExpiresAt,
+    }: {
+      workerId: string;
+      now: Date;
+      leaseExpiresAt: Date;
+    }) {
+      const index = rows.findIndex((row) => row.status === 'PENDING');
+      if (index === -1) return null;
+      const existing = rows[index]!;
+      const updated: StoredSearch = {
+        ...existing,
+        status: 'RUNNING',
+        leaseOwner: workerId,
+        leaseExpiresAt,
+        attempts: existing.attempts + 1,
+        updatedAt: now,
+      };
+      rows[index] = updated;
+      return updated;
+    },
+
+    async releaseExpiredLeases({ now }: { now: Date }) {
+      let count = 0;
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index]!;
+        if (row.status === 'RUNNING' && row.leaseExpiresAt !== null && row.leaseExpiresAt <= now) {
+          rows[index] = {
+            ...row,
+            status: 'PENDING',
+            leaseOwner: null,
+            leaseExpiresAt: null,
+            updatedAt: now,
+          };
+          count += 1;
+        }
+      }
+      return count;
+    },
+
+    async completeClaimed({ id, workerId, now }: { id: string; workerId: string; now: Date }) {
+      const index = rows.findIndex(
+        (row) => row.id === id && row.status === 'RUNNING' && row.leaseOwner === workerId,
+      );
+      if (index === -1) return false;
+      rows[index] = {
+        ...rows[index]!,
+        status: 'COMPLETE',
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        updatedAt: now,
+      };
+      return true;
+    },
+
+    async recordAttemptFailure({
+      id,
+      workerId,
+      now,
+      error,
+      maxAttempts,
+    }: {
+      id: string;
+      workerId: string;
+      now: Date;
+      error: string;
+      maxAttempts: number;
+    }) {
+      const index = rows.findIndex(
+        (row) => row.id === id && row.status === 'RUNNING' && row.leaseOwner === workerId,
+      );
+      if (index === -1) return null;
+      const existing = rows[index]!;
+      const status: SearchStatus = existing.attempts >= maxAttempts ? 'FAILED' : 'PENDING';
+      rows[index] = {
+        ...existing,
+        status,
+        lastError: error,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        updatedAt: now,
+      };
+      return status;
+    },
   };
 }

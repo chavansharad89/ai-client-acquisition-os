@@ -66,6 +66,27 @@ export async function runDiscovery(
   now: Date = new Date(),
 ): Promise<DiscoveryRunResult> {
   const userId = await requireUser(deps.identity, rawToken, now);
+  return runDiscoveryForOwner(deps, userId, input, now);
+}
+
+/**
+ * Same behavior as {@link runDiscovery}, for a caller that has already
+ * resolved a trusted `userId` by some means other than a session token —
+ * specifically, a worker that claimed a Search row and is reading
+ * ownership out of it (R-34's "WORKER OWNERSHIP": the worker "is handed
+ * nothing; it claims a row and reads ownership out of it"). Not reachable
+ * from any HTTP path — only `runDiscovery()` (token-authenticated) is.
+ *
+ * `identity` is accepted-but-unused on `deps` for callers that already
+ * have a full {@link DiscoveryDeps}; the `Omit` below is what a caller
+ * building deps fresh (e.g. a worker) actually needs to supply.
+ */
+export async function runDiscoveryForOwner(
+  deps: Omit<DiscoveryDeps, 'identity'>,
+  userId: string,
+  input: RunDiscoveryInput,
+  now: Date = new Date(),
+): Promise<DiscoveryRunResult> {
   const { searchId } = validateRunDiscoveryInput(input);
 
   const search = await deps.searches.getById(userId, searchId);

@@ -81,6 +81,32 @@ export async function createOpportunity(
   now: Date = new Date(),
 ): Promise<StoredOpportunity> {
   const userId = await requireUser(deps.identity, rawToken, now);
+  return createOpportunityForOwner(deps, userId, input, now);
+}
+
+/**
+ * Same behavior as {@link createOpportunity}, for a caller that has
+ * already resolved a trusted `userId` by some means other than a session
+ * token — specifically, a worker that claimed a Search row and is reading
+ * ownership out of it (R-34's "WORKER OWNERSHIP"). Not reachable from any
+ * HTTP path — only `createOpportunity()` (token-authenticated) is.
+ *
+ * Behaves identically to `createOpportunity()` on a repeat call for the
+ * same Prospect: a database-level unique-constraint violation, left
+ * uncaught here (see `OpportunityRepository.create`). A worker that wants
+ * retry-safe idempotency across Search attempts should check
+ * `deps.opportunities.findByProspectId` itself before calling this —
+ * that policy belongs to the worker's orchestration, not to this shared
+ * domain function, so `createOpportunity()`'s own existing behavior
+ * (including the "second call throws" contract already asserted by
+ * tests/integration/opportunity.integration.test.ts) is unchanged.
+ */
+export async function createOpportunityForOwner(
+  deps: Omit<OpportunityDeps, 'identity'>,
+  userId: string,
+  input: CreateOpportunityInput,
+  now: Date = new Date(),
+): Promise<StoredOpportunity> {
   const { prospectId } = validateCreateOpportunityInput(input);
 
   const prospect = await deps.prospects.getById(userId, prospectId);

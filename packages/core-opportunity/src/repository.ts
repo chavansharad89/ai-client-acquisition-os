@@ -25,6 +25,17 @@ export interface OpportunityRepository {
 
   getById(userId: string, id: string): Promise<StoredOpportunity | null>;
 
+  /**
+   * Only this user's Opportunity for this Prospect, or null — the
+   * pre-check side of the same one-per-Prospect invariant `create()`
+   * enforces at the database level (migration 0017's unique index).
+   * Added for R-34: a worker retrying a Search after a crash needs to
+   * detect "already created" without relying on catching a raw
+   * unique-violation, mirroring `SearchRepository.findByIdempotencyKey`'s
+   * existing pre-check pattern.
+   */
+  findByProspectId(userId: string, prospectId: string): Promise<StoredOpportunity | null>;
+
   /** Only this user's Opportunities — never a global list. */
   list(userId: string): Promise<readonly StoredOpportunity[]>;
 

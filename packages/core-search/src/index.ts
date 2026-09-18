@@ -14,6 +14,7 @@
 
 export { createPgSearchRepository } from './pgRepository';
 export type { SearchRepository } from './repository';
+export { MAX_SEARCH_ATTEMPTS } from './retry';
 export { SEARCH_VALID_TRANSITIONS, isValidSearchTransition } from './state';
 export type { CreateSearchInput, SearchStatus, StoredSearch, TransitionSearchInput } from './types';
 
