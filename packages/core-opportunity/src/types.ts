@@ -1,4 +1,9 @@
-import type { FactorScore, OpportunityStage, ScoreBand } from '@acos/core-acquisition';
+import type {
+  FactorScore,
+  OpportunityStage,
+  OpportunityStaleness,
+  ScoreBand,
+} from '@acos/core-acquisition';
 
 /**
  * Canonical vocabulary is @acos/core-acquisition's stages.ts
@@ -40,6 +45,15 @@ export interface StoredOpportunity {
   needDetected: boolean;
   /** The recommended offer, or `undefined` for NO SUITABLE OFFER (AC-14). */
   offer: DetectedOffer | undefined;
+  /**
+   * Whether this Opportunity's evidence is still current (R-19, Stage
+   * S) — an independent classification from `state`, not a lifecycle
+   * transition. Defaults to 'FRESH' at creation; only
+   * classifyOpportunityStaleness() (Phase 12) changes it.
+   */
+  staleness: OpportunityStaleness;
+  /** When `staleness` was last computed. `null` until first classified. */
+  stalenessComputedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

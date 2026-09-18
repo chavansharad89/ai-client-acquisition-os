@@ -1,4 +1,4 @@
-import type { ProspectScore } from '@acos/core-acquisition';
+import type { OpportunityStaleness, ProspectScore } from '@acos/core-acquisition';
 
 import type { OpportunityRepository } from './repository';
 import type { OpportunityScoreRepository } from './scoreRepository';
@@ -37,6 +37,8 @@ export function fakeOpportunityRepository(
         state: 'NEW',
         needDetected: input.needDetected,
         offer: input.offer,
+        staleness: 'FRESH',
+        stalenessComputedAt: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -50,6 +52,23 @@ export function fakeOpportunityRepository(
 
     async list(userId: string) {
       return rows.filter((row) => row.userId === userId);
+    },
+
+    async updateStaleness(
+      userId: string,
+      id: string,
+      staleness: OpportunityStaleness,
+      computedAt: Date,
+    ) {
+      const index = rows.findIndex((row) => row.id === id && row.userId === userId);
+      if (index === -1) return null;
+      const updated: StoredOpportunity = {
+        ...rows[index]!,
+        staleness,
+        stalenessComputedAt: computedAt,
+      };
+      rows[index] = updated;
+      return updated;
     },
   };
 }

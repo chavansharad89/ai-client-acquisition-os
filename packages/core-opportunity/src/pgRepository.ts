@@ -1,3 +1,4 @@
+import type { OpportunityStaleness } from '@acos/core-acquisition';
 import type { SqlExecutor } from '@acos/core-entitlements';
 
 import type { OpportunityRepository } from './repository';
@@ -23,12 +24,15 @@ interface OpportunityRow {
   offer_estimated_value_paise: number | null;
   offer_fit: number | null;
   offer_based_on: string[];
+  staleness: OpportunityStaleness;
+  staleness_computed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
 
 const COLUMNS = `id, user_id, prospect_id, state, need_detected, recommended_service,
-  offer_rationale, offer_estimated_value_paise, offer_fit, offer_based_on, created_at, updated_at`;
+  offer_rationale, offer_estimated_value_paise, offer_fit, offer_based_on,
+  staleness, staleness_computed_at, created_at, updated_at`;
 
 export function createPgOpportunityRepository(sql: SqlExecutor): OpportunityRepository {
   return {
@@ -75,6 +79,23 @@ export function createPgOpportunityRepository(sql: SqlExecutor): OpportunityRepo
       );
       return (rows as OpportunityRow[]).map(mapRow);
     },
+
+    async updateStaleness(
+      userId: string,
+      id: string,
+      staleness: OpportunityStaleness,
+      computedAt: Date,
+    ): Promise<StoredOpportunity | null> {
+      const { rows } = await sql.query(
+        `UPDATE opportunities
+            SET staleness = $3, staleness_computed_at = $4
+          WHERE id = $2 AND user_id = $1
+        RETURNING ${COLUMNS}`,
+        [userId, id, staleness, computedAt],
+      );
+      const row = rows[0] as OpportunityRow | undefined;
+      return row ? mapRow(row) : null;
+    },
   };
 }
 
@@ -94,6 +115,8 @@ function mapRow(row: OpportunityRow): StoredOpportunity {
           basedOn: row.offer_based_on,
         }
       : undefined,
+    staleness: row.staleness,
+    stalenessComputedAt: row.staleness_computed_at ? new Date(row.staleness_computed_at) : null,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };

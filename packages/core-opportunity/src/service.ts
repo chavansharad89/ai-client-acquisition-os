@@ -1,4 +1,5 @@
 import {
+  classifyStaleness,
   rankProspects,
   scoreProspect,
   suggestOffers,
@@ -308,4 +309,48 @@ export async function rankOpportunities(
     rank: index + 1,
     score: entry.row,
   }));
+}
+
+// ---- Phase 12: Opportunity staleness (R-19, migration 0019) -----------
+// Classifies whether one of the caller's own Opportunities still rests
+// on current evidence, using @acos/core-acquisition's classifyStaleness()
+// (PRD V2.1 Stage S) — unmodified, over the same signals
+// scoreOpportunity() already reads via @acos/core-research's
+// toScoringSignals(), which is why UNKNOWN rows (no observedAt claim
+// worth dating) are already excluded before classifyStaleness() sees
+// them. An explicit operation, not run automatically at creation or
+// scoring — the same "separate step in the MVP journey" decision Phase
+// 10's header made for scoreOpportunity(). Deliberately independent of
+// `state` (NEW/RESEARCHED): staleness answers "is the evidence still
+// current", not "what step is this Opportunity at", and this function
+// never touches `state`.
+
+/**
+ * Classifies and persists one of the caller's own Opportunities'
+ * staleness (R-19). Ownership is resolved through
+ * `deps.opportunities.getById` — the only place `opportunityId` is
+ * checked against the caller; `deps.opportunities.updateStaleness`
+ * re-checks ownership independently at the write itself, the same
+ * belt-and-suspenders convention `scoreOpportunity` uses for its own
+ * repositories.
+ */
+export async function classifyOpportunityStaleness(
+  deps: Pick<OpportunityScoreDeps, 'identity' | 'opportunities' | 'signals'>,
+  rawToken: string | undefined | null,
+  opportunityId: string,
+  now: Date = new Date(),
+): Promise<StoredOpportunity> {
+  const userId = await requireUser(deps.identity, rawToken, now);
+
+  const opportunity = await deps.opportunities.getById(userId, opportunityId);
+  if (!opportunity) throw new OpportunityNotFoundError(opportunityId);
+
+  const storedSignals = await deps.signals.listByProspect(userId, opportunity.prospectId);
+  const { signals } = toScoringSignals(storedSignals);
+
+  const staleness = classifyStaleness(signals, now);
+
+  const updated = await deps.opportunities.updateStaleness(userId, opportunityId, staleness, now);
+  if (!updated) throw new OpportunityNotFoundError(opportunityId);
+  return updated;
 }

@@ -26,6 +26,7 @@ import {
   OpportunityProspectNotFoundError,
 } from './errors';
 import {
+  classifyOpportunityStaleness,
   createOpportunity,
   getOpportunityScore,
   rankOpportunities,
@@ -798,5 +799,122 @@ describe('rankOpportunities', () => {
     expect(scores.rows).toBe(scoreRows);
     expect(opportunities.rows).toHaveLength(1);
     expect(scores.rows).toHaveLength(1);
+  });
+});
+
+// ---- Phase 12: classifyOpportunityStaleness (R-19) -----------------------
+// Mirrors tests/integration/opportunity-staleness.integration.test.ts's
+// real-Postgres proof of the same ownership boundary and migration 0019
+// schema.
+
+describe('classifyOpportunityStaleness', () => {
+  it('is FRESH at creation before any classification has run', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    expect(opportunity.staleness).toBe('FRESH');
+    expect(opportunity.stalenessComputedAt).toBeNull();
+  });
+
+  it('classifies FRESH when the active signal is recent (R-19)', async () => {
+    const d = deps(
+      [seedProspect()],
+      [seedSearch()],
+      [matchingSignal({ observedAt: new Date('2026-06-30T00:00:00.000Z') })],
+    );
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const classified = await classifyOpportunityStaleness(d, 'token-a', opportunity.id, NOW);
+
+    expect(classified.staleness).toBe('FRESH');
+    expect(classified.stalenessComputedAt).toEqual(NOW);
+  });
+
+  it('classifies STALE when the active signal has aged past SIGNAL_FRESH_DAYS', async () => {
+    const d = deps(
+      [seedProspect()],
+      [seedSearch()],
+      [matchingSignal({ observedAt: new Date('2026-01-01T00:00:00.000Z') })],
+    );
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const classified = await classifyOpportunityStaleness(d, 'token-a', opportunity.id, NOW);
+
+    expect(classified.staleness).toBe('STALE');
+  });
+
+  it('classifies SUPERSEDED when the Prospect has no currently-active signal', async () => {
+    const d = deps([seedProspect()], [seedSearch()], []);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const classified = await classifyOpportunityStaleness(d, 'token-a', opportunity.id, NOW);
+
+    expect(classified.staleness).toBe('SUPERSEDED');
+  });
+
+  it('persists the classification — a second read sees it without re-classifying', async () => {
+    const d = deps(
+      [seedProspect()],
+      [seedSearch()],
+      [matchingSignal({ observedAt: new Date('2026-06-30T00:00:00.000Z') })],
+    );
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    await classifyOpportunityStaleness(d, 'token-a', opportunity.id, NOW);
+
+    const fetched = await d.opportunities.getById('user_a', opportunity.id);
+
+    expect(fetched!.staleness).toBe('FRESH');
+    expect(fetched!.stalenessComputedAt).toEqual(NOW);
+  });
+
+  it('does not touch `state`, `offer`, or any other field', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const classified = await classifyOpportunityStaleness(d, 'token-a', opportunity.id, NOW);
+
+    expect(classified.state).toBe(opportunity.state);
+    expect(classified.offer).toEqual(opportunity.offer);
+    expect(classified.needDetected).toBe(opportunity.needDetected);
+  });
+
+  it('is deterministic — reclassifying with the same signals and `now` produces the same result', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const first = await classifyOpportunityStaleness(d, 'token-a', opportunity.id, NOW);
+    const second = await classifyOpportunityStaleness(d, 'token-a', opportunity.id, NOW);
+
+    expect(second.staleness).toBe(first.staleness);
+  });
+
+  it('rejects an unauthenticated call before touching the repository', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    await expect(classifyOpportunityStaleness(d, null, opportunity.id, NOW)).rejects.toBeInstanceOf(
+      UnauthenticatedError,
+    );
+
+    const untouched = await d.opportunities.getById('user_a', opportunity.id);
+    expect(untouched!.staleness).toBe('FRESH');
+    expect(untouched!.stalenessComputedAt).toBeNull();
+  });
+
+  it('an unknown opportunityId is rejected', async () => {
+    const d = deps([], [], []);
+
+    await expect(
+      classifyOpportunityStaleness(d, 'token-a', 'does-not-exist', NOW),
+    ).rejects.toBeInstanceOf(OpportunityNotFoundError);
+  });
+
+  it("a different authenticated user cannot classify another user's Opportunity — treated as not found", async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    await expect(
+      classifyOpportunityStaleness(d, 'token-b', opportunity.id, NOW),
+    ).rejects.toBeInstanceOf(OpportunityNotFoundError);
   });
 });

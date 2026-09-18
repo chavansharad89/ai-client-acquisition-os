@@ -1,3 +1,5 @@
+import type { OpportunityStaleness } from '@acos/core-acquisition';
+
 import type { DetectedOffer, StoredOpportunity } from './types';
 
 /**
@@ -25,4 +27,17 @@ export interface OpportunityRepository {
 
   /** Only this user's Opportunities — never a global list. */
   list(userId: string): Promise<readonly StoredOpportunity[]>;
+
+  /**
+   * Persists a freshly computed staleness classification (R-19). Scoped
+   * by `userId` in the write itself, the same ownership boundary as
+   * `getById` — returns `null` rather than throwing when `id` does not
+   * resolve to a row owned by the caller.
+   */
+  updateStaleness(
+    userId: string,
+    id: string,
+    staleness: OpportunityStaleness,
+    computedAt: Date,
+  ): Promise<StoredOpportunity | null>;
 }

@@ -10,6 +10,10 @@
 // Opportunity ranking (PRD V2.1 R-15/AC-17, Stage O) — ordering the
 // caller's own persisted OpportunityScores via @acos/core-acquisition's
 // existing rankProspects(), a pure read that never recomputes a score.
+// Also owns Opportunity staleness (PRD V2.1 R-19, Stage S, migration
+// 0019) — classifying whether an Opportunity's evidence is still
+// current via @acos/core-acquisition's classifyStaleness(), independent
+// of `state`.
 // Does NOT own Next Action, CRM, or Outreach — see MVP_SCOPE_BOUNDARY.md.
 //
 // Must NOT: accept a caller-supplied userId anywhere, or reimplement
@@ -32,6 +36,7 @@ export { createPgOpportunityScoreRepository } from './scorePgRepository';
 export type { OpportunityScoreRepository } from './scoreRepository';
 
 export {
+  classifyOpportunityStaleness,
   createOpportunity,
   getOpportunity,
   getOpportunityScore,
