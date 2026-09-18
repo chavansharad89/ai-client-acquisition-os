@@ -97,3 +97,27 @@ export interface RankedOpportunity {
   rank: number;
   score: StoredOpportunityScore;
 }
+
+/** Untrusted shape a caller supplies to recordFeedback() (R-21). Never carries id/userId. */
+export interface RecordFeedbackInput {
+  useful: boolean;
+  /** Free-form text (OQ-5 resolved: free text, not a closed set) — never rewritten or categorized. */
+  reason: string;
+}
+
+/**
+ * A persisted Feedback row (PRD V2.1 R-21/AC-22, Stage R, migration
+ * 0020). Unlike OpportunityScore, Feedback carries its own `userId` — it
+ * is a top-level owned model, not one of DEC-008's two named ownership-
+ * inheritance exceptions. One current verdict per Opportunity, not an
+ * append-only history — resubmitting replaces this row.
+ */
+export interface StoredFeedback {
+  id: string;
+  userId: string;
+  opportunityId: string;
+  useful: boolean;
+  reason: string;
+  createdAt: Date;
+  updatedAt: Date;
+}

@@ -15,12 +15,16 @@ import type { SearchRepository } from '@acos/core-search';
 
 import { toOfferSignals, toServiceRule } from './adapters';
 import { OpportunityNotFoundError, OpportunityProspectNotFoundError } from './errors';
+import type { FeedbackRepository } from './feedbackRepository';
+import { validateRecordFeedbackInput } from './feedbackValidation';
 import type { OpportunityRepository } from './repository';
 import type { OpportunityScoreRepository } from './scoreRepository';
 import type {
   CreateOpportunityInput,
   DetectedOffer,
   RankedOpportunity,
+  RecordFeedbackInput,
+  StoredFeedback,
   StoredOpportunity,
   StoredOpportunityScore,
 } from './types';
@@ -393,4 +397,64 @@ export async function getOpportunityNextAction(
     needDetected: opportunity.needDetected,
     staleness: opportunity.staleness,
   });
+}
+
+// ---- Phase 14: Feedback (R-21/AC-22, migration 0020) -------------------
+// Captures the caller's useful/not-useful verdict plus a free-text reason
+// against one of their own Opportunities (PRD V2.1 Stage R: "Persist the
+// verdict against the opportunity ... Unpersisted feedback is a UI
+// gesture, not feedback"). `reason` is never validated for its semantic
+// content, categorized, or rewritten — OQ-5 resolved this as free text.
+// One current verdict per Opportunity (migration 0020's
+// UNIQUE(opportunity_id)): resubmitting replaces it, mirroring Phase 10's
+// scoreOpportunity() "explicit step, replace in place" decision. Feedback
+// carries its own user_id (unlike OpportunityScore) so the repository
+// write itself is ownership-scoped, in addition to the Opportunity
+// ownership check below.
+
+export interface OpportunityFeedbackDeps {
+  identity: IdentityRepository;
+  opportunities: OpportunityRepository;
+  feedback: FeedbackRepository;
+}
+
+/**
+ * Records feedback for one of the caller's own Opportunities (R-21).
+ * Ownership is resolved through `deps.opportunities.getById` — the same
+ * boundary every other Phase 9-13 operation on an existing Opportunity
+ * uses — before the Feedback row is written.
+ */
+export async function recordFeedback(
+  deps: OpportunityFeedbackDeps,
+  rawToken: string | undefined | null,
+  opportunityId: string,
+  input: RecordFeedbackInput,
+  now: Date = new Date(),
+): Promise<StoredFeedback> {
+  const userId = await requireUser(deps.identity, rawToken, now);
+  const validated = validateRecordFeedbackInput(input);
+
+  const opportunity = await deps.opportunities.getById(userId, opportunityId);
+  if (!opportunity) throw new OpportunityNotFoundError(opportunityId);
+
+  return deps.feedback.upsert(userId, opportunity.id, validated, now);
+}
+
+/**
+ * Reads the caller's own Feedback for one of their own Opportunities.
+ * Returns `null` when no feedback has been recorded yet, or when
+ * `opportunityId` does not resolve to an Opportunity owned by the caller
+ * — indistinguishable from "not yet given". Ownership is enforced by
+ * `deps.feedback.getByOpportunityId` itself (Feedback carries its own
+ * `userId`), the same boundary getOpportunityScore() relies on for its
+ * own repository — no separate Opportunity lookup needed for a read.
+ */
+export async function getFeedback(
+  deps: Pick<OpportunityFeedbackDeps, 'identity' | 'feedback'>,
+  rawToken: string | undefined | null,
+  opportunityId: string,
+  now: Date = new Date(),
+): Promise<StoredFeedback | null> {
+  const userId = await requireUser(deps.identity, rawToken, now);
+  return deps.feedback.getByOpportunityId(userId, opportunityId);
 }

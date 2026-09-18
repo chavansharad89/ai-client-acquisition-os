@@ -1,8 +1,15 @@
 import type { OpportunityStaleness, ProspectScore } from '@acos/core-acquisition';
 
+import type { FeedbackRepository } from './feedbackRepository';
 import type { OpportunityRepository } from './repository';
 import type { OpportunityScoreRepository } from './scoreRepository';
-import type { DetectedOffer, StoredOpportunity, StoredOpportunityScore } from './types';
+import type {
+  DetectedOffer,
+  RecordFeedbackInput,
+  StoredFeedback,
+  StoredOpportunity,
+  StoredOpportunityScore,
+} from './types';
 
 /**
  * In-memory repository enforcing the same ownership + one-per-Prospect
@@ -126,6 +133,46 @@ export function fakeOpportunityScoreRepository(
     async listByUserId(userId: string) {
       const ownedIds = new Set(opportunities.filter((o) => o.userId === userId).map((o) => o.id));
       return rows.filter((row) => ownedIds.has(row.opportunityId));
+    },
+  };
+}
+
+/**
+ * In-memory FeedbackRepository enforcing the same direct `userId`
+ * boundary the database's `WHERE opportunity_id = $2 AND user_id = $1`
+ * predicate does — Feedback carries its own `userId`, unlike
+ * fakeOpportunityScoreRepository's join-through-Opportunity. `upsert()`
+ * replaces the existing row for an `opportunityId`, mirroring migration
+ * 0020's `UNIQUE(opportunity_id)` upsert — never a second row.
+ */
+export function fakeFeedbackRepository(): FeedbackRepository & { rows: StoredFeedback[] } {
+  const rows: StoredFeedback[] = [];
+  let counter = 0;
+
+  return {
+    rows,
+
+    async upsert(userId: string, opportunityId: string, input: RecordFeedbackInput, now: Date) {
+      const index = rows.findIndex((row) => row.opportunityId === opportunityId);
+      const existing = index === -1 ? undefined : rows[index];
+      const stored: StoredFeedback = {
+        id: existing?.id ?? `feedback_${(counter += 1)}`,
+        userId,
+        opportunityId,
+        useful: input.useful,
+        reason: input.reason,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      };
+      if (index === -1) rows.push(stored);
+      else rows[index] = stored;
+      return stored;
+    },
+
+    async getByOpportunityId(userId: string, opportunityId: string) {
+      return (
+        rows.find((row) => row.opportunityId === opportunityId && row.userId === userId) ?? null
+      );
     },
   };
 }

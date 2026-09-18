@@ -22,21 +22,29 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CreateOpportunityValidationError,
+  FeedbackValidationError,
   OpportunityNotFoundError,
   OpportunityProspectNotFoundError,
 } from './errors';
 import {
   classifyOpportunityStaleness,
   createOpportunity,
+  getFeedback,
   getOpportunityNextAction,
   getOpportunityScore,
   rankOpportunities,
+  recordFeedback,
   scoreOpportunity,
   SCORER_VERSION,
   type OpportunityDeps,
+  type OpportunityFeedbackDeps,
   type OpportunityScoreDeps,
 } from './service';
-import { fakeOpportunityRepository, fakeOpportunityScoreRepository } from './testSupport';
+import {
+  fakeFeedbackRepository,
+  fakeOpportunityRepository,
+  fakeOpportunityScoreRepository,
+} from './testSupport';
 import type { StoredOpportunity } from './types';
 
 // UNIT tests (fakes only — see
@@ -193,7 +201,7 @@ function deps(
   prospects: StoredProspect[],
   searches: StoredSearch[],
   signals: StoredResearchSignal[] = [],
-): OpportunityDeps & OpportunityScoreDeps {
+): OpportunityDeps & OpportunityScoreDeps & OpportunityFeedbackDeps {
   const identity = fakeIdentity({
     ...sessionFor('token-a', 'user_a'),
     ...sessionFor('token-b', 'user_b'),
@@ -206,6 +214,7 @@ function deps(
     signals: fakeResearchSignalRepository(signals),
     opportunities,
     scores: fakeOpportunityScoreRepository(opportunities.rows),
+    feedback: fakeFeedbackRepository(),
   };
 }
 
@@ -1071,5 +1080,215 @@ describe('getOpportunityNextAction', () => {
     await expect(
       getOpportunityNextAction({ identity, opportunities }, 'token-b', 'opportunity_1', NOW),
     ).rejects.toBeInstanceOf(OpportunityNotFoundError);
+  });
+});
+
+describe('recordFeedback', () => {
+  it('persists a useful verdict with a free-text reason (R-21/AC-22)', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    const stored = await recordFeedback(
+      { identity, opportunities, feedback },
+      'token-a',
+      'opportunity_1',
+      { useful: true, reason: 'The prospect already has an internal team.' },
+      NOW,
+    );
+
+    expect(stored.userId).toBe('user_a');
+    expect(stored.opportunityId).toBe('opportunity_1');
+    expect(stored.useful).toBe(true);
+    expect(stored.reason).toBe('The prospect already has an internal team.');
+  });
+
+  it('persists an arbitrary free-text reason exactly as supplied — never categorized or rewritten', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+    const reason = 'Great fit but timing is off — following up next quarter, per the call notes.';
+
+    const stored = await recordFeedback(
+      { identity, opportunities, feedback },
+      'token-a',
+      'opportunity_1',
+      { useful: false, reason },
+      NOW,
+    );
+
+    expect(stored.reason).toBe(reason);
+  });
+
+  it('resubmitting replaces the current verdict in place — one row per Opportunity, never a second', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    const first = await recordFeedback(
+      { identity, opportunities, feedback },
+      'token-a',
+      'opportunity_1',
+      { useful: true, reason: 'first reason' },
+      NOW,
+    );
+    const later = new Date(NOW.getTime() + 86_400_000);
+    const second = await recordFeedback(
+      { identity, opportunities, feedback },
+      'token-a',
+      'opportunity_1',
+      { useful: false, reason: 'changed my mind' },
+      later,
+    );
+
+    expect(second.id).toBe(first.id);
+    expect(second.useful).toBe(false);
+    expect(second.reason).toBe('changed my mind');
+    expect(feedback.rows).toHaveLength(1);
+  });
+
+  it('rejects a missing reason before touching any repository', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    await expect(
+      recordFeedback(
+        { identity, opportunities, feedback },
+        'token-a',
+        'opportunity_1',
+        { useful: true, reason: '' },
+        NOW,
+      ),
+    ).rejects.toBeInstanceOf(FeedbackValidationError);
+    expect(feedback.rows).toHaveLength(0);
+  });
+
+  it('rejects a non-boolean `useful`', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    await expect(
+      recordFeedback(
+        { identity, opportunities, feedback },
+        'token-a',
+        'opportunity_1',
+        { useful: 'yes' as unknown as boolean, reason: 'a reason' },
+        NOW,
+      ),
+    ).rejects.toBeInstanceOf(FeedbackValidationError);
+  });
+
+  it('rejects an unauthenticated call before touching any repository', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    await expect(
+      recordFeedback(
+        { identity, opportunities, feedback },
+        null,
+        'opportunity_1',
+        { useful: true, reason: 'a reason' },
+        NOW,
+      ),
+    ).rejects.toBeInstanceOf(UnauthenticatedError);
+    expect(feedback.rows).toHaveLength(0);
+  });
+
+  it('an unknown opportunityId is rejected', async () => {
+    const opportunities = fakeOpportunityRepository([]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    await expect(
+      recordFeedback(
+        { identity, opportunities, feedback },
+        'token-a',
+        'does-not-exist',
+        { useful: true, reason: 'a reason' },
+        NOW,
+      ),
+    ).rejects.toBeInstanceOf(OpportunityNotFoundError);
+  });
+
+  it("a different authenticated user cannot record feedback against another user's Opportunity — treated as not found", async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity({
+      ...sessionFor('token-a', 'user_a'),
+      ...sessionFor('token-b', 'user_b'),
+    });
+
+    await expect(
+      recordFeedback(
+        { identity, opportunities, feedback },
+        'token-b',
+        'opportunity_1',
+        { useful: true, reason: 'a reason' },
+        NOW,
+      ),
+    ).rejects.toBeInstanceOf(OpportunityNotFoundError);
+    expect(feedback.rows).toHaveLength(0);
+  });
+});
+
+describe('getFeedback', () => {
+  it('returns null when no feedback has been recorded yet', async () => {
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    await expect(
+      getFeedback({ identity, feedback }, 'token-a', 'opportunity_1', NOW),
+    ).resolves.toBeNull();
+  });
+
+  it('returns the persisted feedback after recordFeedback', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    const stored = await recordFeedback(
+      { identity, opportunities, feedback },
+      'token-a',
+      'opportunity_1',
+      { useful: true, reason: 'a reason' },
+      NOW,
+    );
+
+    await expect(
+      getFeedback({ identity, feedback }, 'token-a', 'opportunity_1', NOW),
+    ).resolves.toEqual(stored);
+  });
+
+  it("a different user cannot read user A's feedback — isolation via Feedback's own userId, not retrieve-then-filter", async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity({
+      ...sessionFor('token-a', 'user_a'),
+      ...sessionFor('token-b', 'user_b'),
+    });
+
+    await recordFeedback(
+      { identity, opportunities, feedback },
+      'token-a',
+      'opportunity_1',
+      { useful: true, reason: 'a reason' },
+      NOW,
+    );
+
+    await expect(
+      getFeedback({ identity, feedback }, 'token-b', 'opportunity_1', NOW),
+    ).resolves.toBeNull();
+  });
+
+  it('rejects an unauthenticated read', async () => {
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    await expect(
+      getFeedback({ identity, feedback }, null, 'opportunity_1', NOW),
+    ).rejects.toBeInstanceOf(UnauthenticatedError);
   });
 });

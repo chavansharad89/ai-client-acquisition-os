@@ -34,3 +34,18 @@ export class OpportunityNotFoundError extends Error {
     this.opportunityId = opportunityId;
   }
 }
+
+export type FeedbackValidationReason = 'required' | 'too-long' | 'not-boolean';
+
+/** Thrown by validateRecordFeedbackInput() for any untrusted value that fails validation. */
+export class FeedbackValidationError extends Error {
+  readonly field: string;
+  readonly reason: FeedbackValidationReason;
+
+  constructor(field: string, reason: FeedbackValidationReason, message: string) {
+    super(message);
+    this.name = 'FeedbackValidationError';
+    this.field = field;
+    this.reason = reason;
+  }
+}

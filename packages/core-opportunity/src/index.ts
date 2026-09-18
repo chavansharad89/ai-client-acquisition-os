@@ -17,7 +17,10 @@
 // Stage T) — recommending what the caller should do next via
 // @acos/core-acquisition's recommendOpportunityAction(), derived at read
 // time from `state`/`needDetected`/`staleness` already persisted, never
-// stored itself.
+// stored itself. Also owns Feedback (PRD V2.1 R-21/AC-22, Stage R,
+// migration 0020) — persisting the caller's useful/not-useful verdict
+// and free-text reason against one of their own Opportunities; unlike
+// OpportunityScore, Feedback carries its own `userId`.
 // Does NOT own CRM or Outreach — see MVP_SCOPE_BOUNDARY.md §6.2-6.4.
 //
 // Must NOT: accept a caller-supplied userId anywhere, or reimplement
@@ -28,10 +31,16 @@ export { toOfferSignals, toServiceRule } from './adapters';
 
 export {
   CreateOpportunityValidationError,
+  FeedbackValidationError,
   OpportunityNotFoundError,
   OpportunityProspectNotFoundError,
 } from './errors';
-export type { CreateOpportunityValidationReason } from './errors';
+export type { CreateOpportunityValidationReason, FeedbackValidationReason } from './errors';
+
+export { createPgFeedbackRepository } from './feedbackPgRepository';
+export type { FeedbackRepository } from './feedbackRepository';
+
+export { FEEDBACK_REASON_MAX_LENGTH, validateRecordFeedbackInput } from './feedbackValidation';
 
 export { createPgOpportunityRepository } from './pgRepository';
 export type { OpportunityRepository } from './repository';
@@ -42,15 +51,17 @@ export type { OpportunityScoreRepository } from './scoreRepository';
 export {
   classifyOpportunityStaleness,
   createOpportunity,
+  getFeedback,
   getOpportunity,
   getOpportunityNextAction,
   getOpportunityScore,
   listOpportunities,
   rankOpportunities,
+  recordFeedback,
   scoreOpportunity,
   SCORER_VERSION,
 } from './service';
-export type { OpportunityDeps, OpportunityScoreDeps } from './service';
+export type { OpportunityDeps, OpportunityFeedbackDeps, OpportunityScoreDeps } from './service';
 
 export { PROSPECT_ID_MAX_LENGTH, validateCreateOpportunityInput } from './validation';
 
@@ -59,6 +70,8 @@ export type {
   DetectedOffer,
   OpportunityState,
   RankedOpportunity,
+  RecordFeedbackInput,
+  StoredFeedback,
   StoredOpportunity,
   StoredOpportunityScore,
 } from './types';
