@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodToJsonSchema } from './jsonSchema';
 import { leadResearchSchema } from './schema';
-import type { ModelResult, ResearchModel } from './researcher';
+import type { ModelInvocationUsage, ModelResult, ResearchModel } from './researcher';
 
 // The Anthropic adapter.
 // -----------------------------------------------------------------------
@@ -91,10 +91,26 @@ export function createAnthropicResearchModel(options: AnthropicModelOptions): Re
 
     const response = await stream.finalMessage();
 
+    // R-29 (Phase 16 compatibility exception): every response that
+    // reaches this point is a real, billed provider call — refusal
+    // included, since a safety decline still consumes input/output
+    // tokens. Extracted here because this is the only place the raw
+    // Message (and its usage block) ever exists; propagated onward as
+    // plain data, nothing persisted in this file.
+    const usage: ModelInvocationUsage = {
+      provider: 'anthropic',
+      model,
+      providerMessageId: response.id,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      cacheCreationInputTokens: response.usage.cache_creation_input_tokens ?? null,
+      cacheReadInputTokens: response.usage.cache_read_input_tokens ?? null,
+    };
+
     // A safety decline arrives as HTTP 200 with stop_reason 'refusal',
     // so checking stop_reason before reading content is not optional.
     if (response.stop_reason === 'refusal') {
-      return { kind: 'refusal', category: response.stop_details?.category ?? null };
+      return { kind: 'refusal', category: response.stop_details?.category ?? null, usage };
     }
 
     const text = response.content
@@ -108,6 +124,6 @@ export function createAnthropicResearchModel(options: AnthropicModelOptions): Re
 
     // Tool/structured output escaping varies; always parse, never
     // string-match.
-    return { kind: 'json', value: JSON.parse(text) as unknown };
+    return { kind: 'json', value: JSON.parse(text) as unknown, usage };
   };
 }

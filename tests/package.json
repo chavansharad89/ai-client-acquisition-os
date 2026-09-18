@@ -11,6 +11,7 @@
   "dependencies": {
     "@acos/catalog": "workspace:*",
     "@acos/core-acquisition": "workspace:*",
+    "@acos/core-ai-usage": "workspace:*",
     "@acos/core-capi": "workspace:*",
     "@acos/core-discovery": "workspace:*",
     "@acos/core-entitlements": "workspace:*",

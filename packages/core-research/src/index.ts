@@ -47,7 +47,13 @@ export {
 export type { ProvenanceIssue, SourceDocument } from './provenance';
 
 export { backoffDelayMs, researchLead, toProviderError } from './researcher';
-export type { ModelResult, ResearchModel, ResearchOptions, ResearchOutcome } from './researcher';
+export type {
+  ModelInvocationUsage,
+  ModelResult,
+  ResearchModel,
+  ResearchOptions,
+  ResearchOutcome,
+} from './researcher';
 
 export {
   allObservations,

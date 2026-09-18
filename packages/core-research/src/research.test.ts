@@ -826,6 +826,200 @@ describe('the Anthropic key must be supplied, not inherited', () => {
   });
 });
 
+// ============================================ R-29 usage propagation ===
+//
+// Phase 16's authorized compatibility exception: anthropicModel.ts must
+// expose the real Message's usage/id (never read before), and
+// researcher.ts's retry loop must report it once per invocation via
+// onInvocation. Nothing here persists anything — @acos/core-ai-usage
+// owns the metering write; these tests only prove the data reaches that
+// boundary correctly.
+
+describe('usage propagation (R-29 compatibility exception)', () => {
+  /** A fake Anthropic client whose stream().finalMessage() resolves to `message`. */
+  function fakeAnthropicClient(message: {
+    id: string;
+    stop_reason: string;
+    stop_details?: { category: string } | null;
+    content: { type: string; text?: string }[];
+    usage: {
+      input_tokens: number;
+      output_tokens: number;
+      cache_creation_input_tokens?: number | null;
+      cache_read_input_tokens?: number | null;
+    };
+  }) {
+    return {
+      messages: {
+        stream: () => ({ finalMessage: async () => message }),
+      },
+    } as never;
+  }
+
+  it('extracts provider, model, message id and token usage from a successful response', async () => {
+    const client = fakeAnthropicClient({
+      id: 'msg_01ABC',
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: JSON.stringify(validResearch()) }],
+      usage: { input_tokens: 1200, output_tokens: 340 },
+    });
+    const model = createAnthropicResearchModel({ client, model: 'claude-opus-5' });
+
+    const result = await model({ system: SYSTEM_PROMPT, messages: [] });
+
+    expect(result.kind).toBe('json');
+    expect(result.usage).toEqual({
+      provider: 'anthropic',
+      model: 'claude-opus-5',
+      providerMessageId: 'msg_01ABC',
+      inputTokens: 1200,
+      outputTokens: 340,
+      cacheCreationInputTokens: null,
+      cacheReadInputTokens: null,
+    });
+  });
+
+  it('preserves reported cache-usage fields rather than defaulting them to null', async () => {
+    const client = fakeAnthropicClient({
+      id: 'msg_01CACHE',
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: JSON.stringify(validResearch()) }],
+      usage: {
+        input_tokens: 50,
+        output_tokens: 20,
+        cache_creation_input_tokens: 900,
+        cache_read_input_tokens: 100,
+      },
+    });
+    const model = createAnthropicResearchModel({ client });
+
+    const result = await model({ system: SYSTEM_PROMPT, messages: [] });
+
+    expect(result.usage?.cacheCreationInputTokens).toBe(900);
+    expect(result.usage?.cacheReadInputTokens).toBe(100);
+  });
+
+  it('extracts usage from a refusal too — a decline still consumes tokens', async () => {
+    const client = fakeAnthropicClient({
+      id: 'msg_01REFUSED',
+      stop_reason: 'refusal',
+      stop_details: { category: 'cyber' },
+      content: [],
+      usage: { input_tokens: 80, output_tokens: 5 },
+    });
+    const model = createAnthropicResearchModel({ client });
+
+    const result = await model({ system: SYSTEM_PROMPT, messages: [] });
+
+    expect(result.kind).toBe('refusal');
+    expect(result.usage).toMatchObject({ providerMessageId: 'msg_01REFUSED', inputTokens: 80 });
+  });
+
+  it('researchLead reports one invocation per model() call, tagged initial vs repair', async () => {
+    const broken = { ...validResearch(), companySummary: { ...observed('x'), evidence: [] } };
+    const model = vi
+      .fn()
+      .mockResolvedValueOnce({
+        kind: 'json',
+        value: broken,
+        usage: {
+          provider: 'anthropic',
+          model: 'claude-opus-5',
+          providerMessageId: 'msg_initial',
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheCreationInputTokens: null,
+          cacheReadInputTokens: null,
+        },
+      })
+      .mockResolvedValueOnce({
+        kind: 'json',
+        value: validResearch(),
+        usage: {
+          provider: 'anthropic',
+          model: 'claude-opus-5',
+          providerMessageId: 'msg_repair',
+          inputTokens: 60,
+          outputTokens: 40,
+          cacheCreationInputTokens: null,
+          cacheReadInputTokens: null,
+        },
+      });
+
+    const onInvocation = vi.fn();
+    await researchLead(model, input, { sleep: async () => {}, onInvocation });
+
+    expect(onInvocation).toHaveBeenCalledTimes(2);
+    expect(onInvocation.mock.calls[0]![0].providerMessageId).toBe('msg_initial');
+    expect(onInvocation.mock.calls[0]![1]).toBe('initial');
+    expect(onInvocation.mock.calls[1]![0].providerMessageId).toBe('msg_repair');
+    expect(onInvocation.mock.calls[1]![1]).toBe('repair');
+  });
+
+  it('reports a refusal as an invocation too, before the refusal is thrown', async () => {
+    const onInvocation = vi.fn();
+    const model = vi.fn().mockResolvedValue({
+      kind: 'refusal',
+      category: 'cyber',
+      usage: {
+        provider: 'anthropic',
+        model: 'claude-opus-5',
+        providerMessageId: 'msg_refusal',
+        inputTokens: 10,
+        outputTokens: 2,
+        cacheCreationInputTokens: null,
+        cacheReadInputTokens: null,
+      },
+    });
+
+    await expect(
+      researchLead(model, input, { sleep: async () => {}, onInvocation }),
+    ).rejects.toThrow(ResearchRefusedError);
+
+    expect(onInvocation).toHaveBeenCalledTimes(1);
+    expect(onInvocation.mock.calls[0]![1]).toBe('initial');
+  });
+
+  it('does not report an invocation for a call that throws (no response, nothing to meter)', async () => {
+    const onInvocation = vi.fn();
+    const model = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error('rate limited'), { status: 429 }))
+      .mockResolvedValueOnce({
+        kind: 'json',
+        value: validResearch(),
+        usage: {
+          provider: 'anthropic',
+          model: 'claude-opus-5',
+          providerMessageId: 'msg_after_retry',
+          inputTokens: 5,
+          outputTokens: 5,
+          cacheCreationInputTokens: null,
+          cacheReadInputTokens: null,
+        },
+      });
+
+    await researchLead(model, input, { sleep: async () => {}, random: () => 0.5, onInvocation });
+
+    // Two model() calls, but only the second ever returned a response.
+    expect(model).toHaveBeenCalledTimes(2);
+    expect(onInvocation).toHaveBeenCalledTimes(1);
+    expect(onInvocation.mock.calls[0]![0].providerMessageId).toBe('msg_after_retry');
+    // A provider-error retry of the FIRST attempt is still 'initial' —
+    // it retries the same original message, not a repair round.
+    expect(onInvocation.mock.calls[0]![1]).toBe('initial');
+  });
+
+  it('does not invoke the callback at all when the adapter reports no usage', async () => {
+    const onInvocation = vi.fn();
+    const model = vi.fn().mockResolvedValue({ kind: 'json', value: validResearch() });
+
+    await researchLead(model, input, { onInvocation });
+
+    expect(onInvocation).not.toHaveBeenCalled();
+  });
+});
+
 // ============================== targeted repair: what it does and does not ===
 //
 // The repair round narrows the PROMPT. It deliberately does not narrow
