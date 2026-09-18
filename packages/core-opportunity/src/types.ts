@@ -121,3 +121,26 @@ export interface StoredFeedback {
   createdAt: Date;
   updatedAt: Date;
 }
+
+/**
+ * Basic outcome tracking for one caller's own Opportunities (R-27, Phase
+ * 15). Covers only the two verbs R-27's "opportunities created, reviewed,
+ * actioned" has an authoritative, already-persisted signal for:
+ * `created` (Opportunity existence, R-13) and `actioned` (Feedback
+ * existence, R-21 — Stage R's user verdict is the terminal MVP action on
+ * an Opportunity). "Reviewed" has no persisted signal anywhere in the
+ * MVP data model or PRD and is deliberately not represented here — see
+ * this package's index.ts header and the Phase 15 final report for why.
+ */
+export interface OpportunityTrackingSummary {
+  /** Count of the caller's own Opportunities (R-13). */
+  created: number;
+  /** Of `created`, how many have a recorded Feedback verdict (R-21). */
+  actioned: number;
+  /** Of `actioned`, how many verdicts were useful. */
+  useful: number;
+  /** Of `actioned`, how many verdicts were not useful. */
+  notUseful: number;
+  /** `actioned / created`. `0` (never `NaN`) when `created` is `0`. */
+  actionedRate: number;
+}

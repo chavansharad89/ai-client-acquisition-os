@@ -22,6 +22,7 @@ import type { OpportunityScoreRepository } from './scoreRepository';
 import type {
   CreateOpportunityInput,
   DetectedOffer,
+  OpportunityTrackingSummary,
   RankedOpportunity,
   RecordFeedbackInput,
   StoredFeedback,
@@ -457,4 +458,83 @@ export async function getFeedback(
 ): Promise<StoredFeedback | null> {
   const userId = await requireUser(deps.identity, rawToken, now);
   return deps.feedback.getByOpportunityId(userId, opportunityId);
+}
+
+// ---- Phase 15: Opportunity Tracking (R-27) -----------------------------
+// "Record what happened: opportunities created, reviewed, actioned" (PRD
+// V2.2 R-27), scoped to "Basic outcome tracking only, per Scope Boundary
+// §5.5". Reuses only what Phases 9 and 14 already persist — no new
+// migration, no new table, no new column: `created` is a count of the
+// caller's own Opportunities (deps.opportunities.list, R-13); `actioned`
+// is a count of those with a recorded Feedback verdict (deps.feedback.list,
+// R-21) — Stage R's useful/not-useful verdict is the only terminal user
+// action the MVP Opportunity model has. `useful`/`notUseful` break down
+// `actioned` by verdict; `actionedRate` is the one derived ratio "basic"
+// tracking needs, never NaN.
+//
+// Deliberately does NOT report a "reviewed" count. Stage Q ("USER
+// REVIEW" — "the user opens one opportunity and sees...") describes a UI
+// interaction, not a persisted signal: no field, table, acceptance
+// criterion, decision record or correction anywhere in PRD V2.2 defines
+// what "reviewed" means as data, what would set it, or whether it needs
+// its own persistence. Inventing an answer (e.g. treating a
+// getOpportunity() call as "reviewed") would mean either giving a
+// Phase 9 read a persisted side effect it does not have today — changing
+// an earlier phase's behavior — or adding a new mutation surface nothing
+// yet calls, since no API/UI route reaches this package (see the Phase
+// 15 preflight). This is reported as an open decision, not resolved by
+// assumption (Master Prompt §6/§16).
+//
+// Does not reuse @acos/core-acquisition's metrics.ts: that module's
+// ClosedOpportunity operates on the nine-stage CRM pipeline (WON/LOST,
+// `angle`, `valuePaise`, `followUpsSent`) — Phase 2+ concepts
+// MVP_SCOPE_BOUNDARY.md §6.2-§6.4 excludes, and fields the MVP
+// Opportunity (state: 'NEW' | 'RESEARCHED' only, no revenue field per
+// PFR-02) cannot supply. Reusing it would require either fabricating
+// those inputs or expanding the Opportunity model — outside Phase 15
+// scope. This is also why R-27's own status note calls that module's
+// inputs unsuppliable.
+
+export interface OpportunityTrackingDeps {
+  identity: IdentityRepository;
+  opportunities: OpportunityRepository;
+  feedback: FeedbackRepository;
+}
+
+/**
+ * Computes basic outcome tracking for the caller's own Opportunities
+ * (R-27). A pure read over already-persisted, already-ownership-scoped
+ * data — `deps.opportunities.list(userId)` and `deps.feedback.list(userId)`
+ * each filter on `user_id` at the query itself, the same boundary every
+ * other Phase 9-14 read in this file relies on. No repository beyond
+ * those two reads is touched, and nothing is written.
+ */
+export async function getOpportunityTrackingSummary(
+  deps: OpportunityTrackingDeps,
+  rawToken: string | undefined | null,
+  now: Date = new Date(),
+): Promise<OpportunityTrackingSummary> {
+  const userId = await requireUser(deps.identity, rawToken, now);
+
+  const [opportunities, feedback] = await Promise.all([
+    deps.opportunities.list(userId),
+    deps.feedback.list(userId),
+  ]);
+
+  const created = opportunities.length;
+  // migration 0020's UNIQUE(opportunity_id) plus recordFeedback()'s own
+  // ownership check (Phase 14) together guarantee feedback.length is
+  // already a count of distinct, caller-owned Opportunities — no further
+  // dedup or cross-check against `opportunities` is needed.
+  const actioned = feedback.length;
+  const useful = feedback.filter((row) => row.useful).length;
+  const notUseful = actioned - useful;
+
+  return {
+    created,
+    actioned,
+    useful,
+    notUseful,
+    actionedRate: created === 0 ? 0 : actioned / created,
+  };
 }

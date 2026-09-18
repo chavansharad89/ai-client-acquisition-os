@@ -60,6 +60,13 @@ export function createPgFeedbackRepository(sql: SqlExecutor): FeedbackRepository
       const row = rows[0] as FeedbackRow | undefined;
       return row ? mapRow(row) : null;
     },
+
+    async list(userId: string): Promise<readonly StoredFeedback[]> {
+      const { rows } = await sql.query(`SELECT ${COLUMNS} FROM feedback WHERE user_id = $1`, [
+        userId,
+      ]);
+      return (rows as FeedbackRow[]).map(mapRow);
+    },
   };
 }
 

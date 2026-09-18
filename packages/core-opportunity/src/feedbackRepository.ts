@@ -26,4 +26,12 @@ export interface FeedbackRepository {
 
   /** Only this user's own Feedback, reached through Opportunity ownership — never a global lookup. */
   getByOpportunityId(userId: string, opportunityId: string): Promise<StoredFeedback | null>;
+
+  /**
+   * All of this user's own Feedback (Phase 15, R-27 "basic outcome
+   * tracking"). Filters on Feedback's own `user_id` at the query itself
+   * — the same direct-ownership boundary `getByOpportunityId` uses —
+   * never a global list, never retrieve-then-filter.
+   */
+  list(userId: string): Promise<readonly StoredFeedback[]>;
 }

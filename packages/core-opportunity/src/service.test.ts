@@ -32,6 +32,7 @@ import {
   getFeedback,
   getOpportunityNextAction,
   getOpportunityScore,
+  getOpportunityTrackingSummary,
   rankOpportunities,
   recordFeedback,
   scoreOpportunity,
@@ -1289,6 +1290,155 @@ describe('getFeedback', () => {
 
     await expect(
       getFeedback({ identity, feedback }, null, 'opportunity_1', NOW),
+    ).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+});
+
+describe('getOpportunityTrackingSummary', () => {
+  it('reports all zeros for a caller with no Opportunities (R-27 basic outcome tracking)', async () => {
+    const opportunities = fakeOpportunityRepository();
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    await expect(
+      getOpportunityTrackingSummary({ identity, opportunities, feedback }, 'token-a', NOW),
+    ).resolves.toEqual({
+      created: 0,
+      actioned: 0,
+      useful: 0,
+      notUseful: 0,
+      actionedRate: 0,
+    });
+  });
+
+  it('counts "created" from deps.opportunities.list — every Opportunity, actioned or not', async () => {
+    const opportunities = fakeOpportunityRepository([
+      seedOpportunity({ id: 'opportunity_1' }),
+      seedOpportunity({ id: 'opportunity_2' }),
+      seedOpportunity({ id: 'opportunity_3' }),
+    ]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    const summary = await getOpportunityTrackingSummary(
+      { identity, opportunities, feedback },
+      'token-a',
+      NOW,
+    );
+
+    expect(summary.created).toBe(3);
+    expect(summary.actioned).toBe(0);
+    expect(summary.actionedRate).toBe(0);
+  });
+
+  it('counts "actioned" from recorded Feedback and breaks it down by useful/notUseful (R-21)', async () => {
+    const opportunities = fakeOpportunityRepository([
+      seedOpportunity({ id: 'opportunity_1' }),
+      seedOpportunity({ id: 'opportunity_2' }),
+      seedOpportunity({ id: 'opportunity_3' }),
+      seedOpportunity({ id: 'opportunity_4' }),
+    ]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+    const deps = { identity, opportunities, feedback };
+
+    await recordFeedback(deps, 'token-a', 'opportunity_1', { useful: true, reason: 'good fit' });
+    await recordFeedback(deps, 'token-a', 'opportunity_2', { useful: true, reason: 'good fit' });
+    await recordFeedback(deps, 'token-a', 'opportunity_3', { useful: false, reason: 'no budget' });
+    // opportunity_4 left without feedback — not yet actioned.
+
+    const summary = await getOpportunityTrackingSummary(deps, 'token-a', NOW);
+
+    expect(summary).toEqual({
+      created: 4,
+      actioned: 3,
+      useful: 2,
+      notUseful: 1,
+      actionedRate: 0.75,
+    });
+  });
+
+  it('resubmitting feedback for the same Opportunity does not double-count "actioned" (migration 0020 UNIQUE(opportunity_id))', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity({ id: 'opportunity_1' })]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+    const deps = { identity, opportunities, feedback };
+
+    await recordFeedback(deps, 'token-a', 'opportunity_1', { useful: true, reason: 'first' });
+    await recordFeedback(deps, 'token-a', 'opportunity_1', { useful: false, reason: 'changed' });
+
+    const summary = await getOpportunityTrackingSummary(deps, 'token-a', NOW);
+
+    expect(summary.created).toBe(1);
+    expect(summary.actioned).toBe(1);
+    expect(summary.useful).toBe(0);
+    expect(summary.notUseful).toBe(1);
+  });
+
+  it('is deterministic — repeated calls over unchanged data return an equal result', async () => {
+    const opportunities = fakeOpportunityRepository([
+      seedOpportunity({ id: 'opportunity_1' }),
+      seedOpportunity({ id: 'opportunity_2' }),
+    ]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+    const deps = { identity, opportunities, feedback };
+
+    await recordFeedback(deps, 'token-a', 'opportunity_1', { useful: true, reason: 'x' });
+
+    const first = await getOpportunityTrackingSummary(deps, 'token-a', NOW);
+    const second = await getOpportunityTrackingSummary(deps, 'token-a', NOW);
+
+    expect(second).toEqual(first);
+  });
+
+  it("a different user's summary never includes user A's Opportunities or Feedback — isolation via each repository's own user_id filter, not retrieve-then-filter", async () => {
+    const opportunities = fakeOpportunityRepository([
+      seedOpportunity({ id: 'opportunity_1', userId: 'user_a' }),
+    ]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity({
+      ...sessionFor('token-a', 'user_a'),
+      ...sessionFor('token-b', 'user_b'),
+    });
+    const deps = { identity, opportunities, feedback };
+
+    await recordFeedback(deps, 'token-a', 'opportunity_1', { useful: true, reason: 'x' });
+
+    await expect(getOpportunityTrackingSummary(deps, 'token-b', NOW)).resolves.toEqual({
+      created: 0,
+      actioned: 0,
+      useful: 0,
+      notUseful: 0,
+      actionedRate: 0,
+    });
+    // user A's own summary is unaffected by user B's (empty) read.
+    await expect(getOpportunityTrackingSummary(deps, 'token-a', NOW)).resolves.toEqual({
+      created: 1,
+      actioned: 1,
+      useful: 1,
+      notUseful: 0,
+      actionedRate: 1,
+    });
+  });
+
+  it('rejects an unauthenticated request before touching either repository', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    await expect(
+      getOpportunityTrackingSummary({ identity, opportunities, feedback }, null, NOW),
+    ).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+
+  it('rejects a revoked/unknown token the same way every other Phase 9-14 read does', async () => {
+    const opportunities = fakeOpportunityRepository([seedOpportunity()]);
+    const feedback = fakeFeedbackRepository();
+    const identity = fakeIdentity(sessionFor('token-a', 'user_a'));
+
+    await expect(
+      getOpportunityTrackingSummary({ identity, opportunities, feedback }, 'not-a-real-token', NOW),
     ).rejects.toBeInstanceOf(UnauthenticatedError);
   });
 });

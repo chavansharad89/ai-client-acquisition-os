@@ -174,5 +174,9 @@ export function fakeFeedbackRepository(): FeedbackRepository & { rows: StoredFee
         rows.find((row) => row.opportunityId === opportunityId && row.userId === userId) ?? null
       );
     },
+
+    async list(userId: string) {
+      return rows.filter((row) => row.userId === userId);
+    },
   };
 }

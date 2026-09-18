@@ -20,7 +20,12 @@
 // stored itself. Also owns Feedback (PRD V2.1 R-21/AC-22, Stage R,
 // migration 0020) — persisting the caller's useful/not-useful verdict
 // and free-text reason against one of their own Opportunities; unlike
-// OpportunityScore, Feedback carries its own `userId`.
+// OpportunityScore, Feedback carries its own `userId`. Also owns basic
+// Opportunity outcome tracking (PRD V2.2 R-27, Phase 15) — a pure read
+// summarising the caller's own Opportunities as created/actioned/
+// useful/notUseful from data Phases 9 and 14 already persist; no new
+// table or column. Deliberately does not report "reviewed" — see
+// service.ts's Phase 15 section for why.
 // Does NOT own CRM or Outreach — see MVP_SCOPE_BOUNDARY.md §6.2-6.4.
 //
 // Must NOT: accept a caller-supplied userId anywhere, or reimplement
@@ -55,13 +60,19 @@ export {
   getOpportunity,
   getOpportunityNextAction,
   getOpportunityScore,
+  getOpportunityTrackingSummary,
   listOpportunities,
   rankOpportunities,
   recordFeedback,
   scoreOpportunity,
   SCORER_VERSION,
 } from './service';
-export type { OpportunityDeps, OpportunityFeedbackDeps, OpportunityScoreDeps } from './service';
+export type {
+  OpportunityDeps,
+  OpportunityFeedbackDeps,
+  OpportunityScoreDeps,
+  OpportunityTrackingDeps,
+} from './service';
 
 export { PROSPECT_ID_MAX_LENGTH, validateCreateOpportunityInput } from './validation';
 
@@ -69,6 +80,7 @@ export type {
   CreateOpportunityInput,
   DetectedOffer,
   OpportunityState,
+  OpportunityTrackingSummary,
   RankedOpportunity,
   RecordFeedbackInput,
   StoredFeedback,
