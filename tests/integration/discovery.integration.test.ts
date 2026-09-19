@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  createGooglePlacesDiscoveryProvider,
   createPgCompanyRepository,
   createPgProspectRepository,
   runDiscovery,
@@ -9,6 +10,7 @@ import {
   type DiscoveryCandidate,
   type DiscoveryDeps,
   type DiscoveryProvider,
+  type ExternalDiscoveryClient,
 } from '@acos/core-discovery';
 import {
   createPgIdentityRepository,
@@ -165,6 +167,35 @@ describe('Discovery execution', () => {
     await expect(runDiscovery(d, b.token, { searchId: search.id })).rejects.toBeInstanceOf(
       DiscoverySearchNotFoundError,
     );
+  });
+
+  it('the production GooglePlacesDiscoveryProvider persists real candidates through the same path (Phase 18)', async () => {
+    // Proves Search -> createGooglePlacesDiscoveryProvider -> Discovery
+    // service -> Discovery persistence, with a deterministic fake
+    // ExternalDiscoveryClient standing in for the real Google Places API
+    // (Phase 18 scope doc §26.B) — no live network call.
+    const fakeClient: ExternalDiscoveryClient = {
+      async searchText(query) {
+        expect(query).toContain('Website development');
+        expect(query).toContain('Restaurants');
+        expect(query).toContain('Mumbai');
+        return [
+          { name: 'Acme Co', websiteUri: 'https://acme.example.com' },
+          { name: null, websiteUri: null }, // malformed — dropped by normalizeCandidate downstream
+        ];
+      },
+    };
+
+    const a = await createUserAndSession('places');
+    const d = deps(createGooglePlacesDiscoveryProvider(fakeClient));
+    const search = await createRunningSearch(d, a.token);
+
+    const result = await runDiscovery(d, a.token, { searchId: search.id });
+
+    expect(result.companies).toHaveLength(1);
+    expect(result.companies[0]?.normalizedDomain).toBe('acme.example.com');
+    expect(result.skipped).toBe(1);
+    expect(result.prospects[0]?.userId).toBe(a.userId);
   });
 
   it('discovery cannot execute against a Search that has not been claimed (still PENDING)', async () => {

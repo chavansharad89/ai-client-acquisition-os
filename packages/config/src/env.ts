@@ -62,6 +62,20 @@ const envSchema = z.object({
   // paid product.
   DOWNLOAD_GRANT_SECRET: z.string().trim().min(32),
 
+  // Phase 18 — production DiscoveryProvider (Google Places API, New).
+  // Required, not defaulted: a missing key must fail at boot rather than
+  // silently falling back to the "not configured" stub (see
+  // apps/worker/src/searchWorker/providers.ts).
+  GOOGLE_PLACES_API_KEY: z.string().trim().min(1),
+  GOOGLE_PLACES_API_BASE_URL: z.string().url().default('https://places.googleapis.com/v1'),
+  DISCOVERY_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+
+  // Phase 18 — production SourceDocumentProvider (homepage-only HTTP
+  // fetch, see packages/core-research/src/sourceDocumentProvider.ts).
+  SOURCE_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  SOURCE_FETCH_MAX_BYTES: z.coerce.number().int().positive().default(2_000_000),
+  SOURCE_FETCH_USER_AGENT: z.string().trim().min(1).default('ACOS-ResearchBot/1.0'),
+
   WORKER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
   WORKER_BATCH_SIZE: z.coerce.number().int().positive().default(25),
   // 5, not 8. This defaulted to 8 while the worker's own default was 5,
@@ -100,6 +114,7 @@ export const SECRET_KEYS = [
   'META_CAPI_ACCESS_TOKEN',
   'ANTHROPIC_API_KEY',
   'DOWNLOAD_GRANT_SECRET',
+  'GOOGLE_PLACES_API_KEY',
 ] as const satisfies readonly EnvKey[];
 
 export type SecretKey = (typeof SECRET_KEYS)[number];

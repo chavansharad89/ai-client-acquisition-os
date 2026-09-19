@@ -2,10 +2,11 @@ import type { LeadResearch } from './schema';
 
 /**
  * What the Research Foundation gives a research provider to work with —
- * deliberately independent of any vendor (R-09): a real implementation
- * may wrap @acos/core-research's existing Anthropic-backed engine
- * (./anthropicModel, ./researcher) or any other source; this phase only
- * fixes the boundary, mirroring @acos/core-discovery's DiscoveryProvider.
+ * deliberately independent of any vendor (R-09). ./anthropicResearchProvider.ts
+ * (Phase 18) is the concrete production implementation: it composes
+ * ./sourceDocumentProvider.ts with the existing Anthropic-backed engine
+ * (./anthropicModel.ts, ./researcher.ts), mirroring
+ * @acos/core-discovery's DiscoveryProvider/googlePlacesProvider split.
  */
 export interface ResearchProviderInput {
   prospectId: string;

@@ -78,6 +78,16 @@ export { toNewResearchSignals } from './mapping';
 
 export type { ResearchProvider, ResearchProviderInput } from './provider';
 
+export { createHttpSourceDocumentProvider, SourceFetchTransportError } from './sourceDocumentProvider';
+export type {
+  HttpSourceDocumentProviderOptions,
+  SourceDocumentProvider,
+  SourceDocumentTarget,
+} from './sourceDocumentProvider';
+
+export { createAnthropicResearchProvider, InsufficientEvidenceError } from './anthropicResearchProvider';
+export type { AnthropicResearchProviderDeps } from './anthropicResearchProvider';
+
 export { createPgResearchSignalRepository } from './pgRepository';
 export type { ResearchSignalRepository } from './repository';
 

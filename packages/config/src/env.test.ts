@@ -28,6 +28,7 @@ const COMPLETE: NodeJS.ProcessEnv = {
   META_CAPI_API_VERSION: 'v20.0',
   ANTHROPIC_API_KEY: 'sk-ant-not-real',
   DOWNLOAD_GRANT_SECRET: 'a'.repeat(48),
+  GOOGLE_PLACES_API_KEY: 'places-key-not-real',
 };
 
 const without = (key: string): NodeJS.ProcessEnv => {
@@ -60,6 +61,7 @@ describe('all required secrets present', () => {
       'ANTHROPIC_API_KEY',
       'DATABASE_URL',
       'DOWNLOAD_GRANT_SECRET',
+      'GOOGLE_PLACES_API_KEY',
       'META_CAPI_ACCESS_TOKEN',
       'RAZORPAY_KEY_SECRET',
       'RAZORPAY_WEBHOOK_SECRET',
@@ -81,6 +83,7 @@ describe('a missing required secret fails at load', () => {
     'META_CAPI_ACCESS_TOKEN',
     'ANTHROPIC_API_KEY',
     'DOWNLOAD_GRANT_SECRET',
+    'GOOGLE_PLACES_API_KEY',
   ])('refuses to load without %s', (key) => {
     expect(() => loadEnv(without(key))).toThrow(EnvValidationError);
     try {
@@ -143,6 +146,7 @@ describe('no secret value is ever emitted', () => {
     'whsec-not-real',
     'meta-token-not-real',
     'sk-ant-not-real',
+    'places-key-not-real',
   ];
 
   it('keeps values out of the error when a variable is missing', () => {

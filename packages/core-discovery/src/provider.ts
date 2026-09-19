@@ -13,10 +13,10 @@ export interface DiscoveryCandidate {
 
 /**
  * The external discovery source, behind a provider-independent boundary
- * (R-06) — so the engine does not change when the source does. Exactly
- * one controlled implementation exists for MVP; a real external provider
- * integration is not required by V2.1 for this phase (see
- * MVP_SCOPE_BOUNDARY.md).
+ * (R-06) — so the engine does not change when the source does. This
+ * contract is frozen: ./googlePlacesProvider.ts (Phase 18) is the
+ * concrete production implementation, behind ./googlePlacesClient.ts's
+ * vendor-neutral boundary.
  */
 export interface DiscoveryProvider {
   discover(search: StoredSearch): Promise<readonly DiscoveryCandidate[]>;

@@ -36,7 +36,15 @@ export interface SearchWorkerDeps {
   prospects: ProspectRepository;
   discoveryProvider: DiscoveryProvider;
   signals: ResearchSignalRepository;
-  researchProvider: ResearchProvider;
+  /**
+   * A factory, not a shared instance (Phase 18): the frozen
+   * ResearchProvider.research(input) signature carries no userId, but
+   * R-29 metering needs one at invocation time. Constructing a fresh
+   * ResearchProvider per owner — using the userId this pipeline already
+   * resolves below — lets a concrete implementation capture it for
+   * metering without touching the ResearchProvider contract itself.
+   */
+  researchProvider: (userId: string) => ResearchProvider;
   opportunities: OpportunityRepository;
   /** Identifies this process/replica. Must be unique per worker instance. */
   workerId: string;
@@ -159,7 +167,7 @@ async function runCanonicalPipeline(
         companies: deps.companies,
         prospects: deps.prospects,
         signals: deps.signals,
-        provider: deps.researchProvider,
+        provider: deps.researchProvider(userId),
       },
       userId,
       { prospectId: prospect.id },

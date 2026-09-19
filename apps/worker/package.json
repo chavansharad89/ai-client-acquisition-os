@@ -13,6 +13,7 @@
     "test:integration": "echo 'integration tests for worker live in /tests/integration' && exit 0"
   },
   "dependencies": {
+    "@acos/core-ai-usage": "workspace:*",
     "@acos/core-capi": "workspace:*",
     "@acos/core-discovery": "workspace:*",
     "@acos/core-entitlements": "workspace:*",

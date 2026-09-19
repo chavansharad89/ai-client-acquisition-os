@@ -1,18 +1,24 @@
 import { randomUUID } from 'node:crypto';
 
 import { loadEnv } from '@acos/config';
-import { createPgCompanyRepository, createPgProspectRepository } from '@acos/core-discovery';
+import { createPgAiUsageEventRepository, toNewAiUsageEventInput } from '@acos/core-ai-usage';
+import {
+  createGooglePlacesClient,
+  createGooglePlacesDiscoveryProvider,
+  createPgCompanyRepository,
+  createPgProspectRepository,
+} from '@acos/core-discovery';
 import { createPgOpportunityRepository } from '@acos/core-opportunity';
-import { createPgResearchSignalRepository } from '@acos/core-research';
+import {
+  createAnthropicResearchModel,
+  createAnthropicResearchProvider,
+  createHttpSourceDocumentProvider,
+  createPgResearchSignalRepository,
+} from '@acos/core-research';
 import { createPgSearchRepository } from '@acos/core-search';
 import { Pool } from 'pg';
 
-import {
-  notConfiguredDiscoveryProvider,
-  notConfiguredResearchProvider,
-  runSearchWorkerPollLoop,
-  type SearchWorkerPollLoopDeps,
-} from './searchWorker';
+import { runSearchWorkerPollLoop, type SearchWorkerPollLoopDeps } from './searchWorker';
 
 // apps/worker entrypoint (R-34 — Worker Orchestration / Wiring)
 // -----------------------------------------------------------------------
@@ -26,29 +32,50 @@ import {
 // never implement is unrelated (Phase 2/commerce) and remains unbuilt —
 // see ./metaEvents. This entrypoint now runs the Search worker only.
 //
-// NOTE ON PROVIDERS: no real, production DiscoveryProvider or
-// ResearchProvider exists anywhere in this repository — see
-// ./searchWorker/providers.ts for exactly why, and
-// requirement/PHASE_17_R34_PREFLIGHT_SCOPE_LOCK.md's Pipeline Dependency
-// Graph for the full evidence. This boot wires the explicit
-// "not configured" stubs, so a claimed Search fails visibly (bounded
-// retries, then FAILED with a diagnostic last_error) rather than a
-// worker silently fabricating results. Supplying a real implementation
-// requires no change to this file beyond the two lines that construct
-// `discoveryProvider`/`researchProvider`.
+// PROVIDERS (Phase 18): a real Google Places DiscoveryProvider and a real
+// Anthropic-backed ResearchProvider are wired below, replacing the
+// Phase 17 "not configured" stubs (still available in
+// ./searchWorker/providers.ts for an environment without real
+// credentials). researchProvider is a per-owner FACTORY, not a shared
+// instance — see SearchWorkerDeps' own doc comment in ./searchWorker/
+// worker.ts for why: the frozen ResearchProvider.research(input) carries
+// no userId, so R-29 metering closure captures it here, at the one place
+// a userId is available at construction time for each Search.
 // -----------------------------------------------------------------------
 
 async function main(): Promise<void> {
   const env = loadEnv();
   const pool = new Pool({ connectionString: env.DATABASE_URL });
 
+  const aiUsageEvents = createPgAiUsageEventRepository(pool);
+  const researchModel = createAnthropicResearchModel({ apiKey: env.ANTHROPIC_API_KEY });
+  const sourceDocuments = createHttpSourceDocumentProvider({
+    timeoutMs: env.SOURCE_FETCH_TIMEOUT_MS,
+    maxBytes: env.SOURCE_FETCH_MAX_BYTES,
+    userAgent: env.SOURCE_FETCH_USER_AGENT,
+  });
+
   const deps: SearchWorkerPollLoopDeps = {
     searches: createPgSearchRepository(pool),
     companies: createPgCompanyRepository(pool),
     prospects: createPgProspectRepository(pool),
-    discoveryProvider: notConfiguredDiscoveryProvider(),
+    discoveryProvider: createGooglePlacesDiscoveryProvider(
+      createGooglePlacesClient({
+        apiKey: env.GOOGLE_PLACES_API_KEY,
+        baseUrl: env.GOOGLE_PLACES_API_BASE_URL,
+        timeoutMs: env.DISCOVERY_REQUEST_TIMEOUT_MS,
+      }),
+    ),
     signals: createPgResearchSignalRepository(pool),
-    researchProvider: notConfiguredResearchProvider(),
+    researchProvider: (userId: string) =>
+      createAnthropicResearchProvider({
+        model: researchModel,
+        sourceDocuments,
+        onUsage: (usage, requestKind, prospectId) =>
+          aiUsageEvents
+            .recordEvent(userId, prospectId, toNewAiUsageEventInput(usage, requestKind), new Date())
+            .then(() => undefined),
+      }),
     opportunities: createPgOpportunityRepository(pool),
     workerId: `search-worker-${process.pid}-${randomUUID()}`,
     pollIntervalMs: env.WORKER_POLL_INTERVAL_MS,

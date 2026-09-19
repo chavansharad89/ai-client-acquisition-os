@@ -359,7 +359,7 @@ function buildDeps(overrides: Partial<SearchWorkerDeps> = {}): SearchWorkerDeps 
       { name: 'Acme Co', website: 'https://acme.example.com' },
     ]),
     signals: fakeResearchSignalRepository(),
-    researchProvider: fakeResearchProvider(sampleResearch()),
+    researchProvider: () => fakeResearchProvider(sampleResearch()),
     opportunities: fakeOpportunityRepository(),
     workerId: 'worker-a',
     now: () => NOW,
@@ -664,7 +664,7 @@ describe('canonical pipeline', () => {
 
     const searches = fakeSearchRepository([seedSearch()]);
     const outcome = await claimAndProcessNextSearch(
-      buildDeps({ searches, discoveryProvider, researchProvider, opportunities }),
+      buildDeps({ searches, discoveryProvider, researchProvider: () => researchProvider, opportunities }),
     );
 
     expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: 1 });
@@ -683,7 +683,7 @@ describe('canonical pipeline', () => {
     const searches = fakeSearchRepository([seedSearch()]);
 
     const outcome = await claimAndProcessNextSearch(
-      buildDeps({ searches, researchProvider, opportunities }),
+      buildDeps({ searches, researchProvider: () => researchProvider, opportunities }),
     );
 
     expect(outcome.outcome).toBe('retry');

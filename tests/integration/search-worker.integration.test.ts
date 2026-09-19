@@ -162,7 +162,7 @@ function workerDeps(
       { name: 'Acme Co', website: `https://acme-${randomUUID()}.example.com` },
     ]),
     signals: base.signals,
-    researchProvider: researchProvider(matchingResearch()),
+    researchProvider: () => researchProvider(matchingResearch()),
     opportunities: base.opportunities,
     workerId: `worker_${randomUUID()}`,
     ...overrides,

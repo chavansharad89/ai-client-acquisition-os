@@ -15,6 +15,7 @@ const BASE: NodeJS.ProcessEnv = {
   META_CAPI_ACCESS_TOKEN: 'tok',
   ANTHROPIC_API_KEY: 'sk-ant',
   DOWNLOAD_GRANT_SECRET: 'g'.repeat(48),
+  GOOGLE_PLACES_API_KEY: 'places-key',
 };
 
 const env = (over: NodeJS.ProcessEnv = {}): Env => loadEnv({ ...BASE, ...over });

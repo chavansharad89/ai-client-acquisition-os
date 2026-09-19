@@ -6,6 +6,6 @@ export type { SearchAttemptOutcome, SearchWorkerDeps } from './worker';
 
 export {
   notConfiguredDiscoveryProvider,
-  notConfiguredResearchProvider,
+  notConfiguredResearchProviderFactory,
   ProviderNotConfiguredError,
 } from './providers';

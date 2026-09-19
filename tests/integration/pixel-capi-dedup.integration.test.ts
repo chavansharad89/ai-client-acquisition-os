@@ -69,6 +69,7 @@ async function freshRoute(label: string): Promise<{ db: TempDatabase; post: Rout
   process.env.META_CAPI_ACCESS_TOKEN = 'meta_token_pixel';
   process.env.ANTHROPIC_API_KEY = 'sk-ant-pixel-not-real';
   process.env.DOWNLOAD_GRANT_SECRET = 'p'.repeat(48);
+  process.env.GOOGLE_PLACES_API_KEY = 'places-key-pixel-not-real';
 
   vi.resetModules();
   const mod = (await import('../../apps/web/app/api/webhooks/razorpay/route')) as {

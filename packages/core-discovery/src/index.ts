@@ -15,6 +15,15 @@ export type { CompanyRepository, ProspectRepository } from './repository';
 
 export type { DiscoveryCandidate, DiscoveryProvider } from './provider';
 
+export {
+  createGooglePlacesClient,
+  DiscoveryClientError,
+  DiscoveryTransportError,
+} from './googlePlacesClient';
+export type { ExternalDiscoveryClient, ExternalDiscoveryResult } from './googlePlacesClient';
+
+export { createGooglePlacesDiscoveryProvider } from './googlePlacesProvider';
+
 export { normalizeCandidate, normalizeDomain } from './normalize';
 export type { NormalizedCandidate } from './normalize';
 

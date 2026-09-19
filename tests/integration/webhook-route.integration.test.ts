@@ -97,6 +97,7 @@ async function freshRoute(label: string): Promise<Env> {
   // discover the gap on some later request.
   process.env.ANTHROPIC_API_KEY = 'sk-ant-route-not-real';
   process.env.DOWNLOAD_GRANT_SECRET = 'd'.repeat(48);
+  process.env.GOOGLE_PLACES_API_KEY = 'places-key-route-not-real';
 
   vi.resetModules();
   const mod = (await import('../../apps/web/app/api/webhooks/razorpay/route')) as {
