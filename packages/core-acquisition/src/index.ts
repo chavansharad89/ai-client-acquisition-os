@@ -120,6 +120,12 @@ export {
 } from './scoring';
 export type { LeadScore, ResearchSignal, ResearchSourceKind, ScoreComponent } from './scoring';
 
+export { classifyStaleness } from './staleness';
+export type { OpportunityStaleness } from './staleness';
+
+export { recommendOpportunityAction } from './opportunityAction';
+export type { OpportunityAction, OpportunityActionInput, OpportunityActionKind } from './opportunityAction';
+
 export {
   allowedTransitions,
   assertTransition,

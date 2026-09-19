@@ -55,8 +55,28 @@ export interface ResearchModel {
   }): Promise<ModelResult>;
 }
 
+/**
+ * One provider/model invocation's usage, as reported by the provider
+ * itself (R-29 — Phase 16 scope lock D6). Optional on {@link ModelResult}
+ * so an adapter that cannot report usage (a test fake, a future
+ * provider) need not populate it — see the request-kind-fields' own
+ * "never fabricated" rule, which lives one layer up in ./service and
+ * @acos/core-ai-usage, not here.
+ */
+export interface ModelInvocationUsage {
+  provider: string;
+  model: string;
+  /** The provider's own unique identifier for this response (e.g. Anthropic's Message.id). */
+  providerMessageId: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationInputTokens: number | null;
+  cacheReadInputTokens: number | null;
+}
+
 export type ModelResult =
-  { kind: 'json'; value: unknown } | { kind: 'refusal'; category: string | null };
+  | { kind: 'json'; value: unknown; usage?: ModelInvocationUsage }
+  | { kind: 'refusal'; category: string | null; usage?: ModelInvocationUsage };
 
 export interface ResearchOptions {
   /** Total attempts including the first. */
@@ -79,6 +99,23 @@ export interface ResearchOptions {
   deadlineMs?: number;
   /** Warn below this share of OBSERVED claims. */
   minObservedRatio?: number;
+  /**
+   * Fired once per model() call that returns a response with usage —
+   * whether that response is a valid result, a repairable failure, or a
+   * refusal (all three are real, billed provider calls). Never fired for
+   * a call that throws (R-29 — Phase 16 scope lock D7: a failed
+   * invocation is not metered). `requestKind` is 'repair' once a repair
+   * round is in flight (repairRoots is non-empty), 'initial' otherwise —
+   * a provider-error retry of the first attempt is still 'initial': it
+   * retries the same original message, not a repair round.
+   *
+   * Purely a propagation hook — this module does not persist anything
+   * itself; see @acos/core-ai-usage for the metering write.
+   */
+  onInvocation?: (
+    usage: ModelInvocationUsage,
+    requestKind: 'initial' | 'repair',
+  ) => void | Promise<void>;
 }
 
 export interface ResearchOutcome {
@@ -183,6 +220,15 @@ export async function researchLead(
       await sleep(wait, signal);
       assertLive();
       continue;
+    }
+
+    // A response exists — the provider was actually called and (for a
+    // real adapter) billed, regardless of what this loop does with the
+    // result next. Fire before validation/refusal handling so a
+    // repairable failure or a refusal is metered exactly like a success.
+    if (result.usage && options.onInvocation) {
+      const requestKind: 'initial' | 'repair' = repairRoots.length > 0 ? 'repair' : 'initial';
+      await options.onInvocation(result.usage, requestKind);
     }
 
     if (result.kind === 'refusal') {

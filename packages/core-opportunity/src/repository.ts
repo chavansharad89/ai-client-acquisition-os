@@ -1,0 +1,54 @@
+import type { OpportunityStaleness } from '@acos/core-acquisition';
+
+import type { DetectedOffer, StoredOpportunity } from './types';
+
+/**
+ * Persistence boundary for Opportunity. Every operation that touches a
+ * specific row is constrained by `userId` in the query itself — mirrors
+ * @acos/core-search's SearchRepository and @acos/core-discovery's
+ * CompanyRepository/ProspectRepository. There is deliberately no
+ * `getById(id)` that could return another user's row.
+ */
+export interface OpportunityRepository {
+  /**
+   * Inserts one Opportunity for `prospectId` at state 'NEW'. One
+   * Opportunity per Prospect — a second call for the same `prospectId`
+   * is a database-level unique-constraint violation (migration 0017),
+   * left uncaught here, the same convention migration 0014's note on
+   * `deleteServiceProfile()` documents for its own FK violation.
+   */
+  create(
+    userId: string,
+    input: { prospectId: string; needDetected: boolean; offer: DetectedOffer | undefined },
+    now: Date,
+  ): Promise<StoredOpportunity>;
+
+  getById(userId: string, id: string): Promise<StoredOpportunity | null>;
+
+  /**
+   * Only this user's Opportunity for this Prospect, or null — the
+   * pre-check side of the same one-per-Prospect invariant `create()`
+   * enforces at the database level (migration 0017's unique index).
+   * Added for R-34: a worker retrying a Search after a crash needs to
+   * detect "already created" without relying on catching a raw
+   * unique-violation, mirroring `SearchRepository.findByIdempotencyKey`'s
+   * existing pre-check pattern.
+   */
+  findByProspectId(userId: string, prospectId: string): Promise<StoredOpportunity | null>;
+
+  /** Only this user's Opportunities — never a global list. */
+  list(userId: string): Promise<readonly StoredOpportunity[]>;
+
+  /**
+   * Persists a freshly computed staleness classification (R-19). Scoped
+   * by `userId` in the write itself, the same ownership boundary as
+   * `getById` — returns `null` rather than throwing when `id` does not
+   * resolve to a row owned by the caller.
+   */
+  updateStaleness(
+    userId: string,
+    id: string,
+    staleness: OpportunityStaleness,
+    computedAt: Date,
+  ): Promise<StoredOpportunity | null>;
+}
