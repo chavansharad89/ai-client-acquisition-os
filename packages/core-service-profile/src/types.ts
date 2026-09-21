@@ -12,6 +12,17 @@ export interface ServiceProfileFields {
   targetCustomer: string;
   geography: string;
   minProjectValuePaise: number;
+  /**
+   * Canonical contract (resolves OQ-4's "not decided" only as far as
+   * representation, not derivation mechanism): each item MUST be one of
+   * @acos/core-acquisition's fixed `ResearchSourceKind` values
+   * (`WEBSITE`, `JOB_POST`, `LINKEDIN`, `NEWS`, `FUNDING`, `TECH_STACK`,
+   * `REVIEW`, `MANUAL`) — NOT free-text business/problem descriptions
+   * (e.g. "outdated website"). This is the only representation
+   * @acos/core-opportunity's `toServiceRule()` ever matches against a
+   * ResearchSignal; anything else can never produce a need/offer match.
+   * Enforced by validateServiceProfileInput() in validation.ts.
+   */
   triggers: readonly string[];
   keywords: readonly string[];
   rationale: string;

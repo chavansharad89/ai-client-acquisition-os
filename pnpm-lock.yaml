@@ -445,6 +445,9 @@ importers:
 
   packages/core-service-profile:
     dependencies:
+      '@acos/core-acquisition':
+        specifier: workspace:*
+        version: link:../core-acquisition
       '@acos/core-entitlements':
         specifier: workspace:*
         version: link:../core-entitlements

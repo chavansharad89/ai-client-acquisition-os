@@ -1,4 +1,4 @@
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 import { Readability } from '@mozilla/readability';
 
 import type { SourceDocument } from './provenance';
@@ -126,7 +126,14 @@ async function fetchHomepage(
 function extractText(html: string): string | null {
   let dom: JSDOM;
   try {
-    dom = new JSDOM(html);
+    // jsdom's default virtual console forwards its own internal
+    // "jsdomError" events (e.g. malformed CSS it fails to parse, as seen
+    // live on mumbaiwebdesign.in) to the real console, dumping the raw
+    // offending CSS/stack to stderr for every such page. A silent
+    // VirtualConsole (no listeners) absorbs those without throwing —
+    // jsdom itself already isolates the parse failure and never lets it
+    // affect extraction; this just stops the log flood.
+    dom = new JSDOM(html, { virtualConsole: new VirtualConsole() });
   } catch {
     return null;
   }

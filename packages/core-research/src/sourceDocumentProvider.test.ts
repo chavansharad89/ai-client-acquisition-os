@@ -189,6 +189,48 @@ describe('createHttpSourceDocumentProvider', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it('extracts text safely when the homepage contains malformed CSS jsdom cannot parse — mumbaiwebdesign.in regression', async () => {
+    // Real-world regression: mumbaiwebdesign.in's homepage contains a
+    // <style> block jsdom's CSS parser (cssom) rejects, which jsdom
+    // reports via an internal "jsdomError" event on its virtual console.
+    // Left on the default virtual console, that event is forwarded to
+    // the real console, dumping the offending CSS/stack to stderr for
+    // every such page — a worker-process log-flooding risk, not a
+    // crash. This fixture reproduces the same jsdom failure path with a
+    // minimal malformed <style> block alongside real extractable copy.
+    const malformedCssHtml = `
+<!doctype html>
+<html><head><title>Acme Web Design</title>
+<style>
+  .broken { color: ; !!!not-css ][ }} div { background: url(
+</style>
+</head>
+<body>
+  <article>
+    <h1>Acme Web Design</h1>
+    <p>Acme Web Design builds custom marketing websites for small and
+    mid-size businesses across the region. We specialize in WordPress
+    and Elementor builds, handling everything from initial design
+    through launch and ongoing maintenance for our clients, who range
+    from local retailers to regional service providers seeking a
+    stronger online presence and better lead generation from their
+    existing traffic.</p>
+  </article>
+</body></html>`;
+    const fetchImpl = vi.fn(async () => htmlResponse(malformedCssHtml));
+    const provider = createHttpSourceDocumentProvider({ fetchImpl: fetchImpl as typeof fetch });
+
+    const docs = await provider.fetchSourceDocuments({
+      companyName: 'Acme Web Design',
+      normalizedDomain: 'mumbaiwebdesign.in',
+    });
+
+    // Does not throw/crash, and the malformed <style> block does not
+    // prevent extraction of the surrounding real content.
+    expect(docs).toHaveLength(1);
+    expect(docs[0]!.text).toContain('Acme Web Design builds custom marketing websites');
+  });
+
   it('throws SourceFetchTransportError on a request timeout', async () => {
     const fetchImpl = vi.fn(async (_url: string | URL, init?: RequestInit) => {
       return new Promise<Response>((_resolve, reject) => {

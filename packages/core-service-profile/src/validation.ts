@@ -1,3 +1,5 @@
+import { SOURCE_WEIGHT } from '@acos/core-acquisition';
+
 import { ServiceProfileValidationError } from './errors';
 import type { ServiceProfileFields, ServiceProfileInput } from './types';
 
@@ -7,6 +9,19 @@ import type { ServiceProfileFields, ServiceProfileInput } from './types';
 // V2.1 does not specify. No silent coercion: a value that fails a check
 // throws rather than being trimmed/clamped/defaulted into something valid.
 // -----------------------------------------------------------------------
+
+// `triggers` canonical contract (post-Phase-18 follow-up): the only
+// consumer of this field, @acos/core-opportunity's toServiceRule(), matches
+// it against @acos/core-acquisition's fixed ResearchSourceKind vocabulary
+// — a value outside that vocabulary can never match a ResearchSignal and
+// silently becomes dead weight. Previously that filtering happened
+// downstream at the adapter boundary, so a profile created with free text
+// like "outdated website" was accepted here and only failed silently much
+// later (needDetected always false). Rejecting it here instead — loudly,
+// at creation time — is the fix: the value SOURCE_WEIGHT's keys already
+// double as the runtime vocabulary (see toServiceRule()'s own
+// VALID_TRIGGER_KINDS, same pattern, same source of truth).
+const VALID_TRIGGER_KINDS = new Set<string>(Object.keys(SOURCE_WEIGHT));
 
 export const SERVICE_MAX_LENGTH = 200;
 export const TARGET_CUSTOMER_MAX_LENGTH = 200;
@@ -101,7 +116,16 @@ export function validateServiceProfileInput(input: ServiceProfileInput): Service
     'triggers',
     RULE_FIELD_MAX_ITEMS,
     RULE_ITEM_MAX_LENGTH,
-  );
+  ).map((item) => {
+    if (!VALID_TRIGGER_KINDS.has(item)) {
+      throw new ServiceProfileValidationError(
+        'triggers',
+        'not-in-vocabulary',
+        `triggers items must be one of: ${[...VALID_TRIGGER_KINDS].join(', ')} (got "${item}")`,
+      );
+    }
+    return item;
+  });
   const keywords = requireStringList(
     input.keywords,
     'keywords',
