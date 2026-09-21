@@ -76,6 +76,47 @@ describe('createHttpSourceDocumentProvider', () => {
     expect(docs).toEqual([]);
   });
 
+  it('resolves to [] for a client-rendered SPA shell with zero server-rendered text — Readability returns null, not just a short string', async () => {
+    // Real-world regression: amitdwivedi.in (a Hostinger-Horizons-built
+    // React/Vite SPA) serves this exact shape for every request — 200
+    // OK, content-type text/html, identical byte-for-byte regardless of
+    // User-Agent (confirmed live: no bot-detection, no prerendering) —
+    // and the server-rendered document contains no text anywhere: no
+    // body content, no meta description, no Open Graph tags, only a
+    // mount point and script tags. Readability.parse() legitimately
+    // returns null here (not just under-threshold text, as the "Hi."
+    // case above exercises) because there is genuinely nothing to
+    // extract without executing the page's JavaScript — which Phase
+    // 18's frozen, no-headless-browser scope correctly never attempts.
+    // InsufficientEvidenceError is the correct downstream outcome, not
+    // a defect: there is no legitimate homepage evidence to acquire.
+    const spaShellHtml = `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="generator" content="Hostinger Horizons" />
+    <title>Hostinger Horizons</title>
+    <script type="module" crossorigin src="/assets/index-89c4af11.js"></script>
+    <link rel="stylesheet" href="/assets/index-abf24b1d.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>`;
+    const fetchImpl = vi.fn(async () => htmlResponse(spaShellHtml));
+    const provider = createHttpSourceDocumentProvider({ fetchImpl: fetchImpl as typeof fetch });
+
+    const docs = await provider.fetchSourceDocuments({
+      companyName: 'Amit Dwivedi Website Design and Development',
+      normalizedDomain: 'amitdwivedi.in',
+    });
+
+    expect(docs).toEqual([]);
+    // Correctly classified as unusable, not transient — never retried.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('resolves to [] on a non-retryable 404, without retrying', async () => {
     const fetchImpl = vi.fn(async () => htmlResponse('not found', 404));
     const provider = createHttpSourceDocumentProvider({ fetchImpl: fetchImpl as typeof fetch });

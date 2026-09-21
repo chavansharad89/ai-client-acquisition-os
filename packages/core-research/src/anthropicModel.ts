@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodToJsonSchema } from './jsonSchema';
-import { leadResearchSchema } from './schema';
+import { leadResearchSchema, observationSchema } from './schema';
 import type { ModelInvocationUsage, ModelResult, ResearchModel } from './researcher';
 
 // The Anthropic adapter.
@@ -80,7 +80,12 @@ export function createAnthropicResearchModel(options: AnthropicModelOptions): Re
         effort,
         format: {
           type: 'json_schema',
-          schema: zodToJsonSchema(leadResearchSchema),
+          // observationSchema recurs 9 times inside leadResearchSchema
+          // (companySummary/businessModel/targetCustomers plus each of
+          // the 6 observation-list items). Deduplicated via $defs/$ref
+          // so Anthropic's compiler sees its 2 nullable fields once,
+          // not 9 times over — see jsonSchema.ts's ZodToJsonSchemaOptions.
+          schema: zodToJsonSchema(leadResearchSchema, { defs: { Observation: observationSchema } }),
         },
       },
       messages: messages.map((message) => ({ role: message.role, content: message.content })),
