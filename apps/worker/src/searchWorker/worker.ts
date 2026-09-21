@@ -4,6 +4,8 @@ import type {
   ProspectRepository,
 } from '@acos/core-discovery';
 import { runDiscoveryForOwner } from '@acos/core-discovery';
+import type { FollowUpPreparationRepository } from '@acos/core-followup-preparation';
+import { prepareFollowUpForOwner } from '@acos/core-followup-preparation';
 import type { OpportunityRepository } from '@acos/core-opportunity';
 import { createOpportunityForOwner } from '@acos/core-opportunity';
 import type { OutreachPreparationRepository } from '@acos/core-outreach-preparation';
@@ -108,6 +110,27 @@ export interface SearchWorkerDeps {
    * separate flag.
    */
   outreachPreparations?: OutreachPreparationRepository;
+  /**
+   * Phase 23 (R-66): prepares and persists an inert, human-reviewable
+   * Follow-Up Preparation draft for every Prospect's Opportunity,
+   * immediately after Outreach Preparation runs — see
+   * runCanonicalPipeline below. Reuses the exact `userId` this pipeline
+   * already resolves; introduces no new claim/lease/retry concept, and
+   * no send/schedule/delivery capability of any kind (see
+   * @acos/core-followup-preparation's own R-68 no-send guarantee).
+   *
+   * Optional for the same reason `qualifications`/`personalizations`/
+   * `outreachPreparations` above are: making it required would force
+   * every existing caller that builds a `SearchWorkerDeps` object —
+   * including every pre-Phase-23 test — to be edited merely to keep
+   * compiling. The real entrypoint (apps/worker/src/index.ts) always
+   * supplies it, so production runs always attempt Follow-Up
+   * Preparation; omitting it skips the step rather than failing. Only
+   * reachable when `deps.outreachPreparations` is also configured and
+   * Outreach Preparation itself already ran in this pass — enforced by
+   * nesting, not a separate flag.
+   */
+  followUpPreparations?: FollowUpPreparationRepository;
   /** Identifies this process/replica. Must be unique per worker instance. */
   workerId: string;
   now?: () => Date;
@@ -238,6 +261,21 @@ export async function claimAndProcessNextSearch(
  * dependencies are present and lets it decide whether a draft is
  * actually produced. It never sends anything — see
  * @acos/core-outreach-preparation's own R-58 no-send guarantee.
+ *
+ * Follow-Up Preparation (Phase 23, R-66) runs immediately after Outreach
+ * Preparation, strictly nested inside the same `if
+ * (deps.outreachPreparations)` branch — never invoked in a pass where
+ * Outreach Preparation itself did not just run — and only when
+ * `deps.followUpPreparations` is also configured (optional for the same
+ * pre-existing-caller reason as `deps.qualifications`/
+ * `deps.personalizations`/`deps.outreachPreparations`).
+ * `prepareFollowUpForOwner` is idempotent by itself (`upsert` on
+ * `UNIQUE(opportunity_id)` — R-65/R-69) and enforces its own eligibility
+ * gate (an Outreach Preparation row must already exist — R-62)
+ * internally — this orchestration calls it unconditionally whenever both
+ * dependencies are present and lets it decide whether a follow-up draft
+ * is actually produced. It never sends, schedules, or delivers anything —
+ * see @acos/core-followup-preparation's own R-68 no-send guarantee.
  */
 async function runCanonicalPipeline(
   deps: SearchWorkerDeps,
@@ -318,6 +356,18 @@ async function runCanonicalPipeline(
             userId,
             opportunity.id,
           );
+
+          if (deps.followUpPreparations) {
+            await prepareFollowUpForOwner(
+              {
+                opportunities: deps.opportunities,
+                outreachPreparations: deps.outreachPreparations,
+                followUpPreparations: deps.followUpPreparations,
+              },
+              userId,
+              opportunity.id,
+            );
+          }
         }
       }
     }

@@ -6,6 +6,10 @@ import type {
   StoredCompany,
   StoredProspect,
 } from '@acos/core-discovery';
+import type {
+  FollowUpPreparationRepository,
+  StoredFollowUpPreparation,
+} from '@acos/core-followup-preparation';
 import type { OpportunityRepository, StoredOpportunity } from '@acos/core-opportunity';
 import type {
   OutreachPreparationRepository,
@@ -395,6 +399,57 @@ function fakeOutreachPreparationRepository(): OutreachPreparationRepository & {
         subjectLine: generation.subjectLine,
         messageBody: generation.messageBody,
         callToAction: generation.callToAction,
+        evidence: generation.evidence,
+        generatorVersion,
+        generatedAt,
+        createdAt: existing?.createdAt ?? generatedAt,
+        updatedAt: generatedAt,
+      };
+      if (index === -1) rows.push(stored);
+      else rows[index] = stored;
+      return stored;
+    },
+    async getByOpportunityId(_userId: string, opportunityId: string) {
+      // Phase 23 (R-62): prepareFollowUpForOwner reads this back
+      // immediately after Outreach Preparation's own upsert() call above,
+      // in the same pipeline pass — this fake must actually serve what
+      // was just written, mirroring fakePersonalizationRepository's
+      // identical getByOpportunityId above (needed for the same reason
+      // since Phase 22). No Phase 22 test exercises this method.
+      return rows.find((r) => r.opportunityId === opportunityId) ?? null;
+    },
+    async listByUserId() {
+      throw new Error('not used by these tests');
+    },
+  };
+}
+
+function fakeFollowUpPreparationRepository(): FollowUpPreparationRepository & {
+  rows: StoredFollowUpPreparation[];
+} {
+  const rows: StoredFollowUpPreparation[] = [];
+  let counter = 0;
+  return {
+    rows,
+    async upsert(
+      opportunityId,
+      prospectId,
+      sourceOutreachPreparationId,
+      generation,
+      generatorVersion,
+      generatedAt,
+    ) {
+      const index = rows.findIndex((r) => r.opportunityId === opportunityId);
+      const existing = index === -1 ? undefined : rows[index];
+      const stored: StoredFollowUpPreparation = {
+        id: existing?.id ?? `followup_preparation_${(counter += 1)}`,
+        opportunityId,
+        prospectId,
+        sourceOutreachPreparationId,
+        state: 'READY_FOR_REVIEW',
+        followUpContext: generation.followUpContext,
+        followUpContent: generation.followUpContent,
+        rationale: generation.rationale,
         evidence: generation.evidence,
         generatorVersion,
         generatedAt,
@@ -1271,5 +1326,186 @@ describe('outreach preparation (Phase 22, R-59)', () => {
     expect(personalizations.rows).toHaveLength(1);
     expect(outreachPreparations.rows).toHaveLength(1); // still no duplicate row
     expect(outreachPreparations.rows[0]!.id).toBe(firstId);
+  });
+});
+
+describe('follow-up preparation (Phase 23, R-66)', () => {
+  it('runs Follow-Up Preparation immediately after Outreach Preparation, in order, for a Prepared Opportunity', async () => {
+    const calls: string[] = [];
+    const qualifications = fakeQualificationRepository();
+    const personalizations = fakePersonalizationRepository();
+    const outreachPreparations = fakeOutreachPreparationRepository();
+    const realUpsertO = outreachPreparations.upsert.bind(outreachPreparations);
+    outreachPreparations.upsert = (async (...args: Parameters<typeof realUpsertO>) => {
+      calls.push('outreachPreparation');
+      return realUpsertO(...args);
+    }) as typeof outreachPreparations.upsert;
+    const followUpPreparations = fakeFollowUpPreparationRepository();
+    const realUpsertF = followUpPreparations.upsert.bind(followUpPreparations);
+    followUpPreparations.upsert = (async (...args: Parameters<typeof realUpsertF>) => {
+      calls.push('followUpPreparation');
+      return realUpsertF(...args);
+    }) as typeof followUpPreparations.upsert;
+
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        qualifications,
+        personalizations,
+        outreachPreparations,
+        followUpPreparations,
+      }),
+    );
+
+    expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: 1 });
+    expect(calls).toEqual(['outreachPreparation', 'followUpPreparation']);
+    expect(followUpPreparations.rows).toHaveLength(1);
+    expect(followUpPreparations.rows[0]!.opportunityId).toBe(outreachPreparations.rows[0]!.opportunityId);
+    expect(followUpPreparations.rows[0]!.sourceOutreachPreparationId).toBe(outreachPreparations.rows[0]!.id);
+    expect(followUpPreparations.rows[0]!.state).toBe('READY_FOR_REVIEW');
+  });
+
+  it('creates no Follow-Up Preparation row when Outreach Preparation itself produces no row', async () => {
+    const followUpPreparations = fakeFollowUpPreparationRepository();
+    const outreachPreparations = fakeOutreachPreparationRepository();
+    const personalizations = fakePersonalizationRepository();
+    const searches = fakeSearchRepository([seedSearch()]); // default seedSearch + sampleResearch() never match -> NOT_QUALIFIED -> no Personalization -> no Outreach Preparation
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({ searches, personalizations, outreachPreparations, followUpPreparations }),
+    );
+
+    expect(outcome.outcome).toBe('completed');
+    expect(outreachPreparations.rows).toHaveLength(0);
+    expect(followUpPreparations.rows).toHaveLength(0);
+  });
+
+  it('never runs Follow-Up Preparation when Outreach Preparation did not itself run in this pass, even if deps.followUpPreparations is configured', async () => {
+    const followUpPreparations = fakeFollowUpPreparationRepository();
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+
+    // Built without `buildDeps()` (rather than overriding
+    // `outreachPreparations` to `undefined`) so the field is genuinely
+    // absent, matching `exactOptionalPropertyTypes` — mirrors the
+    // equivalent Phase 22 test for `personalizations` above.
+    const deps: SearchWorkerDeps = {
+      searches,
+      companies: fakeCompanyRepository(),
+      prospects: fakeProspectRepository(),
+      discoveryProvider: fakeDiscoveryProvider([{ name: 'Acme Co', website: 'https://acme.example.com' }]),
+      signals: fakeResearchSignalRepository(),
+      researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+      opportunities: fakeOpportunityRepository(),
+      qualifications: fakeQualificationRepository(),
+      personalizations: fakePersonalizationRepository(),
+      followUpPreparations,
+      workerId: 'worker-a',
+      now: () => NOW,
+    };
+
+    const outcome = await claimAndProcessNextSearch(deps);
+
+    expect(outcome.outcome).toBe('completed');
+    expect(followUpPreparations.rows).toHaveLength(0);
+  });
+
+  it('a Follow-Up-Preparation-stage failure surfaces as a failed attempt, without touching ResearchSignals/Opportunity/Qualification/Personalization/OutreachPreparation', async () => {
+    const followUpPreparations = fakeFollowUpPreparationRepository();
+    followUpPreparations.upsert = vi.fn().mockRejectedValue(new Error('follow-up preparation write failed'));
+    const qualifications = fakeQualificationRepository();
+    const personalizations = fakePersonalizationRepository();
+    const outreachPreparations = fakeOutreachPreparationRepository();
+    const opportunities = fakeOpportunityRepository();
+    const signals = fakeResearchSignalRepository();
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        opportunities,
+        qualifications,
+        signals,
+        personalizations,
+        outreachPreparations,
+        followUpPreparations,
+      }),
+    );
+
+    expect(outcome.outcome).toBe('retry');
+    expect(searches.rows[0]!.status).toBe('PENDING');
+    // Upstream state, already committed to their own fakes before the
+    // Follow-Up Preparation stage threw, is left exactly as it was.
+    expect(qualifications.rows).toHaveLength(1);
+    expect(qualifications.rows[0]!.state).toBe('QUALIFIED');
+    expect(personalizations.rows).toHaveLength(1);
+    expect(outreachPreparations.rows).toHaveLength(1);
+    expect(opportunities.rows).toHaveLength(1);
+    expect(signals.rows.length).toBeGreaterThan(0);
+  });
+
+  it('R-69: idempotent on retry — re-running against unchanged Outreach Preparation replaces the same row, no duplicates', async () => {
+    const opportunities = fakeOpportunityRepository();
+    const qualifications = fakeQualificationRepository();
+    const personalizations = fakePersonalizationRepository();
+    const outreachPreparations = fakeOutreachPreparationRepository();
+    const followUpPreparations = fakeFollowUpPreparationRepository();
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+    const researchProvider = () => fakeResearchProvider(qualifyingResearch());
+
+    await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        researchProvider,
+        opportunities,
+        qualifications,
+        personalizations,
+        outreachPreparations,
+        followUpPreparations,
+      }),
+    );
+    expect(followUpPreparations.rows).toHaveLength(1);
+    const firstId = followUpPreparations.rows[0]!.id;
+
+    searches.rows[0] = { ...searches.rows[0]!, status: 'PENDING' };
+    await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        researchProvider,
+        opportunities,
+        qualifications,
+        personalizations,
+        outreachPreparations,
+        followUpPreparations,
+      }),
+    );
+
+    expect(outreachPreparations.rows).toHaveLength(1);
+    expect(followUpPreparations.rows).toHaveLength(1); // still no duplicate row
+    expect(followUpPreparations.rows[0]!.id).toBe(firstId);
+  });
+
+  it('R-68: no field, state, or exported function in this stage implies send/schedule/delivery', async () => {
+    const outreachPreparations = fakeOutreachPreparationRepository();
+    const followUpPreparations = fakeFollowUpPreparationRepository();
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+
+    await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        personalizations: fakePersonalizationRepository(),
+        qualifications: fakeQualificationRepository(),
+        outreachPreparations,
+        followUpPreparations,
+      }),
+    );
+
+    expect(followUpPreparations.rows[0]!.state).toBe('READY_FOR_REVIEW');
+    expect(followUpPreparations.rows[0]).not.toHaveProperty('sentAt');
+    expect(followUpPreparations.rows[0]).not.toHaveProperty('deliveredAt');
+    expect(followUpPreparations.rows[0]).not.toHaveProperty('scheduledAt');
   });
 });

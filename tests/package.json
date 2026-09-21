@@ -15,6 +15,7 @@
     "@acos/core-capi": "workspace:*",
     "@acos/core-discovery": "workspace:*",
     "@acos/core-entitlements": "workspace:*",
+    "@acos/core-followup-preparation": "workspace:*",
     "@acos/core-identity": "workspace:*",
     "@acos/core-opportunity": "workspace:*",
     "@acos/core-outreach-preparation": "workspace:*",

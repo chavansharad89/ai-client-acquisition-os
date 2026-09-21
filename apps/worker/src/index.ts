@@ -8,6 +8,7 @@ import {
   createPgCompanyRepository,
   createPgProspectRepository,
 } from '@acos/core-discovery';
+import { createPgFollowUpPreparationRepository } from '@acos/core-followup-preparation';
 import { createPgOpportunityRepository } from '@acos/core-opportunity';
 import { createPgOutreachPreparationRepository } from '@acos/core-outreach-preparation';
 import { createPgPersonalizationRepository } from '@acos/core-personalization';
@@ -83,6 +84,7 @@ async function main(): Promise<void> {
     qualifications: createPgQualificationRepository(pool),
     personalizations: createPgPersonalizationRepository(pool),
     outreachPreparations: createPgOutreachPreparationRepository(pool),
+    followUpPreparations: createPgFollowUpPreparationRepository(pool),
     workerId: `search-worker-${process.pid}-${randomUUID()}`,
     pollIntervalMs: env.WORKER_POLL_INTERVAL_MS,
   };
