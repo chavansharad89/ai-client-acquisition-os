@@ -5,7 +5,8 @@ export type ServiceProfileValidationReason =
   | 'negative'
   | 'not-an-array'
   | 'too-many-items'
-  | 'invalid-item';
+  | 'invalid-item'
+  | 'not-in-vocabulary';
 
 /**
  * Thrown by {@link validateServiceProfileInput} for any untrusted value

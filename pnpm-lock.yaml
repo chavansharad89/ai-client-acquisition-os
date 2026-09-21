@@ -114,9 +114,21 @@ importers:
       '@acos/core-entitlements':
         specifier: workspace:*
         version: link:../../packages/core-entitlements
+      '@acos/core-followup-preparation':
+        specifier: workspace:*
+        version: link:../../packages/core-followup-preparation
       '@acos/core-opportunity':
         specifier: workspace:*
         version: link:../../packages/core-opportunity
+      '@acos/core-outreach-preparation':
+        specifier: workspace:*
+        version: link:../../packages/core-outreach-preparation
+      '@acos/core-personalization':
+        specifier: workspace:*
+        version: link:../../packages/core-personalization
+      '@acos/core-qualification':
+        specifier: workspace:*
+        version: link:../../packages/core-qualification
       '@acos/core-research':
         specifier: workspace:*
         version: link:../../packages/core-research
@@ -259,6 +271,31 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.20.2)(jsdom@24.1.3)
 
+  packages/core-followup-preparation:
+    dependencies:
+      '@acos/core-entitlements':
+        specifier: workspace:*
+        version: link:../core-entitlements
+      '@acos/core-identity':
+        specifier: workspace:*
+        version: link:../core-identity
+      '@acos/core-opportunity':
+        specifier: workspace:*
+        version: link:../core-opportunity
+      '@acos/core-outreach-preparation':
+        specifier: workspace:*
+        version: link:../core-outreach-preparation
+      '@acos/core-personalization':
+        specifier: workspace:*
+        version: link:../core-personalization
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.20.2)(jsdom@24.1.3)
+
   packages/core-identity:
     dependencies:
       '@acos/core-entitlements':
@@ -328,6 +365,28 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.20.2)(jsdom@24.1.3)
 
+  packages/core-outreach-preparation:
+    dependencies:
+      '@acos/core-entitlements':
+        specifier: workspace:*
+        version: link:../core-entitlements
+      '@acos/core-identity':
+        specifier: workspace:*
+        version: link:../core-identity
+      '@acos/core-opportunity':
+        specifier: workspace:*
+        version: link:../core-opportunity
+      '@acos/core-personalization':
+        specifier: workspace:*
+        version: link:../core-personalization
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.20.2)(jsdom@24.1.3)
+
   packages/core-payments:
     dependencies:
       '@acos/catalog':
@@ -353,6 +412,37 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.20.2)(jsdom@24.1.3)
 
+  packages/core-personalization:
+    dependencies:
+      '@acos/core-discovery':
+        specifier: workspace:*
+        version: link:../core-discovery
+      '@acos/core-entitlements':
+        specifier: workspace:*
+        version: link:../core-entitlements
+      '@acos/core-identity':
+        specifier: workspace:*
+        version: link:../core-identity
+      '@acos/core-opportunity':
+        specifier: workspace:*
+        version: link:../core-opportunity
+      '@acos/core-qualification':
+        specifier: workspace:*
+        version: link:../core-qualification
+      '@acos/core-research':
+        specifier: workspace:*
+        version: link:../core-research
+      '@acos/core-search':
+        specifier: workspace:*
+        version: link:../core-search
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.20.2)(jsdom@24.1.3)
+
   packages/core-proposal:
     dependencies:
       '@acos/core-acquisition':
@@ -364,6 +454,28 @@ importers:
       zod:
         specifier: ^3.23.0
         version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.20.2)(jsdom@24.1.3)
+
+  packages/core-qualification:
+    dependencies:
+      '@acos/core-entitlements':
+        specifier: workspace:*
+        version: link:../core-entitlements
+      '@acos/core-identity':
+        specifier: workspace:*
+        version: link:../core-identity
+      '@acos/core-opportunity':
+        specifier: workspace:*
+        version: link:../core-opportunity
+      '@acos/core-research':
+        specifier: workspace:*
+        version: link:../core-research
     devDependencies:
       typescript:
         specifier: ^5.6.0
@@ -445,6 +557,9 @@ importers:
 
   packages/core-service-profile:
     dependencies:
+      '@acos/core-acquisition':
+        specifier: workspace:*
+        version: link:../core-acquisition
       '@acos/core-entitlements':
         specifier: workspace:*
         version: link:../core-entitlements
@@ -550,15 +665,27 @@ importers:
       '@acos/core-entitlements':
         specifier: workspace:*
         version: link:../packages/core-entitlements
+      '@acos/core-followup-preparation':
+        specifier: workspace:*
+        version: link:../packages/core-followup-preparation
       '@acos/core-identity':
         specifier: workspace:*
         version: link:../packages/core-identity
       '@acos/core-opportunity':
         specifier: workspace:*
         version: link:../packages/core-opportunity
+      '@acos/core-outreach-preparation':
+        specifier: workspace:*
+        version: link:../packages/core-outreach-preparation
       '@acos/core-payments':
         specifier: workspace:*
         version: link:../packages/core-payments
+      '@acos/core-personalization':
+        specifier: workspace:*
+        version: link:../packages/core-personalization
+      '@acos/core-qualification':
+        specifier: workspace:*
+        version: link:../packages/core-qualification
       '@acos/core-reconciliation':
         specifier: workspace:*
         version: link:../packages/core-reconciliation

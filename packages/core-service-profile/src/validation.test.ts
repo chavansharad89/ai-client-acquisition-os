@@ -100,6 +100,47 @@ describe('triggers / keywords bounds', () => {
   });
 });
 
+describe('triggers vocabulary contract', () => {
+  it('accepts triggers drawn from the ResearchSourceKind vocabulary', () => {
+    const result = validateServiceProfileInput(
+      validInput({ triggers: ['JOB_POST', 'WEBSITE', 'NEWS'] }),
+    );
+    expect(result.triggers).toEqual(['JOB_POST', 'WEBSITE', 'NEWS']);
+  });
+
+  it('rejects a free-text trigger outside the vocabulary, rather than silently dropping it', () => {
+    expect(() => validateServiceProfileInput(validInput({ triggers: ['outdated website'] }))).toThrow(
+      ServiceProfileValidationError,
+    );
+  });
+
+  // Adsara-class regression (Phase 18 follow-up 2): a profile created with
+  // human-readable trigger descriptions previously passed validation and
+  // was silently filtered to an empty trigger set by toServiceRule(),
+  // deterministically producing needDetected=false / offer=null for every
+  // prospect discovered under it — regardless of actual research signals.
+  // It must now fail loudly, at creation time, instead.
+  it('rejects mismatched human-readable triggers (Adsara-class scenario)', () => {
+    let thrown: unknown;
+    try {
+      validateServiceProfileInput(
+        validInput({ triggers: ['outdated website', 'poor mobile experience'] }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ServiceProfileValidationError);
+    expect((thrown as ServiceProfileValidationError).field).toBe('triggers');
+    expect((thrown as ServiceProfileValidationError).reason).toBe('not-in-vocabulary');
+  });
+
+  it('rejects a mix of valid and invalid trigger values', () => {
+    expect(() =>
+      validateServiceProfileInput(validInput({ triggers: ['JOB_POST', 'outdated website'] })),
+    ).toThrow(ServiceProfileValidationError);
+  });
+});
+
 describe('rationale bounds', () => {
   it('rejects an oversized rationale', () => {
     const input = validInput({ rationale: 'x'.repeat(1001) });

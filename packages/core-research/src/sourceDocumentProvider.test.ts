@@ -76,6 +76,47 @@ describe('createHttpSourceDocumentProvider', () => {
     expect(docs).toEqual([]);
   });
 
+  it('resolves to [] for a client-rendered SPA shell with zero server-rendered text — Readability returns null, not just a short string', async () => {
+    // Real-world regression: amitdwivedi.in (a Hostinger-Horizons-built
+    // React/Vite SPA) serves this exact shape for every request — 200
+    // OK, content-type text/html, identical byte-for-byte regardless of
+    // User-Agent (confirmed live: no bot-detection, no prerendering) —
+    // and the server-rendered document contains no text anywhere: no
+    // body content, no meta description, no Open Graph tags, only a
+    // mount point and script tags. Readability.parse() legitimately
+    // returns null here (not just under-threshold text, as the "Hi."
+    // case above exercises) because there is genuinely nothing to
+    // extract without executing the page's JavaScript — which Phase
+    // 18's frozen, no-headless-browser scope correctly never attempts.
+    // InsufficientEvidenceError is the correct downstream outcome, not
+    // a defect: there is no legitimate homepage evidence to acquire.
+    const spaShellHtml = `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="generator" content="Hostinger Horizons" />
+    <title>Hostinger Horizons</title>
+    <script type="module" crossorigin src="/assets/index-89c4af11.js"></script>
+    <link rel="stylesheet" href="/assets/index-abf24b1d.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>`;
+    const fetchImpl = vi.fn(async () => htmlResponse(spaShellHtml));
+    const provider = createHttpSourceDocumentProvider({ fetchImpl: fetchImpl as typeof fetch });
+
+    const docs = await provider.fetchSourceDocuments({
+      companyName: 'Amit Dwivedi Website Design and Development',
+      normalizedDomain: 'amitdwivedi.in',
+    });
+
+    expect(docs).toEqual([]);
+    // Correctly classified as unusable, not transient — never retried.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('resolves to [] on a non-retryable 404, without retrying', async () => {
     const fetchImpl = vi.fn(async () => htmlResponse('not found', 404));
     const provider = createHttpSourceDocumentProvider({ fetchImpl: fetchImpl as typeof fetch });
@@ -146,6 +187,48 @@ describe('createHttpSourceDocumentProvider', () => {
       provider.fetchSourceDocuments({ companyName: 'Acme', normalizedDomain: 'acme.example.com' }),
     ).rejects.toBeInstanceOf(SourceFetchTransportError);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('extracts text safely when the homepage contains malformed CSS jsdom cannot parse — mumbaiwebdesign.in regression', async () => {
+    // Real-world regression: mumbaiwebdesign.in's homepage contains a
+    // <style> block jsdom's CSS parser (cssom) rejects, which jsdom
+    // reports via an internal "jsdomError" event on its virtual console.
+    // Left on the default virtual console, that event is forwarded to
+    // the real console, dumping the offending CSS/stack to stderr for
+    // every such page — a worker-process log-flooding risk, not a
+    // crash. This fixture reproduces the same jsdom failure path with a
+    // minimal malformed <style> block alongside real extractable copy.
+    const malformedCssHtml = `
+<!doctype html>
+<html><head><title>Acme Web Design</title>
+<style>
+  .broken { color: ; !!!not-css ][ }} div { background: url(
+</style>
+</head>
+<body>
+  <article>
+    <h1>Acme Web Design</h1>
+    <p>Acme Web Design builds custom marketing websites for small and
+    mid-size businesses across the region. We specialize in WordPress
+    and Elementor builds, handling everything from initial design
+    through launch and ongoing maintenance for our clients, who range
+    from local retailers to regional service providers seeking a
+    stronger online presence and better lead generation from their
+    existing traffic.</p>
+  </article>
+</body></html>`;
+    const fetchImpl = vi.fn(async () => htmlResponse(malformedCssHtml));
+    const provider = createHttpSourceDocumentProvider({ fetchImpl: fetchImpl as typeof fetch });
+
+    const docs = await provider.fetchSourceDocuments({
+      companyName: 'Acme Web Design',
+      normalizedDomain: 'mumbaiwebdesign.in',
+    });
+
+    // Does not throw/crash, and the malformed <style> block does not
+    // prevent extraction of the surrounding real content.
+    expect(docs).toHaveLength(1);
+    expect(docs[0]!.text).toContain('Acme Web Design builds custom marketing websites');
   });
 
   it('throws SourceFetchTransportError on a request timeout', async () => {

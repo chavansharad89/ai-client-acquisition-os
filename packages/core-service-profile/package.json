@@ -11,6 +11,7 @@
     "test:integration": "echo 'no integration tests owned directly by @acos/core-service-profile - see /tests/integration' && exit 0"
   },
   "dependencies": {
+    "@acos/core-acquisition": "workspace:*",
     "@acos/core-entitlements": "workspace:*",
     "@acos/core-identity": "workspace:*"
   },

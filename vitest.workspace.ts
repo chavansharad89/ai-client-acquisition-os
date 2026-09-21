@@ -11,6 +11,7 @@ export default defineWorkspace([
   'apps/worker/vitest.config.ts',
   'packages/core-outreach/vitest.config.ts',
   'packages/core-proposal/vitest.config.ts',
+  'packages/core-qualification/vitest.config.ts',
   'packages/core-payments/vitest.config.ts',
   'packages/core-entitlements/vitest.config.ts',
   'packages/core-identity/vitest.config.ts',
