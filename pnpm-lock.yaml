@@ -117,6 +117,9 @@ importers:
       '@acos/core-opportunity':
         specifier: workspace:*
         version: link:../../packages/core-opportunity
+      '@acos/core-qualification':
+        specifier: workspace:*
+        version: link:../../packages/core-qualification
       '@acos/core-research':
         specifier: workspace:*
         version: link:../../packages/core-research
@@ -372,6 +375,28 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.20.2)(jsdom@24.1.3)
 
+  packages/core-qualification:
+    dependencies:
+      '@acos/core-entitlements':
+        specifier: workspace:*
+        version: link:../core-entitlements
+      '@acos/core-identity':
+        specifier: workspace:*
+        version: link:../core-identity
+      '@acos/core-opportunity':
+        specifier: workspace:*
+        version: link:../core-opportunity
+      '@acos/core-research':
+        specifier: workspace:*
+        version: link:../core-research
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.20.2)(jsdom@24.1.3)
+
   packages/core-reconciliation:
     devDependencies:
       typescript:
@@ -562,6 +587,9 @@ importers:
       '@acos/core-payments':
         specifier: workspace:*
         version: link:../packages/core-payments
+      '@acos/core-qualification':
+        specifier: workspace:*
+        version: link:../packages/core-qualification
       '@acos/core-reconciliation':
         specifier: workspace:*
         version: link:../packages/core-reconciliation
@@ -4294,7 +4322,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.14.0(@typescript-eslint/parser@8.70.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5):
+  eslint-module-utils@2.14.0(@typescript-eslint/parser@8.70.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.5))(eslint@9.39.5):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
@@ -4316,7 +4344,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 9.39.5
       eslint-import-resolver-node: 0.3.10
-      eslint-module-utils: 2.14.0(@typescript-eslint/parser@8.70.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5)
+      eslint-module-utils: 2.14.0(@typescript-eslint/parser@8.70.0(eslint@9.39.5)(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.5))(eslint@9.39.5)
       hasown: 2.0.4
       is-core-module: 2.16.2
       is-glob: 4.0.3

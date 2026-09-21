@@ -9,6 +9,7 @@ import {
   createPgProspectRepository,
 } from '@acos/core-discovery';
 import { createPgOpportunityRepository } from '@acos/core-opportunity';
+import { createPgQualificationRepository } from '@acos/core-qualification';
 import {
   createAnthropicResearchModel,
   createAnthropicResearchProvider,
@@ -77,6 +78,7 @@ async function main(): Promise<void> {
             .then(() => undefined),
       }),
     opportunities: createPgOpportunityRepository(pool),
+    qualifications: createPgQualificationRepository(pool),
     workerId: `search-worker-${process.pid}-${randomUUID()}`,
     pollIntervalMs: env.WORKER_POLL_INTERVAL_MS,
   };

@@ -18,6 +18,7 @@
     "@acos/core-identity": "workspace:*",
     "@acos/core-opportunity": "workspace:*",
     "@acos/core-payments": "workspace:*",
+    "@acos/core-qualification": "workspace:*",
     "@acos/core-research": "workspace:*",
     "@acos/core-search": "workspace:*",
     "@acos/core-service-profile": "workspace:*",

@@ -6,6 +6,8 @@ import type {
 import { runDiscoveryForOwner } from '@acos/core-discovery';
 import type { OpportunityRepository } from '@acos/core-opportunity';
 import { createOpportunityForOwner } from '@acos/core-opportunity';
+import type { QualificationRepository } from '@acos/core-qualification';
+import { evaluateQualificationForOwner } from '@acos/core-qualification';
 import type { ResearchProvider, ResearchSignalRepository } from '@acos/core-research';
 import { runResearchForOwner } from '@acos/core-research';
 import { MAX_SEARCH_ATTEMPTS, type SearchRepository, type StoredSearch } from '@acos/core-search';
@@ -46,6 +48,23 @@ export interface SearchWorkerDeps {
    */
   researchProvider: (userId: string) => ResearchProvider;
   opportunities: OpportunityRepository;
+  /**
+   * Phase 20 (R-41): evaluates and persists Qualification for every
+   * Prospect's Opportunity, immediately after it is created or found —
+   * see runCanonicalPipeline below. Qualification reuses the exact
+   * `userId` this pipeline already resolves; it introduces no new
+   * claim/lease/retry concept of its own.
+   *
+   * Optional, not required: making this required would force every
+   * existing caller that builds a `SearchWorkerDeps` object — including
+   * Phase 17/18's own integration tests — to be edited merely to keep
+   * compiling, which the Phase 20 scope-lock's freeze constraints forbid
+   * touching. The real entrypoint (apps/worker/src/index.ts) always
+   * supplies it, so production runs always evaluate Qualification;
+   * omitting it (only in a caller that predates Phase 20 and never
+   * exercises Qualification) skips the step rather than failing.
+   */
+  qualifications?: QualificationRepository;
   /** Identifies this process/replica. Must be unique per worker instance. */
   workerId: string;
   now?: () => Date;
@@ -126,9 +145,10 @@ export async function claimAndProcessNextSearch(
 
 /**
  * The canonical pipeline for one already-claimed Search: Discovery once,
- * then Research + Opportunity for every Prospect Discovery found.
+ * then Research + Opportunity + Qualification for every Prospect
+ * Discovery found.
  *
- * A failure at any point (thrown by any of the three domain calls) stops
+ * A failure at any point (thrown by any of the four domain calls) stops
  * all further processing for this Search and propagates to the caller,
  * which records it as a failed attempt — no partial pipeline result is
  * ever reported as success.
@@ -142,7 +162,14 @@ export async function claimAndProcessNextSearch(
  * checks `findByProspectId` first and skips creation for a Prospect that
  * already has one, exactly the retry-safety pre-check pattern
  * `SearchRepository.findByIdempotencyKey` already establishes elsewhere
- * in this codebase.
+ * in this codebase. Qualification (Phase 20, R-41) IS idempotent by
+ * itself (`upsert` on `UNIQUE(opportunity_id)` — R-39), so when
+ * `deps.qualifications` is configured it runs unconditionally for both a
+ * newly-created and an already-existing Opportunity: this is what makes
+ * "changed evidence -> new evaluation" reachable on a Search retry
+ * without any new retry concept. `deps.qualifications` is optional
+ * (skipped when absent) solely so pre-Phase-20 callers of this function
+ * need no change — see SearchWorkerDeps' own doc comment.
  */
 async function runCanonicalPipeline(
   deps: SearchWorkerDeps,
@@ -174,8 +201,9 @@ async function runCanonicalPipeline(
     );
 
     const existingOpportunity = await deps.opportunities.findByProspectId(userId, prospect.id);
-    if (!existingOpportunity) {
-      await createOpportunityForOwner(
+    const opportunity =
+      existingOpportunity ??
+      (await createOpportunityForOwner(
         {
           prospects: deps.prospects,
           searches: deps.searches,
@@ -184,6 +212,17 @@ async function runCanonicalPipeline(
         },
         userId,
         { prospectId: prospect.id },
+      ));
+
+    if (deps.qualifications) {
+      await evaluateQualificationForOwner(
+        {
+          opportunities: deps.opportunities,
+          signals: deps.signals,
+          qualifications: deps.qualifications,
+        },
+        userId,
+        opportunity.id,
       );
     }
   }

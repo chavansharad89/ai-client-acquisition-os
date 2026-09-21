@@ -7,6 +7,7 @@ import type {
   StoredProspect,
 } from '@acos/core-discovery';
 import type { OpportunityRepository, StoredOpportunity } from '@acos/core-opportunity';
+import type { QualificationRepository, StoredQualification } from '@acos/core-qualification';
 import type {
   LeadResearch,
   ResearchProvider,
@@ -289,6 +290,39 @@ function fakeOpportunityRepository(
   };
 }
 
+function fakeQualificationRepository(): QualificationRepository & { rows: StoredQualification[] } {
+  const rows: StoredQualification[] = [];
+  let counter = 0;
+  return {
+    rows,
+    async upsert(opportunityId, prospectId, evaluation, evaluatorVersion, evaluatedAt) {
+      const index = rows.findIndex((r) => r.opportunityId === opportunityId);
+      const existing = index === -1 ? undefined : rows[index];
+      const stored: StoredQualification = {
+        id: existing?.id ?? `qualification_${(counter += 1)}`,
+        opportunityId,
+        prospectId,
+        state: evaluation.state,
+        criteria: evaluation.criteria,
+        evidenceSignalIds: evaluation.evidenceSignalIds,
+        evaluatorVersion,
+        evaluatedAt,
+        createdAt: existing?.createdAt ?? evaluatedAt,
+        updatedAt: evaluatedAt,
+      };
+      if (index === -1) rows.push(stored);
+      else rows[index] = stored;
+      return stored;
+    },
+    async getByOpportunityId() {
+      throw new Error('not used by these tests');
+    },
+    async listByUserId() {
+      throw new Error('not used by these tests');
+    },
+  };
+}
+
 function seedSearch(overrides: Partial<StoredSearch> = {}): StoredSearch {
   return {
     id: 'search_1',
@@ -350,6 +384,7 @@ function sampleResearch(): LeadResearch {
 function buildDeps(overrides: Partial<SearchWorkerDeps> = {}): SearchWorkerDeps & {
   searches: ReturnType<typeof fakeSearchRepository>;
   opportunities: ReturnType<typeof fakeOpportunityRepository>;
+  qualifications: ReturnType<typeof fakeQualificationRepository>;
 } {
   return {
     searches: fakeSearchRepository(),
@@ -361,12 +396,14 @@ function buildDeps(overrides: Partial<SearchWorkerDeps> = {}): SearchWorkerDeps 
     signals: fakeResearchSignalRepository(),
     researchProvider: () => fakeResearchProvider(sampleResearch()),
     opportunities: fakeOpportunityRepository(),
+    qualifications: fakeQualificationRepository(),
     workerId: 'worker-a',
     now: () => NOW,
     ...overrides,
   } as SearchWorkerDeps & {
     searches: ReturnType<typeof fakeSearchRepository>;
     opportunities: ReturnType<typeof fakeOpportunityRepository>;
+    qualifications: ReturnType<typeof fakeQualificationRepository>;
   };
 }
 
@@ -661,16 +698,62 @@ describe('canonical pipeline', () => {
       calls.push('opportunity');
       return realCreate(...args);
     }) as typeof opportunities.create;
+    const qualifications = fakeQualificationRepository();
+    const realUpsert = qualifications.upsert.bind(qualifications);
+    qualifications.upsert = (async (...args: Parameters<typeof realUpsert>) => {
+      calls.push('qualification');
+      return realUpsert(...args);
+    }) as typeof qualifications.upsert;
 
     const searches = fakeSearchRepository([seedSearch()]);
     const outcome = await claimAndProcessNextSearch(
-      buildDeps({ searches, discoveryProvider, researchProvider: () => researchProvider, opportunities }),
+      buildDeps({
+        searches,
+        discoveryProvider,
+        researchProvider: () => researchProvider,
+        opportunities,
+        qualifications,
+      }),
     );
 
     expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: 1 });
-    expect(calls).toEqual(['discovery', 'research', 'opportunity']);
+    expect(calls).toEqual(['discovery', 'research', 'opportunity', 'qualification']);
     expect(searches.rows[0]!.status).toBe('COMPLETE');
     expect(opportunities.rows).toHaveLength(1);
+    expect(qualifications.rows).toHaveLength(1);
+    expect(qualifications.rows[0]!.opportunityId).toBe(opportunities.rows[0]!.id);
+  });
+
+  it('R-41: Qualification also runs for an already-existing Opportunity (retry path), not only a newly-created one', async () => {
+    const opportunities = fakeOpportunityRepository();
+    const qualifications = fakeQualificationRepository();
+    const searches = fakeSearchRepository([seedSearch()]);
+
+    // Attempt 1: creates the Opportunity and evaluates it.
+    await claimAndProcessNextSearch(buildDeps({ searches, opportunities, qualifications }));
+    expect(qualifications.rows).toHaveLength(1);
+    const firstQualificationId = qualifications.rows[0]!.id;
+
+    // Attempt 2, re-claimed against the same already-populated repositories
+    // (mirrors the existing idempotency test below): Qualification must
+    // run again (R-41/R-39), replacing the same row, not skip silently.
+    searches.rows[0] = { ...searches.rows[0]!, status: 'PENDING' };
+    await claimAndProcessNextSearch(buildDeps({ searches, opportunities, qualifications }));
+
+    expect(opportunities.rows).toHaveLength(1); // still no duplicate Opportunity
+    expect(qualifications.rows).toHaveLength(1); // still no duplicate Qualification row
+    expect(qualifications.rows[0]!.id).toBe(firstQualificationId);
+  });
+
+  it('a Qualification-stage failure surfaces as a failed attempt, same as an Opportunity-stage failure', async () => {
+    const qualifications = fakeQualificationRepository();
+    qualifications.upsert = vi.fn().mockRejectedValue(new Error('qualification write failed'));
+    const searches = fakeSearchRepository([seedSearch()]);
+
+    const outcome = await claimAndProcessNextSearch(buildDeps({ searches, qualifications }));
+
+    expect(outcome.outcome).toBe('retry');
+    expect(searches.rows[0]!.status).toBe('PENDING');
   });
 
   it('a Research failure stops downstream execution — no Opportunity is created', async () => {
