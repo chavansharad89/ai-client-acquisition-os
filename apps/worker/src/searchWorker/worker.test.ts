@@ -7,6 +7,7 @@ import type {
   StoredProspect,
 } from '@acos/core-discovery';
 import type { OpportunityRepository, StoredOpportunity } from '@acos/core-opportunity';
+import type { PersonalizationRepository, StoredPersonalization } from '@acos/core-personalization';
 import type { QualificationRepository, StoredQualification } from '@acos/core-qualification';
 import type {
   LeadResearch,
@@ -314,6 +315,48 @@ function fakeQualificationRepository(): QualificationRepository & { rows: Stored
       else rows[index] = stored;
       return stored;
     },
+    async getByOpportunityId(_userId: string, opportunityId: string) {
+      // Phase 21 (R-42): evaluatePersonalizationForOwner reads this back
+      // immediately after Qualification's own upsert() call above, in the
+      // same pipeline pass — this fake must actually serve what was just
+      // written, not merely record it.
+      return rows.find((r) => r.opportunityId === opportunityId) ?? null;
+    },
+    async listByUserId() {
+      throw new Error('not used by these tests');
+    },
+  };
+}
+
+function fakePersonalizationRepository(): PersonalizationRepository & {
+  rows: StoredPersonalization[];
+} {
+  const rows: StoredPersonalization[] = [];
+  let counter = 0;
+  return {
+    rows,
+    async upsert(opportunityId, prospectId, generation, generatorVersion, generatedAt) {
+      const index = rows.findIndex((r) => r.opportunityId === opportunityId);
+      const existing = index === -1 ? undefined : rows[index];
+      const stored: StoredPersonalization = {
+        id: existing?.id ?? `personalization_${(counter += 1)}`,
+        opportunityId,
+        prospectId,
+        state: 'GENERATED',
+        offerService: generation.offerService,
+        openingContext: generation.openingContext,
+        valueProposition: generation.valueProposition,
+        personalizationRationale: generation.personalizationRationale,
+        evidence: generation.evidence,
+        generatorVersion,
+        generatedAt,
+        createdAt: existing?.createdAt ?? generatedAt,
+        updatedAt: generatedAt,
+      };
+      if (index === -1) rows.push(stored);
+      else rows[index] = stored;
+      return stored;
+    },
     async getByOpportunityId() {
       throw new Error('not used by these tests');
     },
@@ -379,6 +422,46 @@ function sampleResearch(): LeadResearch {
     confidence: 60,
     gaps: [],
   } as unknown as LeadResearch;
+}
+
+/**
+ * Unlike sampleResearch() above, this actually matches seedSearch()'s
+ * own default `triggers`/`keywords` (via an override, since sampleResearch's
+ * signals never contain "website"/"redesign" and seedSearch's own default
+ * `triggers: ['JOB_POST']` has no matching FIELD_KIND at all) — so
+ * Opportunity.needDetected is true and Qualification reaches QUALIFIED,
+ * which is what the R-51 Personalization tests below need to exercise the
+ * actual generation path, not just its skip path.
+ */
+function qualifyingResearch(): LeadResearch {
+  return {
+    companySummary: observed('needs a website redesign'),
+    businessModel: unknown(),
+    targetCustomers: unknown(),
+    visibleProblems: [],
+    growthOpportunities: [],
+    aiOpportunities: [],
+    websiteIssues: [],
+    contentOpportunities: [],
+    automationOpportunities: [],
+    recommendedService: { service: 'NONE', rationale: 'insufficient evidence', basedOn: [] },
+    confidence: 60,
+    gaps: [],
+  } as unknown as LeadResearch;
+}
+
+function qualifyingSearchOverrides(): Partial<StoredSearch> {
+  return {
+    parameters: {
+      service: 'Website development',
+      targetCustomer: 'Restaurants',
+      geography: 'Mumbai',
+      minProjectValuePaise: 3_000_000,
+      triggers: ['WEBSITE'],
+      keywords: ['redesign'],
+      rationale: 'They need a website refresh ({signal}).',
+    },
+  };
 }
 
 function buildDeps(overrides: Partial<SearchWorkerDeps> = {}): SearchWorkerDeps & {
@@ -796,6 +879,141 @@ describe('canonical pipeline', () => {
 
     expect(outcome).toEqual({ outcome: 'completed', searchId: 'search_1', prospectsProcessed: 0 });
     expect(searches.rows[0]!.status).toBe('COMPLETE');
+  });
+});
+
+describe('personalization (Phase 21, R-51/R-52)', () => {
+  it('runs Personalization immediately after Qualification, in order, for a QUALIFIED Opportunity', async () => {
+    const calls: string[] = [];
+    const opportunities = fakeOpportunityRepository();
+    const realCreate = opportunities.create.bind(opportunities);
+    opportunities.create = (async (...args: Parameters<typeof realCreate>) => {
+      calls.push('opportunity');
+      return realCreate(...args);
+    }) as typeof opportunities.create;
+    const qualifications = fakeQualificationRepository();
+    const realUpsertQ = qualifications.upsert.bind(qualifications);
+    qualifications.upsert = (async (...args: Parameters<typeof realUpsertQ>) => {
+      calls.push('qualification');
+      return realUpsertQ(...args);
+    }) as typeof qualifications.upsert;
+    const personalizations = fakePersonalizationRepository();
+    const realUpsertP = personalizations.upsert.bind(personalizations);
+    personalizations.upsert = (async (...args: Parameters<typeof realUpsertP>) => {
+      calls.push('personalization');
+      return realUpsertP(...args);
+    }) as typeof personalizations.upsert;
+
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        opportunities,
+        qualifications,
+        personalizations,
+      }),
+    );
+
+    expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: 1 });
+    expect(calls).toEqual(['opportunity', 'qualification', 'personalization']);
+    expect(qualifications.rows[0]!.state).toBe('QUALIFIED');
+    expect(personalizations.rows).toHaveLength(1);
+    expect(personalizations.rows[0]!.opportunityId).toBe(opportunities.rows[0]!.id);
+    expect(personalizations.rows[0]!.offerService).toBe('Website development');
+  });
+
+  it('R-42: creates no Personalization row when Qualification does not reach QUALIFIED', async () => {
+    const personalizations = fakePersonalizationRepository();
+    const qualifications = fakeQualificationRepository();
+    const searches = fakeSearchRepository([seedSearch()]); // default seedSearch + sampleResearch() never match -> NOT_QUALIFIED
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({ searches, qualifications, personalizations }),
+    );
+
+    expect(outcome.outcome).toBe('completed');
+    expect(qualifications.rows[0]!.state).not.toBe('QUALIFIED');
+    expect(personalizations.rows).toHaveLength(0);
+  });
+
+  it('never runs Personalization when Qualification did not itself run in this pass, even if deps.personalizations is configured', async () => {
+    const personalizations = fakePersonalizationRepository();
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+
+    // Built without `buildDeps()` (rather than overriding `qualifications`
+    // to `undefined`) so the field is genuinely absent, matching
+    // `exactOptionalPropertyTypes` — the same "omit, don't set undefined"
+    // shape a pre-Phase-20 caller's own SearchWorkerDeps object has.
+    const deps: SearchWorkerDeps = {
+      searches,
+      companies: fakeCompanyRepository(),
+      prospects: fakeProspectRepository(),
+      discoveryProvider: fakeDiscoveryProvider([{ name: 'Acme Co', website: 'https://acme.example.com' }]),
+      signals: fakeResearchSignalRepository(),
+      researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+      opportunities: fakeOpportunityRepository(),
+      personalizations,
+      workerId: 'worker-a',
+      now: () => NOW,
+    };
+
+    const outcome = await claimAndProcessNextSearch(deps);
+
+    expect(outcome.outcome).toBe('completed');
+    expect(personalizations.rows).toHaveLength(0);
+  });
+
+  it('R-52: a Personalization-stage failure surfaces as a failed attempt, without touching ResearchSignals/Opportunity/Qualification', async () => {
+    const personalizations = fakePersonalizationRepository();
+    personalizations.upsert = vi.fn().mockRejectedValue(new Error('personalization write failed'));
+    const qualifications = fakeQualificationRepository();
+    const opportunities = fakeOpportunityRepository();
+    const signals = fakeResearchSignalRepository();
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        opportunities,
+        qualifications,
+        signals,
+        personalizations,
+      }),
+    );
+
+    expect(outcome.outcome).toBe('retry');
+    expect(searches.rows[0]!.status).toBe('PENDING');
+    // Upstream state, already committed to their own fakes before the
+    // Personalization stage threw, is left exactly as it was.
+    expect(qualifications.rows).toHaveLength(1);
+    expect(qualifications.rows[0]!.state).toBe('QUALIFIED');
+    expect(opportunities.rows).toHaveLength(1);
+    expect(signals.rows.length).toBeGreaterThan(0);
+  });
+
+  it('R-49/R-50: idempotent on retry — re-running against unchanged evidence replaces the same row, no duplicates', async () => {
+    const opportunities = fakeOpportunityRepository();
+    const qualifications = fakeQualificationRepository();
+    const personalizations = fakePersonalizationRepository();
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+    const researchProvider = () => fakeResearchProvider(qualifyingResearch());
+
+    await claimAndProcessNextSearch(
+      buildDeps({ searches, researchProvider, opportunities, qualifications, personalizations }),
+    );
+    expect(personalizations.rows).toHaveLength(1);
+    const firstId = personalizations.rows[0]!.id;
+
+    searches.rows[0] = { ...searches.rows[0]!, status: 'PENDING' };
+    await claimAndProcessNextSearch(
+      buildDeps({ searches, researchProvider, opportunities, qualifications, personalizations }),
+    );
+
+    expect(opportunities.rows).toHaveLength(1);
+    expect(personalizations.rows).toHaveLength(1); // still no duplicate row
+    expect(personalizations.rows[0]!.id).toBe(firstId);
   });
 });
 

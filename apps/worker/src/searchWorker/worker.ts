@@ -6,6 +6,8 @@ import type {
 import { runDiscoveryForOwner } from '@acos/core-discovery';
 import type { OpportunityRepository } from '@acos/core-opportunity';
 import { createOpportunityForOwner } from '@acos/core-opportunity';
+import type { PersonalizationRepository } from '@acos/core-personalization';
+import { evaluatePersonalizationForOwner } from '@acos/core-personalization';
 import type { QualificationRepository } from '@acos/core-qualification';
 import { evaluateQualificationForOwner } from '@acos/core-qualification';
 import type { ResearchProvider, ResearchSignalRepository } from '@acos/core-research';
@@ -65,6 +67,24 @@ export interface SearchWorkerDeps {
    * exercises Qualification) skips the step rather than failing.
    */
   qualifications?: QualificationRepository;
+  /**
+   * Phase 21 (R-51): evaluates and persists Personalization for every
+   * Prospect's Opportunity, immediately after Qualification runs — see
+   * runCanonicalPipeline below. Reuses the exact `userId` this pipeline
+   * already resolves; introduces no new claim/lease/retry concept.
+   *
+   * Optional for the same reason `qualifications` above is: making it
+   * required would force every existing caller that builds a
+   * `SearchWorkerDeps` object — including every pre-Phase-21 test — to be
+   * edited merely to keep compiling. The real entrypoint
+   * (apps/worker/src/index.ts) always supplies it, so production runs
+   * always attempt Personalization; omitting it skips the step rather
+   * than failing. Only reachable when `qualifications` is also supplied
+   * and ran successfully — Personalization's own R-42 eligibility gate
+   * (Qualification state === QUALIFIED) is enforced inside
+   * `evaluatePersonalizationForOwner` itself, not by this worker.
+   */
+  personalizations?: PersonalizationRepository;
   /** Identifies this process/replica. Must be unique per worker instance. */
   workerId: string;
   now?: () => Date;
@@ -145,10 +165,10 @@ export async function claimAndProcessNextSearch(
 
 /**
  * The canonical pipeline for one already-claimed Search: Discovery once,
- * then Research + Opportunity + Qualification for every Prospect
- * Discovery found.
+ * then Research + Opportunity + Qualification + Personalization for
+ * every Prospect Discovery found.
  *
- * A failure at any point (thrown by any of the four domain calls) stops
+ * A failure at any point (thrown by any of the five domain calls) stops
  * all further processing for this Search and propagates to the caller,
  * which records it as a failed attempt — no partial pipeline result is
  * ever reported as success.
@@ -170,6 +190,17 @@ export async function claimAndProcessNextSearch(
  * without any new retry concept. `deps.qualifications` is optional
  * (skipped when absent) solely so pre-Phase-20 callers of this function
  * need no change — see SearchWorkerDeps' own doc comment.
+ *
+ * Personalization (Phase 21, R-51) runs immediately after Qualification,
+ * strictly nested inside the same `if (deps.qualifications)` branch —
+ * never invoked in a pass where Qualification itself did not just run —
+ * and only when `deps.personalizations` is also configured (optional for
+ * the same pre-existing-caller reason as `deps.qualifications`).
+ * `evaluatePersonalizationForOwner` is idempotent by itself (`upsert` on
+ * `UNIQUE(opportunity_id)` — R-49) and enforces its own R-42 eligibility
+ * gate (Qualification state === QUALIFIED) internally — this orchestration
+ * calls it unconditionally whenever both dependencies are present and
+ * lets it decide whether a Personalization is actually produced.
  */
 async function runCanonicalPipeline(
   deps: SearchWorkerDeps,
@@ -224,6 +255,22 @@ async function runCanonicalPipeline(
         userId,
         opportunity.id,
       );
+
+      if (deps.personalizations) {
+        await evaluatePersonalizationForOwner(
+          {
+            opportunities: deps.opportunities,
+            qualifications: deps.qualifications,
+            signals: deps.signals,
+            prospects: deps.prospects,
+            companies: deps.companies,
+            searches: deps.searches,
+            personalizations: deps.personalizations,
+          },
+          userId,
+          opportunity.id,
+        );
+      }
     }
   }
 
