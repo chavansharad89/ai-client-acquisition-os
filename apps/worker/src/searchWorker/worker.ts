@@ -6,6 +6,8 @@ import type {
 import { runDiscoveryForOwner } from '@acos/core-discovery';
 import type { OpportunityRepository } from '@acos/core-opportunity';
 import { createOpportunityForOwner } from '@acos/core-opportunity';
+import type { OutreachPreparationRepository } from '@acos/core-outreach-preparation';
+import { prepareOutreachForOwner } from '@acos/core-outreach-preparation';
 import type { PersonalizationRepository } from '@acos/core-personalization';
 import { evaluatePersonalizationForOwner } from '@acos/core-personalization';
 import type { QualificationRepository } from '@acos/core-qualification';
@@ -85,6 +87,27 @@ export interface SearchWorkerDeps {
    * `evaluatePersonalizationForOwner` itself, not by this worker.
    */
   personalizations?: PersonalizationRepository;
+  /**
+   * Phase 22 (R-59): prepares and persists an inert, human-reviewable
+   * Outreach Preparation draft for every Prospect's Opportunity,
+   * immediately after Personalization runs — see runCanonicalPipeline
+   * below. Reuses the exact `userId` this pipeline already resolves;
+   * introduces no new claim/lease/retry concept, and no send capability
+   * of any kind (see @acos/core-outreach-preparation's own R-58
+   * no-send guarantee).
+   *
+   * Optional for the same reason `qualifications`/`personalizations`
+   * above are: making it required would force every existing caller
+   * that builds a `SearchWorkerDeps` object — including every
+   * pre-Phase-22 test — to be edited merely to keep compiling. The real
+   * entrypoint (apps/worker/src/index.ts) always supplies it, so
+   * production runs always attempt Outreach Preparation; omitting it
+   * skips the step rather than failing. Only reachable when
+   * `deps.personalizations` is also configured and Personalization
+   * itself already ran in this pass — enforced by nesting, not a
+   * separate flag.
+   */
+  outreachPreparations?: OutreachPreparationRepository;
   /** Identifies this process/replica. Must be unique per worker instance. */
   workerId: string;
   now?: () => Date;
@@ -201,6 +224,20 @@ export async function claimAndProcessNextSearch(
  * gate (Qualification state === QUALIFIED) internally — this orchestration
  * calls it unconditionally whenever both dependencies are present and
  * lets it decide whether a Personalization is actually produced.
+ *
+ * Outreach Preparation (Phase 22, R-59) runs immediately after
+ * Personalization, strictly nested inside the same `if
+ * (deps.personalizations)` branch — never invoked in a pass where
+ * Personalization itself did not just run — and only when
+ * `deps.outreachPreparations` is also configured (optional for the same
+ * pre-existing-caller reason as `deps.qualifications`/
+ * `deps.personalizations`). `prepareOutreachForOwner` is idempotent by
+ * itself (`upsert` on `UNIQUE(opportunity_id)` — R-57) and enforces its
+ * own eligibility gate (a Personalization row must already exist)
+ * internally — this orchestration calls it unconditionally whenever both
+ * dependencies are present and lets it decide whether a draft is
+ * actually produced. It never sends anything — see
+ * @acos/core-outreach-preparation's own R-58 no-send guarantee.
  */
 async function runCanonicalPipeline(
   deps: SearchWorkerDeps,
@@ -270,6 +307,18 @@ async function runCanonicalPipeline(
           userId,
           opportunity.id,
         );
+
+        if (deps.outreachPreparations) {
+          await prepareOutreachForOwner(
+            {
+              opportunities: deps.opportunities,
+              personalizations: deps.personalizations,
+              outreachPreparations: deps.outreachPreparations,
+            },
+            userId,
+            opportunity.id,
+          );
+        }
       }
     }
   }
