@@ -61,8 +61,10 @@ describe('all required secrets present', () => {
       'ANTHROPIC_API_KEY',
       'DATABASE_URL',
       'DOWNLOAD_GRANT_SECRET',
+      'GEMINI_API_KEY',
       'GOOGLE_PLACES_API_KEY',
       'META_CAPI_ACCESS_TOKEN',
+      'OPENAI_API_KEY',
       'RAZORPAY_KEY_SECRET',
       'RAZORPAY_WEBHOOK_SECRET',
     ]);
@@ -147,7 +149,17 @@ describe('no secret value is ever emitted', () => {
     'meta-token-not-real',
     'sk-ant-not-real',
     'places-key-not-real',
+    'sk-openai-not-real',
+    'gm-not-real',
   ];
+  // OPENAI_API_KEY/GEMINI_API_KEY are OPTIONAL (unlike every other secret
+  // in COMPLETE) — set explicitly here so this suite still proves every
+  // secret this system CAN hold is redacted, not just the required ones.
+  const COMPLETE_WITH_OPTIONAL_PROVIDERS: NodeJS.ProcessEnv = {
+    ...COMPLETE,
+    OPENAI_API_KEY: 'sk-openai-not-real',
+    GEMINI_API_KEY: 'gm-not-real',
+  };
 
   it('keeps values out of the error when a variable is missing', () => {
     try {
@@ -182,7 +194,7 @@ describe('no secret value is ever emitted', () => {
   });
 
   it('redacts every secret in the loggable summary', () => {
-    const summary = redactedEnv(loadEnv(COMPLETE));
+    const summary = redactedEnv(loadEnv(COMPLETE_WITH_OPTIONAL_PROVIDERS));
     const serialised = JSON.stringify(summary);
 
     for (const canary of canaries) expect(serialised).not.toContain(canary);
@@ -238,6 +250,54 @@ describe('secrets must not reach the client bundle', () => {
 
   it('passes on a clean environment', () => {
     expect(() => assertNoPublicSecrets(COMPLETE)).not.toThrow();
+  });
+});
+
+describe('multi-model research provider selection (OPTIONAL credentials)', () => {
+  it('boots without OPENAI_API_KEY or GEMINI_API_KEY — Anthropic-only deployments keep working', () => {
+    const env = loadEnv(COMPLETE);
+    expect(env.OPENAI_API_KEY).toBeUndefined();
+    expect(env.GEMINI_API_KEY).toBeUndefined();
+  });
+
+  it('defaults RESEARCH_PROVIDER to anthropic and leaves fallback unset', () => {
+    const env = loadEnv(COMPLETE);
+    expect(env.RESEARCH_PROVIDER).toBe('anthropic');
+    expect(env.RESEARCH_MODEL).toBeUndefined();
+    expect(env.RESEARCH_FALLBACK_PROVIDER).toBeUndefined();
+  });
+
+  it('accepts openai/gemini as RESEARCH_PROVIDER and RESEARCH_FALLBACK_PROVIDER', () => {
+    const env = loadEnv({
+      ...COMPLETE,
+      OPENAI_API_KEY: 'sk-openai-not-real',
+      RESEARCH_PROVIDER: 'openai',
+      RESEARCH_FALLBACK_PROVIDER: 'anthropic',
+    });
+    expect(env.RESEARCH_PROVIDER).toBe('openai');
+    expect(env.RESEARCH_FALLBACK_PROVIDER).toBe('anthropic');
+  });
+
+  it('rejects an unrecognized RESEARCH_PROVIDER value', () => {
+    expect(() => loadEnv({ ...COMPLETE, RESEARCH_PROVIDER: 'grok' })).toThrow(
+      EnvValidationError,
+    );
+  });
+
+  it('redacts OPENAI_API_KEY/GEMINI_API_KEY when present, never printing the value', () => {
+    const summary = redactedEnv(
+      loadEnv({ ...COMPLETE, OPENAI_API_KEY: 'sk-openai-not-real', GEMINI_API_KEY: 'gm-not-real' }),
+    );
+    expect(summary.OPENAI_API_KEY).toBe('[redacted]');
+    expect(summary.GEMINI_API_KEY).toBe('[redacted]');
+    expect(JSON.stringify(summary)).not.toContain('sk-openai-not-real');
+    expect(JSON.stringify(summary)).not.toContain('gm-not-real');
+  });
+
+  it('shows [unset] rather than [redacted] for an absent optional credential', () => {
+    const summary = redactedEnv(loadEnv(COMPLETE));
+    expect(summary.OPENAI_API_KEY).toBe('[unset]');
+    expect(summary.GEMINI_API_KEY).toBe('[unset]');
   });
 });
 
