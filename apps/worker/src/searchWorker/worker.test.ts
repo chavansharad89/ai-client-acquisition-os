@@ -985,6 +985,104 @@ describe('canonical pipeline', () => {
   });
 });
 
+// B and D below now assert POST-FIX behavior (R-70/R-71 are implemented —
+// see packages/core-opportunity/src/adapters.ts's toOfferSignals()). E now
+// asserts the settled Scenario E product contract — Option C, OBSERVED
+// REQUIRED (requirement/PHASE_24_SCENARIO_E_OPTION_C_SCOPE_LOCK.md):
+// INFERRED-only evidence can still produce needDetected=true (R-70/R-71's
+// need-detection layer is classification-blind beyond excluding UNKNOWN,
+// unchanged by this decision), but no longer satisfies the qualification
+// layer's EVIDENCE_PRESENT criterion
+// (packages/core-qualification/src/rules.ts's isEvidentiary()), so the
+// Opportunity now reaches INSUFFICIENT_EVIDENCE rather than QUALIFIED.
+describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all settled)', () => {
+  it('E1: phase24 Scenario E (Option C) — inferred-only evidence produces needDetected but is INSUFFICIENT_EVIDENCE, not QUALIFIED', async () => {
+    // INFERRED claims carry no evidence/sources by schema (schema.ts's
+    // superRefine forbids it), so verifyProvenance() never inspects them —
+    // there is no provenance path to exercise here, unlike B/D above. A
+    // fixed-LeadResearch fake ResearchProvider (the same convention this
+    // file already uses elsewhere, e.g. sampleResearch()/
+    // qualifyingResearch()) is the correct, sufficient boundary.
+    const inferred = (value: string) => ({
+      classification: 'INFERRED' as const,
+      value,
+      evidence: [],
+      basis: 'reasoned from the sparse homepage content',
+      confidence: 60,
+    });
+
+    const research = {
+      companySummary: inferred('Likely a small local business with a modest online presence'),
+      businessModel: inferred('Likely a single-location service business'),
+      targetCustomers: inferred('Likely local residents'),
+      visibleProblems: [],
+      growthOpportunities: [],
+      aiOpportunities: [],
+      websiteIssues: [
+        inferred(
+          'Business A may need a website redesign because its online presence appears outdated',
+        ),
+      ],
+      contentOpportunities: [],
+      automationOpportunities: [],
+      recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+      confidence: 55,
+      gaps: [],
+    } as unknown as LeadResearch;
+
+    // Reuses the existing qualifyingSearchOverrides() fixture (triggers:
+    // ['WEBSITE'], keywords: ['redesign']) — it already matches the
+    // INFERRED websiteIssues claim's "redesign" text.
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+    const signals = fakeResearchSignalRepository();
+    const opportunities = fakeOpportunityRepository();
+    const qualifications = fakeQualificationRepository();
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        discoveryProvider: fakeDiscoveryProvider([
+          { name: 'Business A', website: 'https://business-a.example' },
+        ]),
+        researchProvider: () => fakeResearchProvider(research),
+        signals,
+        opportunities,
+        qualifications,
+      }),
+    );
+
+    expect(outcome.outcome).toBe('completed');
+
+    const byClassification = (c: string) => signals.rows.filter((r) => r.classification === c);
+    expect(byClassification('OBSERVED')).toHaveLength(0);
+    expect(byClassification('UNKNOWN')).toHaveLength(0);
+    expect(byClassification('INFERRED').length).toBeGreaterThanOrEqual(1);
+
+    // toOfferSignals() (core-opportunity/adapters.ts) still excludes only
+    // UNKNOWN rows — OBSERVED and INFERRED remain indistinguishable to
+    // suggestOffers() (the adapted ResearchSignal contract carries no
+    // classification field at all), so needDetected is UNCHANGED by
+    // Scenario E: it is computed at the need-detection layer, which this
+    // decision does not touch.
+    expect(opportunities.rows).toHaveLength(1);
+    expect(opportunities.rows[0]!.needDetected).toBe(true);
+
+    // Scenario E (Option C — OBSERVED REQUIRED,
+    // requirement/PHASE_24_SCENARIO_E_OPTION_C_SCOPE_LOCK.md):
+    // evaluateEvidencePresent() (core-qualification/rules.ts) now requires
+    // at least one live OBSERVED signal. This Prospect has only INFERRED
+    // evidence, so EVIDENCE_PRESENT fails and the Opportunity reaches
+    // INSUFFICIENT_EVIDENCE rather than QUALIFIED, even though a need was
+    // detected.
+    expect(qualifications.rows).toHaveLength(1);
+    expect(qualifications.rows[0]!.state).toBe('INSUFFICIENT_EVIDENCE');
+    const evidencePresent = qualifications.rows[0]!.criteria.find(
+      (c) => c.criterion === 'EVIDENCE_PRESENT',
+    )!;
+    expect(evidencePresent.satisfied).toBe(false);
+    expect(evidencePresent.evidenceSignalIds).toEqual([]);
+  });
+});
 describe('personalization (Phase 21, R-51/R-52)', () => {
   it('runs Personalization immediately after Qualification, in order, for a QUALIFIED Opportunity', async () => {
     const calls: string[] = [];

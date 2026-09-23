@@ -38,7 +38,7 @@ describe('evaluateQualification', () => {
       {
         criterion: 'EVIDENCE_PRESENT',
         satisfied: true,
-        reason: '1 live, non-UNKNOWN signal(s) support the detected need',
+        reason: '1 live, OBSERVED signal(s) support the detected need',
         evidenceSignalIds: ['signal_1'],
       },
     ]);
@@ -67,7 +67,7 @@ describe('evaluateQualification', () => {
     expect(result.state).toBe('INSUFFICIENT_EVIDENCE');
     const evidencePresent = result.criteria.find((c) => c.criterion === 'EVIDENCE_PRESENT')!;
     expect(evidencePresent.satisfied).toBe(false);
-    expect(evidencePresent.reason).toBe('no live, non-UNKNOWN ResearchSignal remains for this Prospect');
+    expect(evidencePresent.reason).toBe('no live, OBSERVED ResearchSignal remains for this Prospect');
     expect(result.evidenceSignalIds).toEqual([]);
   });
 
@@ -125,5 +125,103 @@ describe('evaluateQualification', () => {
     });
 
     expect([...result.evidenceSignalIds].sort()).toEqual(['signal_1', 'signal_2']);
+  });
+});
+
+// Phase 24 Scenario E, Option C — OBSERVED REQUIRED
+// (requirement/PHASE_24_SCENARIO_E_OPTION_C_SCOPE_LOCK.md). EVIDENCE_PRESENT
+// now requires at least one live OBSERVED signal; INFERRED-only and
+// UNKNOWN-only no longer satisfy it. NEED_DETECTED, needDetected itself,
+// R-70/R-71, and scoring are untouched by this predicate — these cases
+// all assume needDetected=true was already reached.
+describe('evaluateQualification — Phase 24 Scenario E (Option C: OBSERVED required)', () => {
+  it('E1: INFERRED-only evidence is INSUFFICIENT_EVIDENCE (not QUALIFIED)', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [signal({ classification: 'INFERRED', basis: 'reasoned from sparse content' })],
+    });
+
+    expect(result.state).toBe('INSUFFICIENT_EVIDENCE');
+    const evidencePresent = result.criteria.find((c) => c.criterion === 'EVIDENCE_PRESENT')!;
+    expect(evidencePresent.satisfied).toBe(false);
+    expect(evidencePresent.evidenceSignalIds).toEqual([]);
+    expect(result.evidenceSignalIds).toEqual([]);
+  });
+
+  it('E2: OBSERVED-only evidence satisfies EVIDENCE_PRESENT (QUALIFIED, since NEED_DETECTED already passed)', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [signal({ classification: 'OBSERVED' })],
+    });
+
+    expect(result.state).toBe('QUALIFIED');
+    const evidencePresent = result.criteria.find((c) => c.criterion === 'EVIDENCE_PRESENT')!;
+    expect(evidencePresent.satisfied).toBe(true);
+    expect(evidencePresent.evidenceSignalIds).toEqual(['signal_1']);
+  });
+
+  it('E3: OBSERVED + INFERRED satisfies EVIDENCE_PRESENT via the OBSERVED signal alone', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [
+        signal({ id: 'signal_observed', classification: 'OBSERVED' }),
+        signal({
+          id: 'signal_inferred',
+          classification: 'INFERRED',
+          basis: 'reasoned from sparse content',
+        }),
+      ],
+    });
+
+    expect(result.state).toBe('QUALIFIED');
+    const evidencePresent = result.criteria.find((c) => c.criterion === 'EVIDENCE_PRESENT')!;
+    expect(evidencePresent.satisfied).toBe(true);
+    // Only the OBSERVED signal is counted as qualifying evidence.
+    expect(evidencePresent.evidenceSignalIds).toEqual(['signal_observed']);
+  });
+
+  it('E4: UNKNOWN-only evidence is INSUFFICIENT_EVIDENCE', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [signal({ classification: 'UNKNOWN', signal: null, confidence: 0 })],
+    });
+
+    expect(result.state).toBe('INSUFFICIENT_EVIDENCE');
+    const evidencePresent = result.criteria.find((c) => c.criterion === 'EVIDENCE_PRESENT')!;
+    expect(evidencePresent.satisfied).toBe(false);
+  });
+
+  it('E5: INFERRED + UNKNOWN evidence is INSUFFICIENT_EVIDENCE (no OBSERVED signal present)', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [
+        signal({
+          id: 'signal_inferred',
+          classification: 'INFERRED',
+          basis: 'reasoned from sparse content',
+        }),
+        signal({ id: 'signal_unknown', classification: 'UNKNOWN', signal: null, confidence: 0 }),
+      ],
+    });
+
+    expect(result.state).toBe('INSUFFICIENT_EVIDENCE');
+    const evidencePresent = result.criteria.find((c) => c.criterion === 'EVIDENCE_PRESENT')!;
+    expect(evidencePresent.satisfied).toBe(false);
+    expect(evidencePresent.evidenceSignalIds).toEqual([]);
+  });
+
+  it('E6: OBSERVED + UNKNOWN satisfies EVIDENCE_PRESENT via the OBSERVED signal alone', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [
+        signal({ id: 'signal_observed', classification: 'OBSERVED' }),
+        signal({ id: 'signal_unknown', classification: 'UNKNOWN', signal: null, confidence: 0 }),
+      ],
+    });
+
+    expect(result.state).toBe('QUALIFIED');
+    const evidencePresent = result.criteria.find((c) => c.criterion === 'EVIDENCE_PRESENT')!;
+    expect(evidencePresent.satisfied).toBe(true);
+    expect(evidencePresent.evidenceSignalIds).toEqual(['signal_observed']);
   });
 });
