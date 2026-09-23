@@ -4,7 +4,7 @@ import {
   type ProspectInput,
   type ProspectScore,
 } from '@acos/core-acquisition';
-import type { ProspectRepository, StoredProspect } from '@acos/core-discovery';
+import type { CompanyRepository, ProspectRepository, StoredCompany, StoredProspect } from '@acos/core-discovery';
 import { hashAccessToken } from '@acos/core-entitlements';
 import {
   UnauthenticatedError,
@@ -92,6 +92,35 @@ function fakeProspectRepository(seed: StoredProspect[] = []): ProspectRepository
     },
     async getById(userId: string, id: string) {
       return rows.find((row) => row.id === id && row.userId === userId) ?? null;
+    },
+  };
+}
+
+/**
+ * A minimal local fake of @acos/core-discovery's CompanyRepository —
+ * unexported internal to that package's tests. Synthesizes a Company for
+ * ANY requested id/userId (never "not found") so every pre-existing
+ * Prospect fixture in this file resolves without needing an explicit
+ * seed per companyId; the synthesized `name` ("Company company_1", etc.)
+ * never matches R-70's narrow self-identification pattern
+ * (./adapters.ts), so it is a no-op for every test here except the
+ * dedicated R-70 tests below, which seed their own Company explicitly.
+ */
+function fakeCompanyRepository(seed: StoredCompany[] = []): CompanyRepository {
+  return {
+    async findOrCreateByDomain() {
+      throw new Error('not used by these tests');
+    },
+    async getById(userId: string, id: string) {
+      const seeded = seed.find((row) => row.id === id && row.userId === userId);
+      if (seeded) return seeded;
+      return {
+        id,
+        userId,
+        name: `Company ${id}`,
+        normalizedDomain: `${id}.test`,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      };
     },
   };
 }
@@ -222,6 +251,7 @@ function deps(
   const opportunities = fakeOpportunityRepository();
   return {
     identity,
+    companies: fakeCompanyRepository(),
     prospects: fakeProspectRepository(prospects),
     searches: fakeSearchRepository(searches),
     signals: fakeResearchSignalRepository(signals),
@@ -277,6 +307,93 @@ describe('createOpportunity', () => {
     const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
     const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
     expect(opportunity.state).toBe('NEW');
+  });
+
+  it('a Prospect whose Company cannot be resolved is rejected the same way a missing Prospect/Search is (R-70 needs Company identity)', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    d.companies = {
+      async findOrCreateByDomain() {
+        throw new Error('not used by this test');
+      },
+      async getById() {
+        return null;
+      },
+    };
+
+    await expect(
+      createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }),
+    ).rejects.toBeInstanceOf(OpportunityProspectNotFoundError);
+  });
+
+  describe('R-70: source-to-business attribution (Phase 24)', () => {
+    it('evidence that self-identifies as a different business does not establish a need', async () => {
+      const d = deps(
+        [seedProspect()],
+        [seedSearch()],
+        [
+          matchingSignal({
+            signal: 'HeyDrop. A simple way to share your digital business card.',
+          }),
+        ],
+      );
+      d.companies = fakeCompanyRepository([
+        {
+          id: 'company_1',
+          userId: 'user_a',
+          name: 'Meridian Fitness Club',
+          normalizedDomain: 'meridian.test',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ]);
+
+      const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+      expect(opportunity.needDetected).toBe(false);
+      expect(opportunity.offer).toBeUndefined();
+    });
+
+    it('genuine, correctly-attributed evidence for the same business is unaffected', async () => {
+      const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+      d.companies = fakeCompanyRepository([
+        {
+          id: 'company_1',
+          userId: 'user_a',
+          name: 'Meridian Fitness Club',
+          normalizedDomain: 'meridian.test',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ]);
+
+      const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+      expect(opportunity.needDetected).toBe(true);
+    });
+  });
+
+  describe('R-71: topic-vs-problem relevance (Phase 24)', () => {
+    it('a topical-field-only keyword match does not establish a need', async () => {
+      const d = deps(
+        [seedProspect()],
+        [seedSearch()],
+        [matchingSignal({ field: 'companySummary', signal: 'hiring a content writer' })],
+      );
+
+      const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+      expect(opportunity.needDetected).toBe(false);
+    });
+
+    it('the same claim in a problem field still establishes a need (unaffected — R-71 does not make qualification stricter for genuine problems)', async () => {
+      const d = deps(
+        [seedProspect()],
+        [seedSearch()],
+        [matchingSignal({ field: 'visibleProblems', signal: 'hiring a content writer' })],
+      );
+
+      const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+      expect(opportunity.needDetected).toBe(true);
+    });
   });
 
   it('rejects an unauthenticated call before touching any repository', async () => {

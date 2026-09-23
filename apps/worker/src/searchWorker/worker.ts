@@ -311,6 +311,7 @@ async function runCanonicalPipeline(
       existingOpportunity ??
       (await createOpportunityForOwner(
         {
+          companies: deps.companies,
           prospects: deps.prospects,
           searches: deps.searches,
           signals: deps.signals,

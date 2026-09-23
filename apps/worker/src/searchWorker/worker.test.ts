@@ -17,8 +17,11 @@ import type {
 } from '@acos/core-outreach-preparation';
 import type { PersonalizationRepository, StoredPersonalization } from '@acos/core-personalization';
 import type { QualificationRepository, StoredQualification } from '@acos/core-qualification';
+import { researchLead } from '@acos/core-research';
 import type {
   LeadResearch,
+  ResearchInput,
+  ResearchModel,
   ResearchProvider,
   ResearchProviderInput,
   ResearchSignalRepository,
@@ -535,16 +538,24 @@ function sampleResearch(): LeadResearch {
  * Opportunity.needDetected is true and Qualification reaches QUALIFIED,
  * which is what the R-51 Personalization tests below need to exercise the
  * actual generation path, not just its skip path.
+ *
+ * Phase 24 (R-71): the matched claim lives under `websiteIssues` — a
+ * problem/opportunity field — rather than `companySummary`, which R-71
+ * now excludes from offer-eligibility (a topical field can never
+ * establish a need on its own; see ./adapters.ts's TOPICAL_FIELDS). This
+ * is not a weaker fixture than before: "needs a website redesign" always
+ * described a problem, not a topic — it is now filed under the field
+ * that actually represents that.
  */
 function qualifyingResearch(): LeadResearch {
   return {
-    companySummary: observed('needs a website redesign'),
+    companySummary: unknown(),
     businessModel: unknown(),
     targetCustomers: unknown(),
     visibleProblems: [],
     growthOpportunities: [],
     aiOpportunities: [],
-    websiteIssues: [],
+    websiteIssues: [observed('needs a website redesign')],
     contentOpportunities: [],
     automationOpportunities: [],
     recommendedService: { service: 'NONE', rationale: 'insufficient evidence', basedOn: [] },
@@ -985,6 +996,9 @@ describe('canonical pipeline', () => {
   });
 });
 
+// ---- Phase 24 regression suite (see
+// requirement/MVP_EVIDENCE_RELEVANCE_REQUIREMENT.md and
+// requirement/PHASE_24_EVIDENCE_RELEVANCE_SCOPE_LOCK.md, Scenarios B/D/E).
 // B and D below now assert POST-FIX behavior (R-70/R-71 are implemented —
 // see packages/core-opportunity/src/adapters.ts's toOfferSignals()). E now
 // asserts the settled Scenario E product contract — Option C, OBSERVED
@@ -996,6 +1010,351 @@ describe('canonical pipeline', () => {
 // (packages/core-qualification/src/rules.ts's isEvidentiary()), so the
 // Opportunity now reaches INSUFFICIENT_EVIDENCE rather than QUALIFIED.
 describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all settled)', () => {
+  /**
+   * Wraps the real, unmodified researchLead()/verifyProvenance() path
+   * (@acos/core-research) instead of a stub ResearchProvider, so Scenario
+   * B/D genuinely exercise the provenance gate against a directly-supplied
+   * source document — deterministic, no network, no SourceDocumentProvider
+   * HTTP fetch, no external API. This composes an already-exported
+   * production function (researchLead) the same way
+   * anthropicResearchProvider.ts does; it is not a new provider
+   * abstraction.
+   */
+  function realProvenanceResearchProvider(
+    model: ResearchModel,
+    sourceDocuments: ResearchInput['sourceDocuments'],
+  ): ResearchProvider {
+    return {
+      async research(input) {
+        const outcome = await researchLead(model, {
+          companyName: input.companyName,
+          websiteUrl: `https://${input.normalizedDomain}`,
+          sourceDocuments,
+        });
+        return outcome.research;
+      },
+    };
+  }
+
+  /** A ResearchModel that always returns the same fixed, schema-shaped JSON value. */
+  function fakeModel(value: unknown): ResearchModel {
+    return async () => ({ kind: 'json', value });
+  }
+
+  const websiteKeywordSearchOverrides = (): Partial<StoredSearch> => ({
+    parameters: {
+      service: 'Website development',
+      targetCustomer: 'Restaurants',
+      geography: 'Mumbai',
+      minProjectValuePaise: 3_000_000,
+      triggers: ['WEBSITE'],
+      keywords: ['website', 'outdated', 'redesign', 'mobile'],
+      rationale: 'They need a website refresh ({signal}).',
+    },
+  });
+
+  const TARGET_NAME = 'Meridian Fitness Club';
+  const TARGET_URL = 'https://meridian.example';
+
+  /** OBSERVED-claim helper: `value` doubles as the cited quote, exactly as the audit's real transcript did. */
+  const observedClaim = (value: string, sourceUrl: string, confidence = 80) => ({
+    classification: 'OBSERVED' as const,
+    value,
+    evidence: [{ quote: value, sourceUrl, sourceLabel: 'Homepage' }],
+    basis: null,
+    confidence,
+  });
+
+  describe('R-70: source-to-business attribution', () => {
+    it('B1: correct-business source with genuine evidence remains usable', async () => {
+      // The fetched homepage genuinely belongs to the target business, and
+      // says so — the same shape a real homepage's own byline takes. This
+      // must NOT be penalized by R-70's mismatch check.
+      const problemQuote = 'Meridian Fitness Club. Our website is outdated and hard to navigate on mobile.';
+      const sourceDocuments = [{ label: 'Homepage', url: TARGET_URL, text: problemQuote }];
+      const model = fakeModel({
+        companySummary: unknown(),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [observedClaim(problemQuote, TARGET_URL)],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 75,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: TARGET_NAME, website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      expect(outcome.outcome).toBe('completed');
+      expect(opportunities.rows[0]!.needDetected).toBe(true);
+      expect(qualifications.rows[0]!.state).toBe('QUALIFIED');
+    });
+
+    it('B2: wrong-business source (genuine evidence, but for a different business) MUST NOT qualify the target', async () => {
+      // The Goregaon Sports Club / heydrop.me shape from
+      // MVP_EVIDENCE_RELEVANCE_REQUIREMENT.md §1: the fetched homepage is
+      // genuinely, verifiably for "HeyDrop" — a different business — and
+      // the research output says so (a companySummary-shaped claim, the
+      // natural place a model records what a site IS), while a SEPARATE
+      // claim happens to contain a service keyword ("website"). Every
+      // quote below is copied verbatim from its source, so provenance
+      // (fidelity — "did you misquote the page") genuinely passes; R-70 is
+      // a different guarantee (whose page is it) that this test proves is
+      // now enforced.
+      const identityQuote = 'HeyDrop. A simple way to share your digital business card.';
+      const problemQuote = 'Our website is outdated and difficult to use on mobile devices.';
+      const sourceDocuments = [
+        {
+          label: 'Homepage',
+          url: TARGET_URL,
+          text: `${identityQuote} ${problemQuote} We are proud of our support quality.`,
+        },
+      ];
+      const model = fakeModel({
+        companySummary: observedClaim(identityQuote, TARGET_URL),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [observedClaim(problemQuote, TARGET_URL)],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 70,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const signals = fakeResearchSignalRepository();
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: TARGET_NAME, website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          signals,
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      // Sanity: the pipeline still ran to completion and genuinely
+      // persisted the OBSERVED evidence (provenance unaffected by R-70).
+      expect(outcome.outcome).toBe('completed');
+      expect(signals.rows.some((r) => r.classification === 'OBSERVED')).toBe(true);
+
+      // R-70: MUST NOT result in needDetected=true -> QUALIFIED, even
+      // though the "website" keyword genuinely matched a genuinely-cited
+      // quote — because that quote's source does not correspond to this
+      // business.
+      expect(opportunities.rows).toHaveLength(1);
+      expect(opportunities.rows[0]!.needDetected).toBe(false);
+      expect(opportunities.rows[0]!.offer).toBeUndefined();
+      expect(qualifications.rows[0]!.state).not.toBe('QUALIFIED');
+    });
+
+    it('B3: a source that cannot be attributed to any real business MUST NOT become qualifying evidence', async () => {
+      // A parked/placeholder page — the source identity cannot be
+      // established as the target business (or as any real business);
+      // R-70 fails closed rather than defaulting to accepted.
+      const placeholderQuote = 'Page Not Found. This domain is not configured.';
+      const problemQuote = 'Our website is outdated and difficult to use on mobile devices.';
+      const sourceDocuments = [
+        { label: 'Homepage', url: TARGET_URL, text: `${placeholderQuote} ${problemQuote}` },
+      ];
+      const model = fakeModel({
+        companySummary: observedClaim(placeholderQuote, TARGET_URL),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [observedClaim(problemQuote, TARGET_URL)],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 60,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: TARGET_NAME, website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      expect(outcome.outcome).toBe('completed');
+      expect(opportunities.rows[0]!.needDetected).toBe(false);
+      expect(qualifications.rows[0]!.state).not.toBe('QUALIFIED');
+    });
+  });
+
+  describe('R-71: topic-vs-problem relevance', () => {
+    it('D1: a generic topic mention does not create a need', async () => {
+      // Business A's own, genuinely-fetched homepage — but the only claim
+      // ever made about it is a bare topical mention ("has a website"),
+      // with no described defect anywhere.
+      const topicQuote = 'Business A has a website.';
+      const sourceDocuments = [
+        {
+          label: 'Homepage',
+          url: TARGET_URL,
+          text: `${topicQuote} Visit our website to learn more about our services.`,
+        },
+      ];
+      const model = fakeModel({
+        companySummary: observedClaim(topicQuote, TARGET_URL, 75),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 65,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const signals = fakeResearchSignalRepository();
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: 'Business A', website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          signals,
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      expect(outcome.outcome).toBe('completed');
+      const observedSignal = signals.rows.find((r) => r.classification === 'OBSERVED');
+      expect(observedSignal?.field).toBe('companySummary'); // a topical field, not visibleProblems/websiteIssues/...
+
+      // R-71: a bare topic mention in a topical field MUST NOT establish a need.
+      expect(opportunities.rows[0]!.needDetected).toBe(false);
+      expect(qualifications.rows[0]!.state).not.toBe('QUALIFIED');
+    });
+
+    it('D2: a genuine, service-relevant problem survives the relevance gate', async () => {
+      const problemQuote = 'Meridian Fitness Club. Our website navigation is broken on mobile.';
+      const sourceDocuments = [{ label: 'Homepage', url: TARGET_URL, text: problemQuote }];
+      const model = fakeModel({
+        companySummary: unknown(),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [observedClaim(problemQuote, TARGET_URL)],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 78,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const signals = fakeResearchSignalRepository();
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: TARGET_NAME, website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          signals,
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      expect(outcome.outcome).toBe('completed');
+      const observedSignal = signals.rows.find((r) => r.classification === 'OBSERVED');
+      expect(observedSignal?.field).toBe('websiteIssues'); // a problem/opportunity field
+
+      // A genuine, service-relevant problem is still eligible — R-71 must
+      // not make the system detect FEWER genuine needs than it does today.
+      expect(opportunities.rows[0]!.needDetected).toBe(true);
+      expect(qualifications.rows[0]!.state).toBe('QUALIFIED');
+    });
+
+    it('D3: a genuine but service-UNRELATED problem does not create a need', async () => {
+      // A real, specific problem (visibleProblems — not topical) that has
+      // nothing to do with the offered service (website development).
+      // This already worked correctly via keyword mismatch before Phase
+      // 24; R-71 must not disturb it.
+      const problemQuote = 'Meridian Fitness Club has parking difficulties for members.';
+      const sourceDocuments = [{ label: 'Homepage', url: TARGET_URL, text: problemQuote }];
+      const model = fakeModel({
+        companySummary: unknown(),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [observedClaim(problemQuote, TARGET_URL)],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 72,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: TARGET_NAME, website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      expect(outcome.outcome).toBe('completed');
+      expect(opportunities.rows[0]!.needDetected).toBe(false);
+      expect(qualifications.rows[0]!.state).not.toBe('QUALIFIED');
+    });
+  });
+
   it('E1: phase24 Scenario E (Option C) — inferred-only evidence produces needDetected but is INSUFFICIENT_EVIDENCE, not QUALIFIED', async () => {
     // INFERRED claims carry no evidence/sources by schema (schema.ts's
     // superRefine forbids it), so verifyProvenance() never inspects them —
@@ -1083,6 +1442,7 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
     expect(evidencePresent.evidenceSignalIds).toEqual([]);
   });
 });
+
 describe('personalization (Phase 21, R-51/R-52)', () => {
   it('runs Personalization immediately after Qualification, in order, for a QUALIFIED Opportunity', async () => {
     const calls: string[] = [];
