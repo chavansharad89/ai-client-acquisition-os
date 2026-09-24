@@ -538,9 +538,14 @@ describe('user-facing engineering path (ENGINEERING VERIFICATION ONLY — not re
 // transitionSearch()+runDiscovery() directly — this test proves the same
 // journey through the actual worker claim path, claimAndProcessNextSearch(),
 // against a Search this test itself created via the real HTTP route, with
-// Qualification supplied through workerDeps so the real pipeline exercises
-// it (search-worker.integration.test.ts's own suite never supplies
-// `qualifications`). TEST-ONLY: no production code changed.
+// Qualification AND Scoring supplied through workerDeps so the real
+// pipeline exercises both end to end (search-worker.integration.test.ts's
+// own suite never supplies `qualifications` or `scores`). Scoring runs
+// inside that same worker invocation via `deps.scores` (worker.ts's
+// `if (deps.scores)` branch, production wiring already authorized — see
+// requirement/CLIENT_FINDER_MVP_SCORING_AUTHORIZATION_DECISION.md) rather
+// than a standalone scoreOpportunity() call after the fact. TEST-ONLY: no
+// production code changed.
 
 function compositeProfileInput(): ServiceProfileInput {
   return {
@@ -685,6 +690,7 @@ describe(
           researchProvider: () => compositeResearchProvider(compositeMatchingResearch()),
           opportunities: base.opportunities,
           qualifications,
+          scores: base.scores,
           workerId: `worker_composite_${randomUUID()}`,
         };
 
@@ -725,20 +731,35 @@ describe(
         expect(qualification).not.toBeNull();
         expect(qualification!.state).toBe('QUALIFIED');
 
-        // 7. SCORING: the existing scoreOpportunity() — deliberately not
-        // part of the worker pipeline (Phase 17 scope lock), so this test
-        // reaches it the same way the "user-facing engineering path" test
-        // above does.
-        await scoreOpportunity(
-          {
-            identity: base.identity,
-            opportunities: base.opportunities,
-            signals: base.signals,
-            scores: base.scores,
-          },
-          user.token,
+        // 7. SCORING: proven inside the real worker invocation itself —
+        // `workerDeps.scores` above (not a standalone scoreOpportunity()
+        // call) is what scored and persisted this row, via worker.ts's
+        // existing production `if (deps.scores)` wiring. Inspect the
+        // persisted row rather than recomputing an expected score.
+        const persistedScore = await base.scores.getByOpportunityId(
+          user.userId,
           opportunity!.id,
         );
+        expect(persistedScore).not.toBeNull();
+        expect(persistedScore!.opportunityId).toBe(opportunity!.id);
+        expect(typeof persistedScore!.total).toBe('number');
+        expect(persistedScore!.factors.length).toBeGreaterThan(0);
+        expect(typeof persistedScore!.observedShare).toBe('number');
+        // D's deferral (see requirement/CLIENT_FINDER_MVP_SCORING_AUTHORIZATION_DECISION.md)
+        // remains UNKNOWN/neutral in the persisted row: icpFit, abilityToPay
+        // and urgency carry basis UNKNOWN (neutralScoringInputs() in
+        // core-opportunity's service.ts); contactability's basis is always
+        // 'OBSERVED' by prospectScore.ts's own unmodified algorithm — "0 of
+        // 3 contact channels available" is itself an observed fact — so its
+        // neutrality is a zero raw contribution instead.
+        for (const deferredFactor of ['icpFit', 'abilityToPay', 'urgency'] as const) {
+          const factor = persistedScore!.factors.find((f) => f.factor === deferredFactor);
+          expect(factor).toBeDefined();
+          expect(factor!.basis).toBe('UNKNOWN');
+        }
+        const contactability = persistedScore!.factors.find((f) => f.factor === 'contactability');
+        expect(contactability).toBeDefined();
+        expect(contactability!.raw).toBe(0);
 
         // 8. RANKING: the existing rankOpportunities().
         const ranked = await rankOpportunities(base, user.token);
