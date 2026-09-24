@@ -268,7 +268,28 @@ export async function scoreOpportunity(
   now: Date = new Date(),
 ): Promise<StoredOpportunityScore> {
   const userId = await requireUser(deps.identity, rawToken, now);
+  return scoreOpportunityForOwner(deps, userId, opportunityId, now);
+}
 
+/**
+ * Same behavior as {@link scoreOpportunity}, for a caller that has
+ * already resolved a trusted `userId` by some means other than a session
+ * token — specifically, a worker that claimed a Search row and is reading
+ * ownership out of it (R-34's "WORKER OWNERSHIP"). Not reachable from any
+ * HTTP path — only `scoreOpportunity()` (token-authenticated) is. Mirrors
+ * the existing `createOpportunity()`/`createOpportunityForOwner()` split.
+ *
+ * Computes and persists the identical score `scoreOpportunity()` would —
+ * this function performs no algorithm change of its own; it only skips
+ * the token-to-userId resolution step, exactly as `createOpportunityForOwner`
+ * does relative to `createOpportunity`.
+ */
+export async function scoreOpportunityForOwner(
+  deps: Omit<OpportunityScoreDeps, 'identity'>,
+  userId: string,
+  opportunityId: string,
+  now: Date = new Date(),
+): Promise<StoredOpportunityScore> {
   const opportunity = await deps.opportunities.getById(userId, opportunityId);
   if (!opportunity) throw new OpportunityNotFoundError(opportunityId);
 

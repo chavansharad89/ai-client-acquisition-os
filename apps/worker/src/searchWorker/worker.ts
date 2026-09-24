@@ -6,8 +6,8 @@ import type {
 import { runDiscoveryForOwner } from '@acos/core-discovery';
 import type { FollowUpPreparationRepository } from '@acos/core-followup-preparation';
 import { prepareFollowUpForOwner } from '@acos/core-followup-preparation';
-import type { OpportunityRepository } from '@acos/core-opportunity';
-import { createOpportunityForOwner } from '@acos/core-opportunity';
+import type { OpportunityRepository, OpportunityScoreRepository } from '@acos/core-opportunity';
+import { createOpportunityForOwner, scoreOpportunityForOwner } from '@acos/core-opportunity';
 import type { OutreachPreparationRepository } from '@acos/core-outreach-preparation';
 import { prepareOutreachForOwner } from '@acos/core-outreach-preparation';
 import type { PersonalizationRepository } from '@acos/core-personalization';
@@ -33,9 +33,14 @@ import { MAX_SEARCH_ATTEMPTS, type SearchRepository, type StoredSearch } from '@
 // claimed via SearchRepository.claimNextPending — never from any other
 // input. Every downstream repository call is scoped by that same value.
 //
-// Scoring, staleness, next-action, feedback and AI usage metering are
-// deliberately NOT part of this pipeline — see the Phase 17 scope lock's
-// "R-34 — AUTHORITATIVE DEFINITION" section for why.
+// Scoring (R-14/R-15/R-17, via scoreOpportunityForOwner) runs immediately
+// after Opportunity creation/lookup — see runCanonicalPipeline below.
+// Staleness, next-action and AI usage metering remain deliberately NOT
+// part of this pipeline — see the Phase 17 scope lock's "R-34 —
+// AUTHORITATIVE DEFINITION" section for why; scoring's own wiring here
+// reuses the identical, unmodified scoreOpportunity() algorithm and
+// persistence via the same "ForOwner" split every other stage already
+// uses, per an explicit product decision to authorize this specific step.
 // -----------------------------------------------------------------------
 
 export interface SearchWorkerDeps {
@@ -54,6 +59,29 @@ export interface SearchWorkerDeps {
    */
   researchProvider: (userId: string) => ResearchProvider;
   opportunities: OpportunityRepository;
+  /**
+   * Production scoring wiring (R-14/R-15/R-17): scores and persists every
+   * Prospect's Opportunity immediately after it is created or found — see
+   * runCanonicalPipeline below. Reuses the exact `userId` this pipeline
+   * already resolves via `scoreOpportunityForOwner`, the "ForOwner"
+   * sibling of the existing, unmodified `scoreOpportunity()`; introduces
+   * no new claim/lease/retry concept, no schema change, no new provider,
+   * and no change to the seven-factor algorithm or to `neutralScoringInputs()`
+   * (icpFit/abilityToPay/urgency/contactability remain neutral, by
+   * explicit product decision, not by this wiring).
+   *
+   * Optional, not required: making this required would force every
+   * existing caller that builds a `SearchWorkerDeps` object — including
+   * every pre-this-change test — to be edited merely to keep compiling.
+   * The real entrypoint (apps/worker/src/index.ts) always supplies it, so
+   * production runs always score; omitting it (only in a caller that
+   * predates this wiring and never exercises scoring) skips the step
+   * rather than failing. Independent of `qualifications`/
+   * `personalizations`/`outreachPreparations`/`followUpPreparations` —
+   * scoring has no data dependency on any of those stages in either
+   * direction, so it is not nested inside their conditionals.
+   */
+  scores?: OpportunityScoreRepository;
   /**
    * Phase 20 (R-41): evaluates and persists Qualification for every
    * Prospect's Opportunity, immediately after it is created or found —
@@ -211,13 +239,15 @@ export async function claimAndProcessNextSearch(
 
 /**
  * The canonical pipeline for one already-claimed Search: Discovery once,
- * then Research + Opportunity + Qualification + Personalization for
- * every Prospect Discovery found.
+ * then Research + Opportunity + Scoring + Qualification + Personalization
+ * for every Prospect Discovery found.
  *
- * A failure at any point (thrown by any of the five domain calls) stops
- * all further processing for this Search and propagates to the caller,
- * which records it as a failed attempt — no partial pipeline result is
- * ever reported as success.
+ * A failure at any point (thrown by any of the domain calls, including
+ * scoring) stops all further processing for this Search and propagates to
+ * the caller, which records it as a failed attempt — no partial pipeline
+ * result is ever reported as success. Scoring uses this exact existing
+ * failure/retry mechanism unchanged: no soft-failure or
+ * continue-without-scoring path is introduced.
  *
  * Idempotent on retry: Discovery's find-or-create persistence and
  * Research's supersede-then-insert persistence are already safe to redo
@@ -228,7 +258,24 @@ export async function claimAndProcessNextSearch(
  * checks `findByProspectId` first and skips creation for a Prospect that
  * already has one, exactly the retry-safety pre-check pattern
  * `SearchRepository.findByIdempotencyKey` already establishes elsewhere
- * in this codebase. Qualification (Phase 20, R-41) IS idempotent by
+ * in this codebase.
+ *
+ * Scoring (R-14/R-15/R-17) runs immediately after Opportunity
+ * creation/lookup, independent of Qualification/Personalization/
+ * Outreach-Prep/Follow-up-Prep — it has no data dependency on any of
+ * them in either direction, so it is not nested inside their
+ * conditionals. `scoreOpportunityForOwner` is idempotent by itself
+ * (`upsert` on `UNIQUE(opportunity_id)`, migration 0018 — re-scoring
+ * replaces, never appends), so when `deps.scores` is configured it runs
+ * unconditionally for both a newly-created and an already-existing
+ * Opportunity, the same "changed evidence -> new evaluation on retry"
+ * property Qualification already relies on. `deps.scores` is optional
+ * (skipped when absent) solely so pre-existing callers of this function
+ * need no change — see SearchWorkerDeps' own doc comment. Uses the
+ * existing, unmodified seven-factor algorithm and `neutralScoringInputs()`
+ * unchanged — icpFit/abilityToPay/urgency/contactability remain neutral.
+ *
+ * Qualification (Phase 20, R-41) IS idempotent by
  * itself (`upsert` on `UNIQUE(opportunity_id)` — R-39), so when
  * `deps.qualifications` is configured it runs unconditionally for both a
  * newly-created and an already-existing Opportunity: this is what makes
@@ -320,6 +367,18 @@ async function runCanonicalPipeline(
         userId,
         { prospectId: prospect.id },
       ));
+
+    if (deps.scores) {
+      await scoreOpportunityForOwner(
+        {
+          opportunities: deps.opportunities,
+          signals: deps.signals,
+          scores: deps.scores,
+        },
+        userId,
+        opportunity.id,
+      );
+    }
 
     if (deps.qualifications) {
       await evaluateQualificationForOwner(

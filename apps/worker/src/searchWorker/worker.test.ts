@@ -10,7 +10,12 @@ import type {
   FollowUpPreparationRepository,
   StoredFollowUpPreparation,
 } from '@acos/core-followup-preparation';
-import type { OpportunityRepository, StoredOpportunity } from '@acos/core-opportunity';
+import type {
+  OpportunityRepository,
+  OpportunityScoreRepository,
+  StoredOpportunity,
+  StoredOpportunityScore,
+} from '@acos/core-opportunity';
 import type {
   OutreachPreparationRepository,
   StoredOutreachPreparation,
@@ -298,6 +303,46 @@ function fakeOpportunityRepository(
     },
     async updateStaleness() {
       throw new Error('not used by these tests');
+    },
+  };
+}
+
+function fakeOpportunityScoreRepository(): OpportunityScoreRepository & {
+  rows: StoredOpportunityScore[];
+} {
+  const rows: StoredOpportunityScore[] = [];
+  let counter = 0;
+  return {
+    rows,
+    async upsert(opportunityId, score, scorerVersion, scoredAt) {
+      const index = rows.findIndex((r) => r.opportunityId === opportunityId);
+      const existing = index === -1 ? undefined : rows[index];
+      const stored: StoredOpportunityScore = {
+        id: existing?.id ?? `score_${(counter += 1)}`,
+        opportunityId,
+        total: score.score,
+        band: score.band,
+        factors: score.factors,
+        reasons: score.reasons,
+        observedShare: score.observedShare,
+        cap: score.cap,
+        scorerVersion,
+        scoredAt,
+        createdAt: existing?.createdAt ?? scoredAt,
+      };
+      if (index === -1) rows.push(stored);
+      else rows[index] = stored;
+      return stored;
+    },
+    async getByOpportunityId(_userId: string, opportunityId: string) {
+      return rows.find((r) => r.opportunityId === opportunityId) ?? null;
+    },
+    async listByUserId(userId: string) {
+      // Mirrors the real repository's ownership join loosely enough for
+      // these fakes' purposes — every row here was written for the single
+      // userId these tests operate under.
+      void userId;
+      return rows;
     },
   };
 }
@@ -919,6 +964,132 @@ describe('canonical pipeline', () => {
     expect(opportunities.rows).toHaveLength(1);
     expect(qualifications.rows).toHaveLength(1);
     expect(qualifications.rows[0]!.opportunityId).toBe(opportunities.rows[0]!.id);
+  });
+
+  describe('R-14/R-15/R-17: production scoring wiring', () => {
+    it('runs Scoring after Opportunity creation, before Qualification, and persists an OpportunityScore', async () => {
+      const calls: string[] = [];
+      const opportunities = fakeOpportunityRepository();
+      const realCreate = opportunities.create.bind(opportunities);
+      opportunities.create = (async (...args: Parameters<typeof realCreate>) => {
+        calls.push('opportunity');
+        return realCreate(...args);
+      }) as typeof opportunities.create;
+      const scores = fakeOpportunityScoreRepository();
+      const realUpsert = scores.upsert.bind(scores);
+      scores.upsert = (async (...args: Parameters<typeof realUpsert>) => {
+        calls.push('scoring');
+        return realUpsert(...args);
+      }) as typeof scores.upsert;
+      const qualifications = fakeQualificationRepository();
+      const realQualUpsert = qualifications.upsert.bind(qualifications);
+      qualifications.upsert = (async (...args: Parameters<typeof realQualUpsert>) => {
+        calls.push('qualification');
+        return realQualUpsert(...args);
+      }) as typeof qualifications.upsert;
+
+      const searches = fakeSearchRepository([seedSearch()]);
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({ searches, opportunities, scores, qualifications }),
+      );
+
+      expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: 1 });
+      expect(calls).toEqual(['opportunity', 'scoring', 'qualification']);
+      expect(scores.rows).toHaveLength(1);
+      expect(scores.rows[0]!.opportunityId).toBe(opportunities.rows[0]!.id);
+      // The row this fake persisted is exactly the shape rankOpportunities()
+      // (unmodified, not exercised by this unit test) reads via
+      // deps.scores.listByUserId — proving the worker writes a
+      // ranking-consumable row, without re-testing ranking's own,
+      // pre-existing, untouched behavior here.
+      expect(scores.rows[0]).toMatchObject({
+        total: expect.any(Number),
+        band: expect.any(String),
+        factors: expect.any(Array),
+        observedShare: expect.any(Number),
+      });
+    });
+
+    it('does not require Qualification/Personalization/Outreach-Prep/Follow-up-Prep to be configured', async () => {
+      const scores = fakeOpportunityScoreRepository();
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      // No qualifications/personalizations/outreachPreparations/
+      // followUpPreparations passed — scoring has no data dependency on
+      // any of them and must still run and persist.
+      const outcome = await claimAndProcessNextSearch(buildDeps({ searches, scores }));
+
+      expect(outcome.outcome).toBe('completed');
+      expect(scores.rows).toHaveLength(1);
+    });
+
+    it('R-14/R-15/R-17: Scoring also runs for an already-existing Opportunity (retry path), replacing the same row', async () => {
+      const opportunities = fakeOpportunityRepository();
+      const scores = fakeOpportunityScoreRepository();
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      // Attempt 1: creates the Opportunity and scores it.
+      await claimAndProcessNextSearch(buildDeps({ searches, opportunities, scores }));
+      expect(scores.rows).toHaveLength(1);
+      const firstScoreId = scores.rows[0]!.id;
+
+      // Attempt 2, re-claimed against the same already-populated
+      // repositories: scoring must run again (scoreOpportunityForOwner's
+      // own upsert idempotency), replacing the same row, not skip silently
+      // and not append a second row.
+      searches.rows[0] = { ...searches.rows[0]!, status: 'PENDING' };
+      await claimAndProcessNextSearch(buildDeps({ searches, opportunities, scores }));
+
+      expect(opportunities.rows).toHaveLength(1); // still no duplicate Opportunity
+      expect(scores.rows).toHaveLength(1); // still no duplicate OpportunityScore row
+      expect(scores.rows[0]!.id).toBe(firstScoreId);
+    });
+
+    it('a Scoring-stage failure surfaces as a failed attempt, using the existing worker retry/failure model — no soft-failure path', async () => {
+      const scores = fakeOpportunityScoreRepository();
+      scores.upsert = vi.fn().mockRejectedValue(new Error('score write failed'));
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      const outcome = await claimAndProcessNextSearch(buildDeps({ searches, scores }));
+
+      expect(outcome.outcome).toBe('retry');
+      expect(searches.rows[0]!.status).toBe('PENDING');
+    });
+
+    it('leaves the four neutral scoring factors at zero weighted points — this wiring changes no scoring input', async () => {
+      const scores = fakeOpportunityScoreRepository();
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      await claimAndProcessNextSearch(buildDeps({ searches, scores }));
+
+      const neutralFactors = ['icpFit', 'abilityToPay', 'urgency'] as const;
+      for (const factorName of neutralFactors) {
+        const factor = scores.rows[0]!.factors.find((f) => f.factor === factorName);
+        expect(factor?.basis).toBe('UNKNOWN');
+        expect(factor?.points).toBe(0);
+      }
+      const contactability = scores.rows[0]!.factors.find((f) => f.factor === 'contactability');
+      expect(contactability?.points).toBe(0);
+    });
+
+    it('coexists with Qualification without changing Qualification’s own evaluation (R-70/R-71/Scenario E unaffected)', async () => {
+      const scores = fakeOpportunityScoreRepository();
+      const qualifications = fakeQualificationRepository();
+      const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+      const researchProvider: ResearchProvider = {
+        async research() {
+          return qualifyingResearch();
+        },
+      };
+
+      await claimAndProcessNextSearch(
+        buildDeps({ searches, researchProvider: () => researchProvider, scores, qualifications }),
+      );
+
+      expect(scores.rows).toHaveLength(1);
+      expect(qualifications.rows).toHaveLength(1);
+      expect(qualifications.rows[0]!.state).toBe('QUALIFIED');
+    });
   });
 
   it('R-41: Qualification also runs for an already-existing Opportunity (retry path), not only a newly-created one', async () => {

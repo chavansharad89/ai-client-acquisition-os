@@ -9,7 +9,7 @@ import {
   createPgProspectRepository,
 } from '@acos/core-discovery';
 import { createPgFollowUpPreparationRepository } from '@acos/core-followup-preparation';
-import { createPgOpportunityRepository } from '@acos/core-opportunity';
+import { createPgOpportunityRepository, createPgOpportunityScoreRepository } from '@acos/core-opportunity';
 import { createPgOutreachPreparationRepository } from '@acos/core-outreach-preparation';
 import { createPgPersonalizationRepository } from '@acos/core-personalization';
 import { createPgQualificationRepository } from '@acos/core-qualification';
@@ -131,6 +131,7 @@ async function main(): Promise<void> {
             .then(() => undefined),
       }),
     opportunities: createPgOpportunityRepository(pool),
+    scores: createPgOpportunityScoreRepository(pool),
     qualifications: createPgQualificationRepository(pool),
     personalizations: createPgPersonalizationRepository(pool),
     outreachPreparations: createPgOutreachPreparationRepository(pool),
