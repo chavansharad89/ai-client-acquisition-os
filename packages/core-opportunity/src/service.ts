@@ -8,7 +8,7 @@ import {
   type ProspectInput,
   type ProspectScore,
 } from '@acos/core-acquisition';
-import type { ProspectRepository } from '@acos/core-discovery';
+import type { CompanyRepository, ProspectRepository } from '@acos/core-discovery';
 import { requireUser, type IdentityRepository } from '@acos/core-identity';
 import { toScoringSignals, type ResearchSignalRepository } from '@acos/core-research';
 import type { SearchRepository } from '@acos/core-search';
@@ -41,6 +41,7 @@ import { validateCreateOpportunityInput } from './validation';
 
 export interface OpportunityDeps {
   identity: IdentityRepository;
+  companies: CompanyRepository;
   prospects: ProspectRepository;
   searches: SearchRepository;
   signals: ResearchSignalRepository;
@@ -100,6 +101,13 @@ export async function createOpportunity(
  * domain function, so `createOpportunity()`'s own existing behavior
  * (including the "second call throws" contract already asserted by
  * tests/integration/opportunity.integration.test.ts) is unchanged.
+ *
+ * R-70 (Phase 24): also resolves the Prospect's own Company, so
+ * ./adapters' toOfferSignals() can exclude evidence whose source
+ * self-identifies as a different business than the one this Opportunity
+ * is being created for. Reuses the same not-found convention as the
+ * Prospect/Search lookups below — a missing Company is exactly as
+ * unexpected as a missing Prospect/Search for an owned Prospect.
  */
 export async function createOpportunityForOwner(
   deps: Omit<OpportunityDeps, 'identity'>,
@@ -115,8 +123,11 @@ export async function createOpportunityForOwner(
   const search = await deps.searches.getById(userId, prospect.searchId);
   if (!search) throw new OpportunityProspectNotFoundError(prospectId);
 
+  const company = await deps.companies.getById(userId, prospect.companyId);
+  if (!company) throw new OpportunityProspectNotFoundError(prospectId);
+
   const signals = await deps.signals.listByProspect(userId, prospect.id);
-  const offerSignals = toOfferSignals(signals);
+  const offerSignals = toOfferSignals(signals, company);
   const rule = toServiceRule(search.parameters);
 
   const suggestions = suggestOffers(offerSignals, [rule]);
@@ -257,7 +268,28 @@ export async function scoreOpportunity(
   now: Date = new Date(),
 ): Promise<StoredOpportunityScore> {
   const userId = await requireUser(deps.identity, rawToken, now);
+  return scoreOpportunityForOwner(deps, userId, opportunityId, now);
+}
 
+/**
+ * Same behavior as {@link scoreOpportunity}, for a caller that has
+ * already resolved a trusted `userId` by some means other than a session
+ * token — specifically, a worker that claimed a Search row and is reading
+ * ownership out of it (R-34's "WORKER OWNERSHIP"). Not reachable from any
+ * HTTP path — only `scoreOpportunity()` (token-authenticated) is. Mirrors
+ * the existing `createOpportunity()`/`createOpportunityForOwner()` split.
+ *
+ * Computes and persists the identical score `scoreOpportunity()` would —
+ * this function performs no algorithm change of its own; it only skips
+ * the token-to-userId resolution step, exactly as `createOpportunityForOwner`
+ * does relative to `createOpportunity`.
+ */
+export async function scoreOpportunityForOwner(
+  deps: Omit<OpportunityScoreDeps, 'identity'>,
+  userId: string,
+  opportunityId: string,
+  now: Date = new Date(),
+): Promise<StoredOpportunityScore> {
   const opportunity = await deps.opportunities.getById(userId, opportunityId);
   if (!opportunity) throw new OpportunityNotFoundError(opportunityId);
 

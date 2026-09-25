@@ -10,15 +10,23 @@ import type {
   FollowUpPreparationRepository,
   StoredFollowUpPreparation,
 } from '@acos/core-followup-preparation';
-import type { OpportunityRepository, StoredOpportunity } from '@acos/core-opportunity';
+import type {
+  OpportunityRepository,
+  OpportunityScoreRepository,
+  StoredOpportunity,
+  StoredOpportunityScore,
+} from '@acos/core-opportunity';
 import type {
   OutreachPreparationRepository,
   StoredOutreachPreparation,
 } from '@acos/core-outreach-preparation';
 import type { PersonalizationRepository, StoredPersonalization } from '@acos/core-personalization';
 import type { QualificationRepository, StoredQualification } from '@acos/core-qualification';
+import { researchLead } from '@acos/core-research';
 import type {
   LeadResearch,
+  ResearchInput,
+  ResearchModel,
   ResearchProvider,
   ResearchProviderInput,
   ResearchSignalRepository,
@@ -299,6 +307,46 @@ function fakeOpportunityRepository(
   };
 }
 
+function fakeOpportunityScoreRepository(): OpportunityScoreRepository & {
+  rows: StoredOpportunityScore[];
+} {
+  const rows: StoredOpportunityScore[] = [];
+  let counter = 0;
+  return {
+    rows,
+    async upsert(opportunityId, score, scorerVersion, scoredAt) {
+      const index = rows.findIndex((r) => r.opportunityId === opportunityId);
+      const existing = index === -1 ? undefined : rows[index];
+      const stored: StoredOpportunityScore = {
+        id: existing?.id ?? `score_${(counter += 1)}`,
+        opportunityId,
+        total: score.score,
+        band: score.band,
+        factors: score.factors,
+        reasons: score.reasons,
+        observedShare: score.observedShare,
+        cap: score.cap,
+        scorerVersion,
+        scoredAt,
+        createdAt: existing?.createdAt ?? scoredAt,
+      };
+      if (index === -1) rows.push(stored);
+      else rows[index] = stored;
+      return stored;
+    },
+    async getByOpportunityId(_userId: string, opportunityId: string) {
+      return rows.find((r) => r.opportunityId === opportunityId) ?? null;
+    },
+    async listByUserId(userId: string) {
+      // Mirrors the real repository's ownership join loosely enough for
+      // these fakes' purposes — every row here was written for the single
+      // userId these tests operate under.
+      void userId;
+      return rows;
+    },
+  };
+}
+
 function fakeQualificationRepository(): QualificationRepository & { rows: StoredQualification[] } {
   const rows: StoredQualification[] = [];
   let counter = 0;
@@ -535,16 +583,24 @@ function sampleResearch(): LeadResearch {
  * Opportunity.needDetected is true and Qualification reaches QUALIFIED,
  * which is what the R-51 Personalization tests below need to exercise the
  * actual generation path, not just its skip path.
+ *
+ * Phase 24 (R-71): the matched claim lives under `websiteIssues` — a
+ * problem/opportunity field — rather than `companySummary`, which R-71
+ * now excludes from offer-eligibility (a topical field can never
+ * establish a need on its own; see ./adapters.ts's TOPICAL_FIELDS). This
+ * is not a weaker fixture than before: "needs a website redesign" always
+ * described a problem, not a topic — it is now filed under the field
+ * that actually represents that.
  */
 function qualifyingResearch(): LeadResearch {
   return {
-    companySummary: observed('needs a website redesign'),
+    companySummary: unknown(),
     businessModel: unknown(),
     targetCustomers: unknown(),
     visibleProblems: [],
     growthOpportunities: [],
     aiOpportunities: [],
-    websiteIssues: [],
+    websiteIssues: [observed('needs a website redesign')],
     contentOpportunities: [],
     automationOpportunities: [],
     recommendedService: { service: 'NONE', rationale: 'insufficient evidence', basedOn: [] },
@@ -910,6 +966,132 @@ describe('canonical pipeline', () => {
     expect(qualifications.rows[0]!.opportunityId).toBe(opportunities.rows[0]!.id);
   });
 
+  describe('R-14/R-15/R-17: production scoring wiring', () => {
+    it('runs Scoring after Opportunity creation, before Qualification, and persists an OpportunityScore', async () => {
+      const calls: string[] = [];
+      const opportunities = fakeOpportunityRepository();
+      const realCreate = opportunities.create.bind(opportunities);
+      opportunities.create = (async (...args: Parameters<typeof realCreate>) => {
+        calls.push('opportunity');
+        return realCreate(...args);
+      }) as typeof opportunities.create;
+      const scores = fakeOpportunityScoreRepository();
+      const realUpsert = scores.upsert.bind(scores);
+      scores.upsert = (async (...args: Parameters<typeof realUpsert>) => {
+        calls.push('scoring');
+        return realUpsert(...args);
+      }) as typeof scores.upsert;
+      const qualifications = fakeQualificationRepository();
+      const realQualUpsert = qualifications.upsert.bind(qualifications);
+      qualifications.upsert = (async (...args: Parameters<typeof realQualUpsert>) => {
+        calls.push('qualification');
+        return realQualUpsert(...args);
+      }) as typeof qualifications.upsert;
+
+      const searches = fakeSearchRepository([seedSearch()]);
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({ searches, opportunities, scores, qualifications }),
+      );
+
+      expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: 1 });
+      expect(calls).toEqual(['opportunity', 'scoring', 'qualification']);
+      expect(scores.rows).toHaveLength(1);
+      expect(scores.rows[0]!.opportunityId).toBe(opportunities.rows[0]!.id);
+      // The row this fake persisted is exactly the shape rankOpportunities()
+      // (unmodified, not exercised by this unit test) reads via
+      // deps.scores.listByUserId — proving the worker writes a
+      // ranking-consumable row, without re-testing ranking's own,
+      // pre-existing, untouched behavior here.
+      expect(scores.rows[0]).toMatchObject({
+        total: expect.any(Number),
+        band: expect.any(String),
+        factors: expect.any(Array),
+        observedShare: expect.any(Number),
+      });
+    });
+
+    it('does not require Qualification/Personalization/Outreach-Prep/Follow-up-Prep to be configured', async () => {
+      const scores = fakeOpportunityScoreRepository();
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      // No qualifications/personalizations/outreachPreparations/
+      // followUpPreparations passed — scoring has no data dependency on
+      // any of them and must still run and persist.
+      const outcome = await claimAndProcessNextSearch(buildDeps({ searches, scores }));
+
+      expect(outcome.outcome).toBe('completed');
+      expect(scores.rows).toHaveLength(1);
+    });
+
+    it('R-14/R-15/R-17: Scoring also runs for an already-existing Opportunity (retry path), replacing the same row', async () => {
+      const opportunities = fakeOpportunityRepository();
+      const scores = fakeOpportunityScoreRepository();
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      // Attempt 1: creates the Opportunity and scores it.
+      await claimAndProcessNextSearch(buildDeps({ searches, opportunities, scores }));
+      expect(scores.rows).toHaveLength(1);
+      const firstScoreId = scores.rows[0]!.id;
+
+      // Attempt 2, re-claimed against the same already-populated
+      // repositories: scoring must run again (scoreOpportunityForOwner's
+      // own upsert idempotency), replacing the same row, not skip silently
+      // and not append a second row.
+      searches.rows[0] = { ...searches.rows[0]!, status: 'PENDING' };
+      await claimAndProcessNextSearch(buildDeps({ searches, opportunities, scores }));
+
+      expect(opportunities.rows).toHaveLength(1); // still no duplicate Opportunity
+      expect(scores.rows).toHaveLength(1); // still no duplicate OpportunityScore row
+      expect(scores.rows[0]!.id).toBe(firstScoreId);
+    });
+
+    it('a Scoring-stage failure surfaces as a failed attempt, using the existing worker retry/failure model — no soft-failure path', async () => {
+      const scores = fakeOpportunityScoreRepository();
+      scores.upsert = vi.fn().mockRejectedValue(new Error('score write failed'));
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      const outcome = await claimAndProcessNextSearch(buildDeps({ searches, scores }));
+
+      expect(outcome.outcome).toBe('retry');
+      expect(searches.rows[0]!.status).toBe('PENDING');
+    });
+
+    it('leaves the four neutral scoring factors at zero weighted points — this wiring changes no scoring input', async () => {
+      const scores = fakeOpportunityScoreRepository();
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      await claimAndProcessNextSearch(buildDeps({ searches, scores }));
+
+      const neutralFactors = ['icpFit', 'abilityToPay', 'urgency'] as const;
+      for (const factorName of neutralFactors) {
+        const factor = scores.rows[0]!.factors.find((f) => f.factor === factorName);
+        expect(factor?.basis).toBe('UNKNOWN');
+        expect(factor?.points).toBe(0);
+      }
+      const contactability = scores.rows[0]!.factors.find((f) => f.factor === 'contactability');
+      expect(contactability?.points).toBe(0);
+    });
+
+    it('coexists with Qualification without changing Qualification’s own evaluation (R-70/R-71/Scenario E unaffected)', async () => {
+      const scores = fakeOpportunityScoreRepository();
+      const qualifications = fakeQualificationRepository();
+      const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+      const researchProvider: ResearchProvider = {
+        async research() {
+          return qualifyingResearch();
+        },
+      };
+
+      await claimAndProcessNextSearch(
+        buildDeps({ searches, researchProvider: () => researchProvider, scores, qualifications }),
+      );
+
+      expect(scores.rows).toHaveLength(1);
+      expect(qualifications.rows).toHaveLength(1);
+      expect(qualifications.rows[0]!.state).toBe('QUALIFIED');
+    });
+  });
+
   it('R-41: Qualification also runs for an already-existing Opportunity (retry path), not only a newly-created one', async () => {
     const opportunities = fakeOpportunityRepository();
     const qualifications = fakeQualificationRepository();
@@ -982,6 +1164,453 @@ describe('canonical pipeline', () => {
 
     expect(outcome).toEqual({ outcome: 'completed', searchId: 'search_1', prospectsProcessed: 0 });
     expect(searches.rows[0]!.status).toBe('COMPLETE');
+  });
+});
+
+// ---- Phase 24 regression suite (see
+// requirement/MVP_EVIDENCE_RELEVANCE_REQUIREMENT.md and
+// requirement/PHASE_24_EVIDENCE_RELEVANCE_SCOPE_LOCK.md, Scenarios B/D/E).
+// B and D below now assert POST-FIX behavior (R-70/R-71 are implemented —
+// see packages/core-opportunity/src/adapters.ts's toOfferSignals()). E now
+// asserts the settled Scenario E product contract — Option C, OBSERVED
+// REQUIRED (requirement/PHASE_24_SCENARIO_E_OPTION_C_SCOPE_LOCK.md):
+// INFERRED-only evidence can still produce needDetected=true (R-70/R-71's
+// need-detection layer is classification-blind beyond excluding UNKNOWN,
+// unchanged by this decision), but no longer satisfies the qualification
+// layer's EVIDENCE_PRESENT criterion
+// (packages/core-qualification/src/rules.ts's isEvidentiary()), so the
+// Opportunity now reaches INSUFFICIENT_EVIDENCE rather than QUALIFIED.
+describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all settled)', () => {
+  /**
+   * Wraps the real, unmodified researchLead()/verifyProvenance() path
+   * (@acos/core-research) instead of a stub ResearchProvider, so Scenario
+   * B/D genuinely exercise the provenance gate against a directly-supplied
+   * source document — deterministic, no network, no SourceDocumentProvider
+   * HTTP fetch, no external API. This composes an already-exported
+   * production function (researchLead) the same way
+   * anthropicResearchProvider.ts does; it is not a new provider
+   * abstraction.
+   */
+  function realProvenanceResearchProvider(
+    model: ResearchModel,
+    sourceDocuments: ResearchInput['sourceDocuments'],
+  ): ResearchProvider {
+    return {
+      async research(input) {
+        const outcome = await researchLead(model, {
+          companyName: input.companyName,
+          websiteUrl: `https://${input.normalizedDomain}`,
+          sourceDocuments,
+        });
+        return outcome.research;
+      },
+    };
+  }
+
+  /** A ResearchModel that always returns the same fixed, schema-shaped JSON value. */
+  function fakeModel(value: unknown): ResearchModel {
+    return async () => ({ kind: 'json', value });
+  }
+
+  const websiteKeywordSearchOverrides = (): Partial<StoredSearch> => ({
+    parameters: {
+      service: 'Website development',
+      targetCustomer: 'Restaurants',
+      geography: 'Mumbai',
+      minProjectValuePaise: 3_000_000,
+      triggers: ['WEBSITE'],
+      keywords: ['website', 'outdated', 'redesign', 'mobile'],
+      rationale: 'They need a website refresh ({signal}).',
+    },
+  });
+
+  const TARGET_NAME = 'Meridian Fitness Club';
+  const TARGET_URL = 'https://meridian.example';
+
+  /** OBSERVED-claim helper: `value` doubles as the cited quote, exactly as the audit's real transcript did. */
+  const observedClaim = (value: string, sourceUrl: string, confidence = 80) => ({
+    classification: 'OBSERVED' as const,
+    value,
+    evidence: [{ quote: value, sourceUrl, sourceLabel: 'Homepage' }],
+    basis: null,
+    confidence,
+  });
+
+  describe('R-70: source-to-business attribution', () => {
+    it('B1: correct-business source with genuine evidence remains usable', async () => {
+      // The fetched homepage genuinely belongs to the target business, and
+      // says so — the same shape a real homepage's own byline takes. This
+      // must NOT be penalized by R-70's mismatch check.
+      const problemQuote = 'Meridian Fitness Club. Our website is outdated and hard to navigate on mobile.';
+      const sourceDocuments = [{ label: 'Homepage', url: TARGET_URL, text: problemQuote }];
+      const model = fakeModel({
+        companySummary: unknown(),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [observedClaim(problemQuote, TARGET_URL)],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 75,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: TARGET_NAME, website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      expect(outcome.outcome).toBe('completed');
+      expect(opportunities.rows[0]!.needDetected).toBe(true);
+      expect(qualifications.rows[0]!.state).toBe('QUALIFIED');
+    });
+
+    it('B2: wrong-business source (genuine evidence, but for a different business) MUST NOT qualify the target', async () => {
+      // The Goregaon Sports Club / heydrop.me shape from
+      // MVP_EVIDENCE_RELEVANCE_REQUIREMENT.md §1: the fetched homepage is
+      // genuinely, verifiably for "HeyDrop" — a different business — and
+      // the research output says so (a companySummary-shaped claim, the
+      // natural place a model records what a site IS), while a SEPARATE
+      // claim happens to contain a service keyword ("website"). Every
+      // quote below is copied verbatim from its source, so provenance
+      // (fidelity — "did you misquote the page") genuinely passes; R-70 is
+      // a different guarantee (whose page is it) that this test proves is
+      // now enforced.
+      const identityQuote = 'HeyDrop. A simple way to share your digital business card.';
+      const problemQuote = 'Our website is outdated and difficult to use on mobile devices.';
+      const sourceDocuments = [
+        {
+          label: 'Homepage',
+          url: TARGET_URL,
+          text: `${identityQuote} ${problemQuote} We are proud of our support quality.`,
+        },
+      ];
+      const model = fakeModel({
+        companySummary: observedClaim(identityQuote, TARGET_URL),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [observedClaim(problemQuote, TARGET_URL)],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 70,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const signals = fakeResearchSignalRepository();
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: TARGET_NAME, website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          signals,
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      // Sanity: the pipeline still ran to completion and genuinely
+      // persisted the OBSERVED evidence (provenance unaffected by R-70).
+      expect(outcome.outcome).toBe('completed');
+      expect(signals.rows.some((r) => r.classification === 'OBSERVED')).toBe(true);
+
+      // R-70: MUST NOT result in needDetected=true -> QUALIFIED, even
+      // though the "website" keyword genuinely matched a genuinely-cited
+      // quote — because that quote's source does not correspond to this
+      // business.
+      expect(opportunities.rows).toHaveLength(1);
+      expect(opportunities.rows[0]!.needDetected).toBe(false);
+      expect(opportunities.rows[0]!.offer).toBeUndefined();
+      expect(qualifications.rows[0]!.state).not.toBe('QUALIFIED');
+    });
+
+    it('B3: a source that cannot be attributed to any real business MUST NOT become qualifying evidence', async () => {
+      // A parked/placeholder page — the source identity cannot be
+      // established as the target business (or as any real business);
+      // R-70 fails closed rather than defaulting to accepted.
+      const placeholderQuote = 'Page Not Found. This domain is not configured.';
+      const problemQuote = 'Our website is outdated and difficult to use on mobile devices.';
+      const sourceDocuments = [
+        { label: 'Homepage', url: TARGET_URL, text: `${placeholderQuote} ${problemQuote}` },
+      ];
+      const model = fakeModel({
+        companySummary: observedClaim(placeholderQuote, TARGET_URL),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [observedClaim(problemQuote, TARGET_URL)],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 60,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: TARGET_NAME, website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      expect(outcome.outcome).toBe('completed');
+      expect(opportunities.rows[0]!.needDetected).toBe(false);
+      expect(qualifications.rows[0]!.state).not.toBe('QUALIFIED');
+    });
+  });
+
+  describe('R-71: topic-vs-problem relevance', () => {
+    it('D1: a generic topic mention does not create a need', async () => {
+      // Business A's own, genuinely-fetched homepage — but the only claim
+      // ever made about it is a bare topical mention ("has a website"),
+      // with no described defect anywhere.
+      const topicQuote = 'Business A has a website.';
+      const sourceDocuments = [
+        {
+          label: 'Homepage',
+          url: TARGET_URL,
+          text: `${topicQuote} Visit our website to learn more about our services.`,
+        },
+      ];
+      const model = fakeModel({
+        companySummary: observedClaim(topicQuote, TARGET_URL, 75),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 65,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const signals = fakeResearchSignalRepository();
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: 'Business A', website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          signals,
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      expect(outcome.outcome).toBe('completed');
+      const observedSignal = signals.rows.find((r) => r.classification === 'OBSERVED');
+      expect(observedSignal?.field).toBe('companySummary'); // a topical field, not visibleProblems/websiteIssues/...
+
+      // R-71: a bare topic mention in a topical field MUST NOT establish a need.
+      expect(opportunities.rows[0]!.needDetected).toBe(false);
+      expect(qualifications.rows[0]!.state).not.toBe('QUALIFIED');
+    });
+
+    it('D2: a genuine, service-relevant problem survives the relevance gate', async () => {
+      const problemQuote = 'Meridian Fitness Club. Our website navigation is broken on mobile.';
+      const sourceDocuments = [{ label: 'Homepage', url: TARGET_URL, text: problemQuote }];
+      const model = fakeModel({
+        companySummary: unknown(),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [observedClaim(problemQuote, TARGET_URL)],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 78,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const signals = fakeResearchSignalRepository();
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: TARGET_NAME, website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          signals,
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      expect(outcome.outcome).toBe('completed');
+      const observedSignal = signals.rows.find((r) => r.classification === 'OBSERVED');
+      expect(observedSignal?.field).toBe('websiteIssues'); // a problem/opportunity field
+
+      // A genuine, service-relevant problem is still eligible — R-71 must
+      // not make the system detect FEWER genuine needs than it does today.
+      expect(opportunities.rows[0]!.needDetected).toBe(true);
+      expect(qualifications.rows[0]!.state).toBe('QUALIFIED');
+    });
+
+    it('D3: a genuine but service-UNRELATED problem does not create a need', async () => {
+      // A real, specific problem (visibleProblems — not topical) that has
+      // nothing to do with the offered service (website development).
+      // This already worked correctly via keyword mismatch before Phase
+      // 24; R-71 must not disturb it.
+      const problemQuote = 'Meridian Fitness Club has parking difficulties for members.';
+      const sourceDocuments = [{ label: 'Homepage', url: TARGET_URL, text: problemQuote }];
+      const model = fakeModel({
+        companySummary: unknown(),
+        businessModel: unknown(),
+        targetCustomers: unknown(),
+        visibleProblems: [observedClaim(problemQuote, TARGET_URL)],
+        growthOpportunities: [],
+        aiOpportunities: [],
+        websiteIssues: [],
+        contentOpportunities: [],
+        automationOpportunities: [],
+        recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+        confidence: 72,
+        gaps: [],
+      });
+
+      const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
+      const opportunities = fakeOpportunityRepository();
+      const qualifications = fakeQualificationRepository();
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider: fakeDiscoveryProvider([{ name: TARGET_NAME, website: TARGET_URL }]),
+          researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
+          opportunities,
+          qualifications,
+        }),
+      );
+
+      expect(outcome.outcome).toBe('completed');
+      expect(opportunities.rows[0]!.needDetected).toBe(false);
+      expect(qualifications.rows[0]!.state).not.toBe('QUALIFIED');
+    });
+  });
+
+  it('E1: phase24 Scenario E (Option C) — inferred-only evidence produces needDetected but is INSUFFICIENT_EVIDENCE, not QUALIFIED', async () => {
+    // INFERRED claims carry no evidence/sources by schema (schema.ts's
+    // superRefine forbids it), so verifyProvenance() never inspects them —
+    // there is no provenance path to exercise here, unlike B/D above. A
+    // fixed-LeadResearch fake ResearchProvider (the same convention this
+    // file already uses elsewhere, e.g. sampleResearch()/
+    // qualifyingResearch()) is the correct, sufficient boundary.
+    const inferred = (value: string) => ({
+      classification: 'INFERRED' as const,
+      value,
+      evidence: [],
+      basis: 'reasoned from the sparse homepage content',
+      confidence: 60,
+    });
+
+    const research = {
+      companySummary: inferred('Likely a small local business with a modest online presence'),
+      businessModel: inferred('Likely a single-location service business'),
+      targetCustomers: inferred('Likely local residents'),
+      visibleProblems: [],
+      growthOpportunities: [],
+      aiOpportunities: [],
+      websiteIssues: [
+        inferred(
+          'Business A may need a website redesign because its online presence appears outdated',
+        ),
+      ],
+      contentOpportunities: [],
+      automationOpportunities: [],
+      recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
+      confidence: 55,
+      gaps: [],
+    } as unknown as LeadResearch;
+
+    // Reuses the existing qualifyingSearchOverrides() fixture (triggers:
+    // ['WEBSITE'], keywords: ['redesign']) — it already matches the
+    // INFERRED websiteIssues claim's "redesign" text.
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+    const signals = fakeResearchSignalRepository();
+    const opportunities = fakeOpportunityRepository();
+    const qualifications = fakeQualificationRepository();
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        discoveryProvider: fakeDiscoveryProvider([
+          { name: 'Business A', website: 'https://business-a.example' },
+        ]),
+        researchProvider: () => fakeResearchProvider(research),
+        signals,
+        opportunities,
+        qualifications,
+      }),
+    );
+
+    expect(outcome.outcome).toBe('completed');
+
+    const byClassification = (c: string) => signals.rows.filter((r) => r.classification === c);
+    expect(byClassification('OBSERVED')).toHaveLength(0);
+    expect(byClassification('UNKNOWN')).toHaveLength(0);
+    expect(byClassification('INFERRED').length).toBeGreaterThanOrEqual(1);
+
+    // toOfferSignals() (core-opportunity/adapters.ts) still excludes only
+    // UNKNOWN rows — OBSERVED and INFERRED remain indistinguishable to
+    // suggestOffers() (the adapted ResearchSignal contract carries no
+    // classification field at all), so needDetected is UNCHANGED by
+    // Scenario E: it is computed at the need-detection layer, which this
+    // decision does not touch.
+    expect(opportunities.rows).toHaveLength(1);
+    expect(opportunities.rows[0]!.needDetected).toBe(true);
+
+    // Scenario E (Option C — OBSERVED REQUIRED,
+    // requirement/PHASE_24_SCENARIO_E_OPTION_C_SCOPE_LOCK.md):
+    // evaluateEvidencePresent() (core-qualification/rules.ts) now requires
+    // at least one live OBSERVED signal. This Prospect has only INFERRED
+    // evidence, so EVIDENCE_PRESENT fails and the Opportunity reaches
+    // INSUFFICIENT_EVIDENCE rather than QUALIFIED, even though a need was
+    // detected.
+    expect(qualifications.rows).toHaveLength(1);
+    expect(qualifications.rows[0]!.state).toBe('INSUFFICIENT_EVIDENCE');
+    const evidencePresent = qualifications.rows[0]!.criteria.find(
+      (c) => c.criterion === 'EVIDENCE_PRESENT',
+    )!;
+    expect(evidencePresent.satisfied).toBe(false);
+    expect(evidencePresent.evidenceSignalIds).toEqual([]);
   });
 });
 

@@ -41,12 +41,42 @@ importers:
       '@acos/core-capi':
         specifier: workspace:*
         version: link:../../packages/core-capi
+      '@acos/core-discovery':
+        specifier: workspace:*
+        version: link:../../packages/core-discovery
       '@acos/core-entitlements':
         specifier: workspace:*
         version: link:../../packages/core-entitlements
+      '@acos/core-followup-preparation':
+        specifier: workspace:*
+        version: link:../../packages/core-followup-preparation
+      '@acos/core-identity':
+        specifier: workspace:*
+        version: link:../../packages/core-identity
+      '@acos/core-opportunity':
+        specifier: workspace:*
+        version: link:../../packages/core-opportunity
+      '@acos/core-outreach-preparation':
+        specifier: workspace:*
+        version: link:../../packages/core-outreach-preparation
       '@acos/core-payments':
         specifier: workspace:*
         version: link:../../packages/core-payments
+      '@acos/core-personalization':
+        specifier: workspace:*
+        version: link:../../packages/core-personalization
+      '@acos/core-qualification':
+        specifier: workspace:*
+        version: link:../../packages/core-qualification
+      '@acos/core-research':
+        specifier: workspace:*
+        version: link:../../packages/core-research
+      '@acos/core-search':
+        specifier: workspace:*
+        version: link:../../packages/core-search
+      '@acos/core-service-profile':
+        specifier: workspace:*
+        version: link:../../packages/core-service-profile
       '@acos/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -710,6 +740,9 @@ importers:
       '@acos/worker':
         specifier: workspace:*
         version: link:../apps/worker
+      next:
+        specifier: ^14.2.0
+        version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       pg:
         specifier: ^8.13.0
         version: 8.23.0

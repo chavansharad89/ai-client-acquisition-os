@@ -55,6 +55,27 @@ const envSchema = z.object({
   // fail on the first research call instead of at startup.
   ANTHROPIC_API_KEY: z.string().trim().min(1),
 
+  // Multi-Model Research Provider (requirement/
+  // MULTI_MODEL_RESEARCH_PROVIDER_*.md) — OPTIONAL, unlike every other
+  // provider key above. Anthropic remains the required, always-supported
+  // provider; these are deliberately `.optional()` so an Anthropic-only
+  // deployment keeps booting without them. A provider selected via
+  // RESEARCH_PROVIDER/RESEARCH_FALLBACK_PROVIDER without its matching
+  // credential fails deterministically only when @acos/core-research's
+  // createResearchModel() actually instantiates that provider — never at
+  // boot for a provider nobody selected.
+  OPENAI_API_KEY: z.string().trim().min(1).optional(),
+  GEMINI_API_KEY: z.string().trim().min(1).optional(),
+
+  // Provider + model selection primitive (system-wide default only —
+  // per-user selection is a deferred, separately-tracked open decision).
+  RESEARCH_PROVIDER: z.enum(['anthropic', 'openai', 'gemini']).default('anthropic'),
+  RESEARCH_MODEL: z.string().trim().min(1).optional(),
+  // A single optional fallback — not a routing/strategy engine. Absent
+  // by default: no fallback occurs unless explicitly configured.
+  RESEARCH_FALLBACK_PROVIDER: z.enum(['anthropic', 'openai', 'gemini']).optional(),
+  RESEARCH_FALLBACK_MODEL: z.string().trim().min(1).optional(),
+
   // HMAC key for signed download grants (@acos/core-entitlements). This
   // one is ours to generate rather than a provider's, so a real minimum
   // length is enforceable and worth enforcing: a short key makes the
@@ -113,6 +134,8 @@ export const SECRET_KEYS = [
   'RAZORPAY_WEBHOOK_SECRET',
   'META_CAPI_ACCESS_TOKEN',
   'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'GEMINI_API_KEY',
   'DOWNLOAD_GRANT_SECRET',
   'GOOGLE_PLACES_API_KEY',
 ] as const satisfies readonly EnvKey[];
@@ -180,7 +203,13 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
  */
 export function redactedEnv(env: Env): Record<string, string | number> {
   const out: Record<string, string | number> = {};
-  for (const [key, value] of Object.entries(env)) {
+  // Iterate the SCHEMA's keys, not Object.entries(env): Zod v3 omits an
+  // absent `.optional()` field from the parsed object entirely rather
+  // than setting it to `undefined`, so an unset optional secret (e.g.
+  // OPENAI_API_KEY on an Anthropic-only deployment) would otherwise never
+  // reach this loop at all and silently fall out of the summary.
+  for (const key of Object.keys(envSchema.shape) as EnvKey[]) {
+    const value = env[key];
     if (value === undefined) {
       out[key] = '[unset]';
     } else if (isSecretKey(key)) {

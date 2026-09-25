@@ -2,6 +2,7 @@ export { AnthropicConfigError, createAnthropicResearchModel } from './anthropicM
 export type { AnthropicModelOptions } from './anthropicModel';
 
 export {
+  ProviderHttpError,
   ResearchAbortedError,
   ResearchProviderError,
   ResearchRefusedError,
@@ -87,6 +88,33 @@ export type {
 
 export { createAnthropicResearchProvider, InsufficientEvidenceError } from './anthropicResearchProvider';
 export type { AnthropicResearchProviderDeps } from './anthropicResearchProvider';
+
+// ---- Multi-Model Research Provider (requirement/
+// MULTI_MODEL_RESEARCH_PROVIDER_*.md) — OpenAI/Gemini adapters, provider
+// + model selection, and cross-provider fallback. Anthropic above remains
+// the compatibility baseline, unmodified. ----
+
+export { createOpenAIResearchModel, OpenAIConfigError } from './openAIModel';
+export type { OpenAIModelOptions } from './openAIModel';
+
+export { createGeminiResearchModel, GeminiConfigError, toGeminiSchema } from './geminiModel';
+export type { GeminiModelOptions } from './geminiModel';
+
+export {
+  createResearchModel,
+  isResearchProviderName,
+  MissingResearchModelError,
+  MissingResearchProviderCredentialError,
+  RESEARCH_PROVIDER_NAMES,
+  UnknownResearchProviderError,
+} from './researchModelFactory';
+export type { ResearchModelConfig, ResearchProviderName } from './researchModelFactory';
+
+export { createFallbackResearchProvider } from './fallbackResearchProvider';
+export type {
+  FallbackResearchProviderDeps,
+  ResearchProviderAttempt,
+} from './fallbackResearchProvider';
 
 export { createPgResearchSignalRepository } from './pgRepository';
 export type { ResearchSignalRepository } from './repository';

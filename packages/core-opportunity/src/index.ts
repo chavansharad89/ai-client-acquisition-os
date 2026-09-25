@@ -66,6 +66,7 @@ export {
   rankOpportunities,
   recordFeedback,
   scoreOpportunity,
+  scoreOpportunityForOwner,
   SCORER_VERSION,
 } from './service';
 export type {
