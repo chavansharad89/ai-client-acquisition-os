@@ -94,6 +94,7 @@ function sampleResearch(): LeadResearch {
       basis: null,
       confidence: 0,
     },
+    categoryPlausibility: [],
     visibleProblems: [],
     growthOpportunities: [],
     aiOpportunities: [],

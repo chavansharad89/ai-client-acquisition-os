@@ -16,6 +16,7 @@ import { createPgQualificationRepository } from '@acos/core-qualification';
 import {
   createFallbackResearchProvider,
   createHttpSourceDocumentProvider,
+  createPgCategoryPlausibilityRepository,
   createPgResearchSignalRepository,
   createResearchModel,
   type ResearchModelConfig,
@@ -132,6 +133,7 @@ async function main(): Promise<void> {
       }),
     opportunities: createPgOpportunityRepository(pool),
     scores: createPgOpportunityScoreRepository(pool),
+    categoryPlausibility: createPgCategoryPlausibilityRepository(pool),
     qualifications: createPgQualificationRepository(pool),
     personalizations: createPgPersonalizationRepository(pool),
     outreachPreparations: createPgOutreachPreparationRepository(pool),

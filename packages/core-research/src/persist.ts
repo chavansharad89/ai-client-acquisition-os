@@ -14,7 +14,17 @@ import { allObservations, type LeadResearch, type Observation } from './schema';
 // -----------------------------------------------------------------------
 
 export type ResearchSourceKind =
-  'WEBSITE' | 'JOB_POST' | 'LINKEDIN' | 'NEWS' | 'FUNDING' | 'TECH_STACK' | 'REVIEW' | 'MANUAL';
+  | 'WEBSITE'
+  | 'JOB_POST'
+  | 'LINKEDIN'
+  | 'NEWS'
+  | 'FUNDING'
+  | 'TECH_STACK'
+  | 'REVIEW'
+  | 'MANUAL'
+  // Intent intake only (./intentSignal.ts) — never produced by FIELD_KIND.
+  | 'PUBLIC_INTENT'
+  | 'FIRST_PARTY';
 
 export interface LeadResearchRow {
   leadId: string;

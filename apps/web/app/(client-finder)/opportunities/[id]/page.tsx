@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 
+import { listAiUsageEvents } from '@acos/core-ai-usage';
 import { requireUser, UnauthenticatedError } from '@acos/core-identity';
 import {
   getFeedback,
@@ -12,7 +13,7 @@ import { getOpportunityFollowUpPreparation } from '@acos/core-followup-preparati
 import { getOpportunityOutreachPreparation } from '@acos/core-outreach-preparation';
 import { getOpportunityPersonalization } from '@acos/core-personalization';
 import { getOpportunityQualification } from '@acos/core-qualification';
-import { listResearchSignals } from '@acos/core-research';
+import { getCategoryPlausibilityDetermination, listResearchSignals } from '@acos/core-research';
 
 import { FeedbackForm } from '../../../../src/components/client-finder/FeedbackForm';
 import { clientFinderRepositories } from '../../../../src/server/clientFinderRepositories';
@@ -55,18 +56,40 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
     throw err;
   }
 
-  const [identity, score, signals, qualification, personalization, outreachPrep, followUpPrep, nextAction, feedback] =
-    await Promise.all([
-      resolveBusinessIdentity(repos, userId, opportunity.prospectId),
-      getOpportunityScore(repos, token, opportunity.id),
-      listResearchSignals(repos, token, opportunity.prospectId),
-      getOpportunityQualification(repos, token, opportunity.id),
-      getOpportunityPersonalization(repos, token, opportunity.id),
-      getOpportunityOutreachPreparation(repos, token, opportunity.id),
-      getOpportunityFollowUpPreparation(repos, token, opportunity.id),
-      getOpportunityNextAction(repos, token, opportunity.id),
-      getFeedback(repos, token, opportunity.id),
-    ]);
+  const [
+    identity,
+    score,
+    signals,
+    categoryPlausibility,
+    qualification,
+    personalization,
+    outreachPrep,
+    followUpPrep,
+    nextAction,
+    feedback,
+    usageEvents,
+  ] = await Promise.all([
+    resolveBusinessIdentity(repos, userId, opportunity.prospectId),
+    getOpportunityScore(repos, token, opportunity.id),
+    listResearchSignals(repos, token, opportunity.prospectId),
+    getCategoryPlausibilityDetermination(repos, token, opportunity.prospectId),
+    getOpportunityQualification(repos, token, opportunity.id),
+    getOpportunityPersonalization(repos, token, opportunity.id),
+    getOpportunityOutreachPreparation(repos, token, opportunity.id),
+    getOpportunityFollowUpPreparation(repos, token, opportunity.id),
+    getOpportunityNextAction(repos, token, opportunity.id),
+    getFeedback(repos, token, opportunity.id),
+    listAiUsageEvents(repos, token, opportunity.prospectId),
+  ]);
+
+  // Fallback observability (D9 §9 / D11-H §14) is read from the persisted
+  // request_kind only — a 'fallback' event means a non-primary provider
+  // was invoked. The configured primary provider is not persisted, so it
+  // is not shown here.
+  const fallbackEvents = usageEvents.filter((event) => event.requestKind === 'fallback');
+  const providersRecorded = [
+    ...new Set((fallbackEvents.length > 0 ? fallbackEvents : usageEvents).map((event) => event.provider)),
+  ];
 
   return (
     <main id="main" className="shell">
@@ -143,6 +166,81 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      {categoryPlausibility ? (
+        <section className="card">
+          <h2>Category plausibility: {categoryPlausibility.aggregateResult}</h2>
+          <p className="hint">
+            Target customer (as of this Search): {categoryPlausibility.targetCustomer}
+          </p>
+          <p className="hint">Determined {categoryPlausibility.observedAt.toISOString()}</p>
+          <dl className="summary">
+            <div className="row">
+              <dt>Determination ID</dt>
+              <dd>{categoryPlausibility.id}</dd>
+            </div>
+            <div className="row">
+              <dt>Search ID</dt>
+              <dd>{categoryPlausibility.searchId}</dd>
+            </div>
+            <div className="row">
+              <dt>Prospect ID</dt>
+              <dd>{categoryPlausibility.prospectId}</dd>
+            </div>
+          </dl>
+          <p className="hint">Target segments ({categoryPlausibility.targetSegments.length}):</p>
+          <ol>
+            {categoryPlausibility.targetSegments.map((targetSegment, index) => (
+              <li key={`${index}-${targetSegment}`}>{targetSegment}</li>
+            ))}
+          </ol>
+          <ul className="evidence-list">
+            {categoryPlausibility.segmentResults.map((segment) => (
+              <li key={segment.segment} className="evidence-item">
+                <p>
+                  <strong>{segment.segment}</strong> — {segment.fit}
+                </p>
+                {/* Stored values exactly as persisted; ABSENT where a pre-F-1 row lacks the field (Companion §0 rule 2). */}
+                <p className="hint">
+                  Classification: {segment.classification ?? 'ABSENT'} · Confidence:{' '}
+                  {segment.confidence ?? 'ABSENT'} · Basis: {segment.basis ?? 'ABSENT'}
+                </p>
+                {segment.rationale ? <p>{segment.rationale}</p> : null}
+                {segment.evidence.map((source, index) => (
+                  <p key={`${segment.segment}-${index}`} className="hint">
+                    <a href={source.sourceUrl} target="_blank" rel="noreferrer">
+                      {source.sourceLabel}
+                    </a>
+                    : "{source.quote}"
+                  </p>
+                ))}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <section className="card">
+        <h2>AI usage (this Prospect)</h2>
+        {usageEvents.length === 0 ? (
+          <p>No AI usage events recorded.</p>
+        ) : (
+          <>
+            <p className="hint">
+              Fallback invoked: {fallbackEvents.length > 0 ? 'YES' : 'NO'} · Provider recorded
+              {fallbackEvents.length > 0 ? ' on fallback events' : ''}: {providersRecorded.join(', ')}
+            </p>
+            <ul>
+              {usageEvents.map((event) => (
+                <li key={event.id}>
+                  {event.createdAt.toISOString()} — provider {event.provider}, model {event.model}, request_kind{' '}
+                  {event.requestKind}
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </section>
 

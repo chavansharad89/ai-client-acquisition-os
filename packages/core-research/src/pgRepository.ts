@@ -1,7 +1,8 @@
 import type { SqlExecutor } from '@acos/core-entitlements';
 
+import { INTENT_SIGNAL_KINDS } from './intentSignal';
 import type { ResearchSourceKind } from './persist';
-import type { ResearchSignalRepository } from './repository';
+import type { ResearchSignalRepository, ResearchSignalTransaction } from './repository';
 import type { Classification } from './schema';
 import type {
   NewResearchSignalInput,
@@ -53,8 +54,9 @@ export function createPgResearchSignalRepository(sql: SqlExecutor): ResearchSign
       const { rows } = await sql.query(
         `UPDATE research_signals SET superseded_at = $2
           WHERE prospect_id = $1 AND superseded_at IS NULL
+            AND kind <> ALL($3::text[])
           RETURNING id`,
-        [prospectId, at],
+        [prospectId, at, [...INTENT_SIGNAL_KINDS]],
       );
       return rows.length;
     },
@@ -67,10 +69,15 @@ export function createPgResearchSignalRepository(sql: SqlExecutor): ResearchSign
       const stored: StoredResearchSignal[] = [];
 
       for (const input of signals) {
+        // Authorization evidence (migration 0030) is bound in this INSERT
+        // only — the 0030 trigger refuses any later UPDATE of it (OD-8).
+        // Absent evidence (every non-FIRST_PARTY row) stays NULL.
+        const evidence = input.authorizationEvidence;
         const { rows } = await sql.query(
           `INSERT INTO research_signals
-             (id, prospect_id, field, kind, classification, signal, confidence, basis, observed_at)
-           VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8)
+             (id, prospect_id, field, kind, classification, signal, confidence, basis, observed_at,
+              business_id, auth_status, auth_scope, auth_timestamp, integration_id)
+           VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            RETURNING ${SIGNAL_COLUMNS}`,
           [
             prospectId,
@@ -81,6 +88,11 @@ export function createPgResearchSignalRepository(sql: SqlExecutor): ResearchSign
             input.confidence,
             input.basis,
             observedAt,
+            evidence?.businessId ?? null,
+            evidence?.status ?? null,
+            evidence?.scope ?? null,
+            evidence?.authorizedAt ?? null,
+            evidence?.integrationId ?? null,
           ],
         );
         const signalRow = rows[0] as SignalRow;
@@ -134,6 +146,36 @@ export function createPgResearchSignalRepository(sql: SqlExecutor): ResearchSign
 
       return signalRows.map((row) => mapSignalRow(row, sourcesBySignalId.get(row.id) ?? []));
     },
+  };
+}
+
+/** A pool that can hand out one pinned connection (same shape as @acos/core-payments' SqlPool). */
+export interface ResearchSignalSqlPool extends SqlExecutor {
+  connect(): Promise<SqlExecutor & { release: () => void }>;
+}
+
+/**
+ * ResearchSignalTransaction over PostgreSQL, following
+ * @acos/core-payments' createWebhookTransactionRunner: the connection is
+ * pinned so BEGIN, every INSERT and COMMIT / ROLLBACK run on the same one.
+ */
+export function createPgResearchSignalTransactionRunner(pool: ResearchSignalSqlPool): ResearchSignalTransaction {
+  return async function researchSignalTransaction<T>(
+    fn: (signals: ResearchSignalRepository) => Promise<T>,
+  ): Promise<T> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await fn(createPgResearchSignalRepository(client));
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      // Best-effort rollback: the original error is the one worth surfacing.
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   };
 }
 

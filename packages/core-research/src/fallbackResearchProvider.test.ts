@@ -276,6 +276,56 @@ describe('createFallbackResearchProvider — FALLBACK-INELIGIBLE failures', () =
   });
 });
 
+describe('createFallbackResearchProvider — D8 pass-through (targetSegments)', () => {
+  it('passes targetSegments through to every attempt, unchanged and in order — fallback routing does not alter the field (GAP 1)', async () => {
+    const targetSegments = ['Restaurants', 'Boutique Hotels', 'Event Venues'];
+    const seenMessages: string[] = [];
+
+    const primary: ResearchModel = vi.fn(async (request) => {
+      seenMessages.push(JSON.stringify(request.messages));
+      throw new ResearchProviderError('outage', 503, true);
+    });
+    const fallback: ResearchModel = vi.fn(async (request) => {
+      seenMessages.push(JSON.stringify(request.messages));
+      return { kind: 'json', value: validResearch(), usage: fakeUsage('openai') } satisfies ModelResult;
+    });
+
+    const provider = createFallbackResearchProvider({
+      sourceDocuments: fakeSourceDocuments(),
+      attempts: [
+        { provider: 'anthropic', model: primary },
+        { provider: 'openai', model: fallback },
+      ],
+      researchOptions: FAST_RETRY,
+    });
+
+    await provider.research({ ...INPUT, targetSegments });
+
+    expect(primary).toHaveBeenCalled();
+    expect(fallback).toHaveBeenCalledTimes(1);
+    // at least one primary attempt (retries included) plus the fallback attempt
+    expect(seenMessages.length).toBeGreaterThanOrEqual(2);
+
+    // Pass-through, not reinterpretation: every supplied segment reaches
+    // every attempt, in the same order supplied. Exact prompt wording/
+    // formatting is covered separately (research.test.ts's "target
+    // customer segments" suite) — this test only proves the VALUES
+    // survive fetchSourceDocuments/ResearchInput construction
+    // (fallbackResearchProvider.ts:93-98), which is built exactly once
+    // and reused, unchanged, across every attempt in the chain.
+    for (const message of seenMessages) {
+      const positions = targetSegments.map((segment) => message.indexOf(segment));
+      expect(positions.every((position) => position !== -1)).toBe(true);
+      expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    }
+
+    // Fallback routing itself does not alter the field: every attempt
+    // (primary retries and the fallback attempt alike) received the exact
+    // same rendered input, not merely an independently-valid one.
+    expect(new Set(seenMessages).size).toBe(1);
+  });
+});
+
 describe('createFallbackResearchProvider — R-29 metering', () => {
   it('tags every invocation from a non-primary provider with requestKind "fallback", preserving provider/model identity per call', async () => {
     const primary = throwingModel('anthropic', new ResearchProviderError('outage', 503, true));

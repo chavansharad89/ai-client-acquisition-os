@@ -91,6 +91,7 @@ function matchingResearch(): LeadResearch {
       basis: null,
       confidence: 0,
     },
+    categoryPlausibility: [],
     visibleProblems: [
       {
         classification: 'OBSERVED',

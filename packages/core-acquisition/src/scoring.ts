@@ -12,7 +12,18 @@
 // -----------------------------------------------------------------------
 
 export type ResearchSourceKind =
-  'WEBSITE' | 'JOB_POST' | 'LINKEDIN' | 'NEWS' | 'FUNDING' | 'TECH_STACK' | 'REVIEW' | 'MANUAL';
+  | 'WEBSITE'
+  | 'JOB_POST'
+  | 'LINKEDIN'
+  | 'NEWS'
+  | 'FUNDING'
+  | 'TECH_STACK'
+  | 'REVIEW'
+  | 'MANUAL'
+  // Intent intake (INTENT-INTAKE-PO-DEC-001, migration 0029): captured
+  // intent events, never produced by Research.
+  | 'PUBLIC_INTENT'
+  | 'FIRST_PARTY';
 
 export interface ResearchSignal {
   kind: ResearchSourceKind;
@@ -40,6 +51,11 @@ export const SOURCE_WEIGHT: Record<ResearchSourceKind, number> = {
   REVIEW: 10,
   WEBSITE: 8,
   MANUAL: 20, // the operator saw something themselves
+  // INTENT-INTAKE-PO-DEC-001 D1 (Option C): zero weight in scoreLead().
+  // The keys exist so a ServiceProfile may opt these kinds into its
+  // triggers (D3); scoreProspect() never reads these values.
+  PUBLIC_INTENT: 0,
+  FIRST_PARTY: 0,
 };
 
 /** A signal older than this contributes nothing. */

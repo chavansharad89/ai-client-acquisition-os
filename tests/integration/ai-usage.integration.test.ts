@@ -157,6 +157,7 @@ const HOMEPAGE = {
 const researchInput: ResearchInput = {
   companyName: 'Acme Robotics',
   websiteUrl: 'https://acme.test',
+  targetSegments: [],
   sourceDocuments: [HOMEPAGE],
 };
 

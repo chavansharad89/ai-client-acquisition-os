@@ -14,7 +14,11 @@ import type { PersonalizationRepository } from '@acos/core-personalization';
 import { evaluatePersonalizationForOwner } from '@acos/core-personalization';
 import type { QualificationRepository } from '@acos/core-qualification';
 import { evaluateQualificationForOwner } from '@acos/core-qualification';
-import type { ResearchProvider, ResearchSignalRepository } from '@acos/core-research';
+import type {
+  CategoryPlausibilityRepository,
+  ResearchProvider,
+  ResearchSignalRepository,
+} from '@acos/core-research';
 import { runResearchForOwner } from '@acos/core-research';
 import { MAX_SEARCH_ATTEMPTS, type SearchRepository, type StoredSearch } from '@acos/core-search';
 
@@ -159,6 +163,31 @@ export interface SearchWorkerDeps {
    * nesting, not a separate flag.
    */
   followUpPreparations?: FollowUpPreparationRepository;
+  /**
+   * Path 2 (D1/D6/D7): persists the Search-scoped category-plausibility
+   * determination produced during Research, and is what Qualification's
+   * new CATEGORY_PLAUSIBLE criterion (D4) reads back — see
+   * runCanonicalPipeline below, which passes this to BOTH
+   * runResearchForOwner (as `categoryPlausibility`, optional there too)
+   * and, when also present, evaluateQualificationForOwner (required
+   * there, since D4's criterion cannot be evaluated without it).
+   *
+   * Optional for the same reason `qualifications`/`personalizations`/
+   * `outreachPreparations`/`followUpPreparations` above are: making it
+   * required would force every existing caller that builds a
+   * `SearchWorkerDeps` object — including every pre-Path-2 test — to be
+   * edited merely to keep compiling. The real entrypoint
+   * (apps/worker/src/index.ts) always supplies it, so production runs
+   * always compute+persist a determination and always evaluate
+   * CATEGORY_PLAUSIBLE. Omitting it skips Research's persistence step
+   * regardless; the Qualification step, per `@acos/core-qualification`'s
+   * `QualificationDeps` (where this dependency is required, since
+   * CATEGORY_PLAUSIBLE cannot be evaluated without it), only runs when
+   * BOTH `deps.qualifications` and this are present — the same
+   * chained-presence convention `personalizations`/`outreachPreparations`
+   * already use for their own prerequisites.
+   */
+  categoryPlausibility?: CategoryPlausibilityRepository;
   /** Identifies this process/replica. Must be unique per worker instance. */
   workerId: string;
   now?: () => Date;
@@ -341,99 +370,155 @@ async function runCanonicalPipeline(
     { searchId: search.id },
   );
 
+  // Observability only (Discovery-Query Audit) — makes the next live
+  // experiment diagnostically useful (raw vs accepted vs skipped) without
+  // changing query construction, ranking, filtering, or persistence.
+  // candidatesReceived === prospects.length + skipped always.
+  console.log(
+    JSON.stringify({
+      event: 'discovery.completed',
+      searchId: search.id,
+      candidatesReceived: discovery.candidatesReceived,
+      accepted: discovery.prospects.length,
+      skipped: discovery.skipped,
+    }),
+  );
+
   for (const prospect of discovery.prospects) {
-    await runResearchForOwner(
+    await researchProspectForOwner(deps, userId, prospect.id);
+    await runPostResearchPipelineForOwner(deps, userId, prospect.id);
+  }
+
+  return { prospectsProcessed: discovery.prospects.length };
+}
+
+/**
+ * The deps one Prospect's pass needs — everything a Search pass needs
+ * except the Discovery provider and the claim/lease settings. Shared by
+ * runCanonicalPipeline and intent intake (./intentIntake), so both run
+ * the identical per-Prospect code rather than two copies of it.
+ */
+export type ProspectPipelineDeps = Omit<
+  SearchWorkerDeps,
+  'discoveryProvider' | 'workerId' | 'now' | 'leaseDurationMs'
+>;
+
+/** Research for one Prospect — the existing, unmodified runResearchForOwner call. */
+export async function researchProspectForOwner(
+  deps: ProspectPipelineDeps,
+  userId: string,
+  prospectId: string,
+): Promise<void> {
+  await runResearchForOwner(
+    {
+      companies: deps.companies,
+      prospects: deps.prospects,
+      searches: deps.searches,
+      signals: deps.signals,
+      provider: deps.researchProvider(userId),
+      // exactOptionalPropertyTypes: omit the key entirely when absent,
+      // rather than assigning `undefined` to an optional property.
+      ...(deps.categoryPlausibility ? { categoryPlausibility: deps.categoryPlausibility } : {}),
+    },
+    userId,
+    { prospectId },
+  );
+}
+
+/**
+ * Everything after Research for one Prospect: Opportunity (find or
+ * create), Scoring, Qualification, Personalization, Outreach Preparation
+ * and Follow-up Preparation — extracted verbatim from
+ * runCanonicalPipeline's per-Prospect loop (INTENT-INTAKE-PO-DEC-001 D4)
+ * so intent intake reuses it instead of duplicating it. Behavior, order,
+ * optional-dependency gating and error propagation are unchanged.
+ */
+export async function runPostResearchPipelineForOwner(
+  deps: ProspectPipelineDeps,
+  userId: string,
+  prospectId: string,
+): Promise<{ opportunityId: string }> {
+  const existingOpportunity = await deps.opportunities.findByProspectId(userId, prospectId);
+  const opportunity =
+    existingOpportunity ??
+    (await createOpportunityForOwner(
       {
         companies: deps.companies,
         prospects: deps.prospects,
+        searches: deps.searches,
         signals: deps.signals,
-        provider: deps.researchProvider(userId),
+        opportunities: deps.opportunities,
       },
       userId,
-      { prospectId: prospect.id },
+      { prospectId },
+    ));
+
+  if (deps.scores) {
+    await scoreOpportunityForOwner(
+      {
+        opportunities: deps.opportunities,
+        signals: deps.signals,
+        scores: deps.scores,
+      },
+      userId,
+      opportunity.id,
+    );
+  }
+
+  if (deps.qualifications && deps.categoryPlausibility) {
+    await evaluateQualificationForOwner(
+      {
+        opportunities: deps.opportunities,
+        signals: deps.signals,
+        qualifications: deps.qualifications,
+        categoryPlausibility: deps.categoryPlausibility,
+      },
+      userId,
+      opportunity.id,
     );
 
-    const existingOpportunity = await deps.opportunities.findByProspectId(userId, prospect.id);
-    const opportunity =
-      existingOpportunity ??
-      (await createOpportunityForOwner(
-        {
-          companies: deps.companies,
-          prospects: deps.prospects,
-          searches: deps.searches,
-          signals: deps.signals,
-          opportunities: deps.opportunities,
-        },
-        userId,
-        { prospectId: prospect.id },
-      ));
-
-    if (deps.scores) {
-      await scoreOpportunityForOwner(
+    if (deps.personalizations) {
+      await evaluatePersonalizationForOwner(
         {
           opportunities: deps.opportunities,
-          signals: deps.signals,
-          scores: deps.scores,
-        },
-        userId,
-        opportunity.id,
-      );
-    }
-
-    if (deps.qualifications) {
-      await evaluateQualificationForOwner(
-        {
-          opportunities: deps.opportunities,
-          signals: deps.signals,
           qualifications: deps.qualifications,
+          signals: deps.signals,
+          prospects: deps.prospects,
+          companies: deps.companies,
+          searches: deps.searches,
+          personalizations: deps.personalizations,
         },
         userId,
         opportunity.id,
       );
 
-      if (deps.personalizations) {
-        await evaluatePersonalizationForOwner(
+      if (deps.outreachPreparations) {
+        await prepareOutreachForOwner(
           {
             opportunities: deps.opportunities,
-            qualifications: deps.qualifications,
-            signals: deps.signals,
-            prospects: deps.prospects,
-            companies: deps.companies,
-            searches: deps.searches,
             personalizations: deps.personalizations,
+            outreachPreparations: deps.outreachPreparations,
           },
           userId,
           opportunity.id,
         );
 
-        if (deps.outreachPreparations) {
-          await prepareOutreachForOwner(
+        if (deps.followUpPreparations) {
+          await prepareFollowUpForOwner(
             {
               opportunities: deps.opportunities,
-              personalizations: deps.personalizations,
               outreachPreparations: deps.outreachPreparations,
+              followUpPreparations: deps.followUpPreparations,
             },
             userId,
             opportunity.id,
           );
-
-          if (deps.followUpPreparations) {
-            await prepareFollowUpForOwner(
-              {
-                opportunities: deps.opportunities,
-                outreachPreparations: deps.outreachPreparations,
-                followUpPreparations: deps.followUpPreparations,
-              },
-              userId,
-              opportunity.id,
-            );
-          }
         }
       }
     }
   }
 
-  return { prospectsProcessed: discovery.prospects.length };
+  return { opportunityId: opportunity.id };
 }
 
 function describeError(cause: unknown): string {

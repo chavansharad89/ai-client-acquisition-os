@@ -68,8 +68,8 @@ export interface FallbackResearchProviderDeps {
     requestKind: 'initial' | 'repair' | 'fallback',
     prospectId: string,
   ) => void | Promise<void>;
-  /** Shared retry/backoff/deadline config applied to every attempt in the chain. `onInvocation` is set internally and ignored if supplied here. */
-  researchOptions?: Omit<ResearchOptions, 'onInvocation'>;
+  /** Shared retry/backoff/deadline config applied to every attempt in the chain. `onInvocation` and `onSourceDocuments` are set internally and ignored if supplied here. */
+  researchOptions?: Omit<ResearchOptions, 'onInvocation' | 'onSourceDocuments'>;
 }
 
 export function createFallbackResearchProvider(deps: FallbackResearchProviderDeps): ResearchProvider {
@@ -87,6 +87,7 @@ export function createFallbackResearchProvider(deps: FallbackResearchProviderDep
       if (sourceDocuments.length === 0) {
         throw new InsufficientEvidenceError(input.companyName, input.normalizedDomain);
       }
+      const fetchedAt = new Date();
 
       // Fetched and built exactly once — reused, unchanged, by every
       // attempt in the chain (§6/§7 of the technical spike).
@@ -94,6 +95,7 @@ export function createFallbackResearchProvider(deps: FallbackResearchProviderDep
         companyName: input.companyName,
         websiteUrl: `https://${input.normalizedDomain}`,
         sourceDocuments: sourceDocuments as ResearchInput['sourceDocuments'],
+        targetSegments: [...(input.targetSegments ?? [])],
       };
 
       let lastError: unknown;
@@ -107,6 +109,15 @@ export function createFallbackResearchProvider(deps: FallbackResearchProviderDep
             ...deps.researchOptions,
             onInvocation: async (usage, requestKind) => {
               await deps.onUsage?.(usage, isFallback ? 'fallback' : requestKind, input.prospectId);
+            },
+            // A11-P1 M-2: fired once per attempt with the same documents;
+            // the caller keeps the last call (the attempt that returns).
+            onSourceDocuments: async (documents) => {
+              await input.onSourceDocumentsSupplied?.({
+                documents,
+                fetchedAt,
+                extractionMethod: deps.sourceDocuments.extractionMethod ?? 'UNDECLARED',
+              });
             },
           });
           return outcome.research;

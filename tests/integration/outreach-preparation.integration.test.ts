@@ -37,6 +37,7 @@ import {
   type QualificationDeps,
 } from '@acos/core-qualification';
 import {
+  createPgCategoryPlausibilityRepository,
   createPgResearchSignalRepository,
   runResearch,
   type LeadResearch,
@@ -93,6 +94,18 @@ function matchingResearch(): LeadResearch {
     },
     businessModel: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     targetCustomers: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
+    // One entry: sampleProfileInput()'s targetCustomer ('Restaurants',
+    // line 184) has no ';' and parses to exactly one segment (Path 2,
+    // D2). MATCH is what keeps this fixture's pre-existing QUALIFIED
+    // assertions true now that CATEGORY_PLAUSIBLE also gates state.
+    categoryPlausibility: [
+      {
+        fit: 'MATCH',
+        rationale: 'the homepage says they serve restaurants',
+        evidence: [{ quote: 'we cater to restaurants across the city', sourceUrl: WEBSITE.url, sourceLabel: WEBSITE.label }],
+        confidence: 90,
+      },
+    ],
     visibleProblems: [],
     growthOpportunities: [],
     aiOpportunities: [],
@@ -130,6 +143,7 @@ function repos() {
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
     signals: createPgResearchSignalRepository(db.client),
+    categoryPlausibility: createPgCategoryPlausibilityRepository(db.client),
     opportunities: createPgOpportunityRepository(db.client),
     qualifications: createPgQualificationRepository(db.client),
     personalizations: createPgPersonalizationRepository(db.client),

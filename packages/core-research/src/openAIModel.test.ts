@@ -53,6 +53,66 @@ describe('createOpenAIResearchModel', () => {
     expect(capturedBody?.response_format).toMatchObject({ type: 'json_schema' });
   });
 
+  // G-7 (G7-PO-DEC-001 / F-1 §16 / D11 §7): adapter-level translation of
+  // the extended category-plausibility segment, asserted on the request
+  // body this adapter actually sends.
+  it('sends the extended F-1 segment schema under strict structured outputs', async () => {
+    let capturedBody: { response_format: { type: string; json_schema: Record<string, unknown> } } | undefined;
+    const fetchImpl = vi.fn(async (_url: string | URL | RequestInfo, init?: RequestInit) => {
+      capturedBody = JSON.parse(init?.body as string);
+      return fakeResponse({
+        id: 'chatcmpl-g7',
+        choices: [{ message: { content: '{}' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      });
+    });
+    const model = createOpenAIResearchModel({ apiKey: 'k', model: 'gpt-test', fetchImpl });
+    await model(REQUEST);
+
+    const jsonSchema = capturedBody?.response_format.json_schema;
+    expect(capturedBody?.response_format.type).toBe('json_schema');
+    expect(jsonSchema?.name).toBe('lead_research');
+    expect(jsonSchema?.strict).toBe(true);
+
+    type Node = Record<string, unknown>;
+    const schema = jsonSchema?.schema as Node & { properties: Record<string, Node> };
+    const segments = schema.properties.categoryPlausibility as { type: string; items: Node };
+    expect(segments.type).toBe('array');
+
+    const item = segments.items as { properties: Record<string, Node>; required: string[]; additionalProperties: unknown };
+    expect(Object.keys(item.properties)).toEqual(['fit', 'rationale', 'evidence', 'confidence']);
+    expect(item.required).toEqual(['fit', 'rationale', 'evidence', 'confidence']);
+    expect(item.additionalProperties).toBe(false);
+    expect(item.properties).not.toHaveProperty('basis');
+    expect(item.properties).not.toHaveProperty('classification');
+
+    expect(item.properties.fit).toMatchObject({ type: 'string', enum: ['MATCH', 'MISMATCH', 'UNKNOWN'] });
+    expect(item.properties.confidence).toMatchObject({ type: 'integer' });
+    expect(item.properties.confidence?.description).toContain('1-100 for MATCH/MISMATCH');
+    expect(item.properties.confidence?.description).toContain('exactly 0 for UNKNOWN');
+    expect((item.properties.rationale as { anyOf: Node[] }).anyOf).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'string' }), { type: 'null' }]),
+    );
+    expect(item.properties.evidence).toMatchObject({ type: 'array' });
+
+    // Strict mode requires every object — segment, evidence, and every
+    // $defs entry — to list all its keys as required and forbid extras.
+    const objects: Node[] = [];
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (!node || typeof node !== 'object') return;
+      const n = node as Node;
+      if (n.type === 'object') objects.push(n);
+      Object.values(n).forEach(walk);
+    };
+    walk(schema);
+    expect(objects.length).toBeGreaterThan(2);
+    for (const object of objects) {
+      expect(object.additionalProperties).toBe(false);
+      expect(object.required).toEqual(Object.keys(object.properties as Node));
+    }
+  });
+
   it('extracts usage — input/output tokens required, cache fields nullable when absent', async () => {
     const fetchImpl = vi.fn(async () =>
       fakeResponse({

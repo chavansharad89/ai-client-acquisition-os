@@ -63,16 +63,27 @@ export function createAnthropicResearchProvider(deps: AnthropicResearchProviderD
       if (sourceDocuments.length === 0) {
         throw new InsufficientEvidenceError(input.companyName, input.normalizedDomain);
       }
+      const fetchedAt = new Date();
 
       const researchInput: ResearchInput = {
         companyName: input.companyName,
         websiteUrl: `https://${input.normalizedDomain}`,
         sourceDocuments: sourceDocuments as ResearchInput['sourceDocuments'],
+        targetSegments: [...(input.targetSegments ?? [])],
       };
 
       const outcome = await researchLead(deps.model, researchInput, {
         onInvocation: async (usage, requestKind) => {
           await deps.onUsage?.(usage, requestKind, input.prospectId);
+        },
+        // A11-P1 M-2: forward researchLead()'s post-parse documents — the
+        // exact model-seen text — never `sourceDocuments` above.
+        onSourceDocuments: async (documents) => {
+          await input.onSourceDocumentsSupplied?.({
+            documents,
+            fetchedAt,
+            extractionMethod: deps.sourceDocuments.extractionMethod ?? 'UNDECLARED',
+          });
         },
       });
 

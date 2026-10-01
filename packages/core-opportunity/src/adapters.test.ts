@@ -2,6 +2,7 @@ import type { ServiceProfileFields } from '@acos/core-service-profile';
 import { describe, expect, it } from 'vitest';
 
 import { toOfferSignals, toServiceRule } from './adapters';
+import { SCORER_VERSION } from './service';
 
 function serviceProfileFields(overrides: Partial<ServiceProfileFields> = {}): ServiceProfileFields {
   return {
@@ -39,6 +40,17 @@ describe('toServiceRule', () => {
       serviceProfileFields({ triggers: ['JOB_POST', 'not-a-real-kind', 'TECH_STACK'] }),
     );
     expect(rule.triggers).toEqual(['JOB_POST', 'TECH_STACK']);
+  });
+
+  it('INTENT-INTAKE-PO-DEC-001 D3: passes PUBLIC_INTENT/FIRST_PARTY through only when the profile lists them', () => {
+    expect(toServiceRule(serviceProfileFields()).triggers).toEqual(['JOB_POST', 'WEBSITE']);
+    expect(
+      toServiceRule(serviceProfileFields({ triggers: ['WEBSITE', 'PUBLIC_INTENT', 'FIRST_PARTY'] })).triggers,
+    ).toEqual(['WEBSITE', 'PUBLIC_INTENT', 'FIRST_PARTY']);
+  });
+
+  it('INTENT-INTAKE-PO-DEC-001 D2: SCORER_VERSION stays prospectScore-v1', () => {
+    expect(SCORER_VERSION).toBe('prospectScore-v1');
   });
 });
 

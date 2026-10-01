@@ -1,7 +1,34 @@
 import type { StoredOpportunity } from '@acos/core-opportunity';
+import type { CategoryPlausibilityRepository, StoredCategoryPlausibilityDetermination } from '@acos/core-research';
 
 import type { QualificationRepository } from './repository';
 import type { QualificationEvaluation, StoredQualification } from './types';
+
+/**
+ * In-memory CategoryPlausibilityRepository, scoped down to what
+ * ./service.ts actually calls (`getCurrentByProspectId`) — the other
+ * methods belong to @acos/core-research's own tests, not this
+ * package's.
+ */
+export function fakeCategoryPlausibilityRepository(
+  seed: StoredCategoryPlausibilityDetermination[] = [],
+): CategoryPlausibilityRepository {
+  const rows = [...seed];
+  return {
+    async supersedePrevious() {
+      throw new Error('not used by these tests');
+    },
+    async save() {
+      throw new Error('not used by these tests');
+    },
+    async listBySearchAndProspect() {
+      throw new Error('not used by these tests');
+    },
+    async getCurrentByProspectId(_userId: string, prospectId: string) {
+      return rows.find((row) => row.prospectId === prospectId && row.supersededAt === null) ?? null;
+    },
+  };
+}
 
 /**
  * In-memory QualificationRepository enforcing the same ownership-through-

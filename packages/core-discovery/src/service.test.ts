@@ -221,6 +221,31 @@ describe('discovery execution', () => {
     );
   });
 
+  it('candidatesReceived reflects the raw provider count, even when dedup collapses it (observability only)', async () => {
+    const search = seedSearch();
+    const d = deps(
+      [search],
+      [
+        { name: 'Acme Co', website: 'https://acme.example.com' },
+        { name: 'Acme Co (again)', website: 'https://www.acme.example.com/' },
+      ],
+    );
+
+    const result = await runDiscovery(d, 'token-a', { searchId: search.id });
+
+    // Two raw candidates were received; both survive normalization (one
+    // push per candidate, per the existing dedup test's own
+    // companies.length === 2 / 1-unique-id pattern below) even though the
+    // underlying store collapses them to a single Company row.
+    expect(result.candidatesReceived).toBe(2);
+    expect(result.companies).toHaveLength(2);
+    expect(new Set(result.companies.map((c) => c.id)).size).toBe(1);
+    expect(d.companies.rows).toHaveLength(1);
+    expect(result.skipped).toBe(0);
+    // The invariant the observability contract promises: raw === accepted-as-prospects + skipped.
+    expect(result.candidatesReceived).toBe(result.prospects.length + result.skipped);
+  });
+
   it('duplicate candidates within one run do not create duplicate Company or Prospect rows', async () => {
     const search = seedSearch();
     const d = deps(
@@ -267,6 +292,9 @@ describe('discovery execution', () => {
 
     expect(result.companies).toHaveLength(1);
     expect(result.skipped).toBe(4);
+    // Observability contract: 5 raw candidates in, 1 accepted + 4 skipped.
+    expect(result.candidatesReceived).toBe(5);
+    expect(result.candidatesReceived).toBe(result.prospects.length + result.skipped);
   });
 });
 

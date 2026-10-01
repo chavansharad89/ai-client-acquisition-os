@@ -90,6 +90,54 @@ describe('createGeminiResearchModel', () => {
     if (result.kind === 'json') expect(result.value).toEqual({ ok: true });
   });
 
+  // G-7 (G7-PO-DEC-001 / F-1 §16 / D11 §7): the extended category-plausibility
+  // segment must survive toGeminiSchema, asserted on the responseSchema this
+  // adapter actually sends — not on the shared JSON Schema.
+  it('sends the extended F-1 segment schema translated into Gemini\'s responseSchema dialect', async () => {
+    let capturedBody: { generationConfig: { responseSchema: Record<string, unknown> } } | undefined;
+    const fetchImpl = vi.fn(async (_url: string | URL | RequestInfo, init?: RequestInit) => {
+      capturedBody = JSON.parse(init?.body as string);
+      return fakeResponse({
+        responseId: 'resp-g7',
+        candidates: [{ content: { parts: [{ text: '{}' }] }, finishReason: 'STOP' }],
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+      });
+    });
+    const model = createGeminiResearchModel({ apiKey: 'k', model: 'gemini-test', fetchImpl });
+    await model(REQUEST);
+
+    type Node = Record<string, unknown>;
+    const responseSchema = capturedBody?.generationConfig.responseSchema as Node & { properties: Record<string, Node> };
+    const segments = responseSchema.properties.categoryPlausibility as { type: string; items: Node };
+    expect(segments.type).toBe('ARRAY');
+
+    const item = segments.items as { type: string; properties: Record<string, Node>; required: string[] };
+    expect(item.type).toBe('OBJECT');
+    expect(Object.keys(item.properties)).toEqual(['fit', 'rationale', 'evidence', 'confidence']);
+    expect(item.required).toEqual(['fit', 'rationale', 'evidence', 'confidence']);
+    expect(item.properties).not.toHaveProperty('basis');
+    expect(item.properties).not.toHaveProperty('classification');
+    // Gemini's dialect: no JSON Schema-only keywords survive.
+    expect(item).not.toHaveProperty('additionalProperties');
+    expect(JSON.stringify(item)).not.toMatch(/\$ref|anyOf|"minimum"|"maximum"/);
+
+    expect(item.properties.fit).toMatchObject({ type: 'STRING', enum: ['MATCH', 'MISMATCH', 'UNKNOWN'] });
+    expect(item.properties.confidence).toMatchObject({ type: 'INTEGER' });
+    expect(item.properties.confidence?.description).toContain('1-100 for MATCH/MISMATCH');
+    expect(item.properties.confidence?.description).toContain('exactly 0 for UNKNOWN');
+    // The nullable rationale translates to `nullable: true`, not anyOf.
+    // (toGeminiSchema does not carry the outer anyOf's description through,
+    // so rationale's per-verdict guidance reaches Gemini via the shared
+    // prompt only — recorded in the G-7 conformance record, not asserted.)
+    expect(item.properties.rationale).toMatchObject({ type: 'STRING', nullable: true, minLength: 1 });
+
+    const evidence = item.properties.evidence as { type: string; items: { type: string; properties: Node } };
+    expect(evidence.type).toBe('ARRAY');
+    expect(evidence.items.type).toBe('OBJECT');
+    expect(evidence.items.properties).toHaveProperty('quote');
+    expect(evidence.items.properties).toHaveProperty('sourceUrl');
+  });
+
   it('sends the API key via the x-goog-api-key header, never a query string', async () => {
     let capturedUrl = '';
     let capturedHeaders: Record<string, string> | undefined;

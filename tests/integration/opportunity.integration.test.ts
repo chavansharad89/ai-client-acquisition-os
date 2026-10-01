@@ -84,6 +84,7 @@ function matchingResearch(): LeadResearch {
       basis: null,
       confidence: 0,
     },
+    categoryPlausibility: [],
     visibleProblems: [
       {
         classification: 'OBSERVED',
@@ -133,6 +134,7 @@ function unmatchedResearch(): LeadResearch {
       basis: null,
       confidence: 0,
     },
+    categoryPlausibility: [],
     visibleProblems: [],
     growthOpportunities: [],
     aiOpportunities: [],

@@ -21,6 +21,7 @@ import {
 } from '@acos/core-opportunity';
 import { createPgQualificationRepository } from '@acos/core-qualification';
 import {
+  createPgCategoryPlausibilityRepository,
   createPgResearchSignalRepository,
   type LeadResearch,
   type ResearchProvider,
@@ -566,6 +567,19 @@ function compositeMatchingResearch(): LeadResearch {
     companySummary: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     businessModel: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     targetCustomers: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
+    // One entry: this suite's ServiceProfile targetCustomer
+    // ('Restaurants', line 553) has no ';' and parses to exactly one
+    // segment (Path 2, D2) — MATCH is what keeps this fixture's
+    // pre-existing QUALIFIED assertion true now that CATEGORY_PLAUSIBLE
+    // also gates state.
+    categoryPlausibility: [
+      {
+        fit: 'MATCH',
+        rationale: 'the homepage says they serve restaurants',
+        evidence: [{ quote: 'we cater to restaurants across the city', sourceUrl: source.url, sourceLabel: source.label }],
+        confidence: 90,
+      },
+    ],
     visibleProblems: [
       {
         classification: 'OBSERVED',
@@ -678,6 +692,7 @@ describe(
         // `qualifications` supplied so the real pipeline exercises
         // Qualification end to end.
         const qualifications = createPgQualificationRepository(db.client);
+        const categoryPlausibility = createPgCategoryPlausibilityRepository(db.client);
         const domain = `composite-${randomUUID()}.example.com`;
         const workerDeps: SearchWorkerDeps = {
           searches: base.searches,
@@ -690,6 +705,7 @@ describe(
           researchProvider: () => compositeResearchProvider(compositeMatchingResearch()),
           opportunities: base.opportunities,
           qualifications,
+          categoryPlausibility,
           scores: base.scores,
           workerId: `worker_composite_${randomUUID()}`,
         };

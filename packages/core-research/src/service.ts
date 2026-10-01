@@ -1,9 +1,15 @@
 import { scoreProspect, type ProspectInput, type ProspectScore } from '@acos/core-acquisition';
 import type { CompanyRepository, ProspectRepository } from '@acos/core-discovery';
 import { requireUser, type IdentityRepository } from '@acos/core-identity';
+import type { SearchRepository } from '@acos/core-search';
 
+import { aggregateCategoryFit, parseTargetSegments, toSegmentDeterminations } from './categoryPlausibility';
+import type {
+  CapturedSourceDocumentInput,
+  CategoryPlausibilityRepository,
+} from './categoryPlausibilityRepository';
 import { toNewResearchSignals } from './mapping';
-import type { ResearchProvider } from './provider';
+import type { ResearchProvider, SuppliedSourceDocuments } from './provider';
 import type { ResearchSignalRepository } from './repository';
 import { toScoringSignals } from './scoringAdapter';
 import { ResearchProspectNotFoundError } from './signalErrors';
@@ -24,6 +30,30 @@ export interface ResearchDeps {
   prospects: ProspectRepository;
   signals: ResearchSignalRepository;
   provider: ResearchProvider;
+  /**
+   * Path 2 category plausibility (D8, Option B Candidate 2): resolves
+   * the owning Search so its `parameters.targetCustomer` can be
+   * deterministically parsed (D2) and carried into the Research call —
+   * mirroring @acos/core-opportunity's `OpportunityDeps.searches`/
+   * `createOpportunityForOwner` pattern exactly (`prospect.searchId` ->
+   * `deps.searches.getById`). Required, like that precedent, since every
+   * real Research run needs Search context to evaluate category
+   * plausibility against.
+   */
+  searches: SearchRepository;
+  /**
+   * Persists the category-plausibility determination (D1/D6/D7) once
+   * computed. Optional — like `SearchWorkerDeps.scores`/`.qualifications`
+   * elsewhere in this codebase — so a caller/test that predates this
+   * feature and never exercises it keeps compiling; the real entrypoint
+   * (apps/worker) always supplies it, so production runs always persist.
+   * Category plausibility is still evaluated by the provider either way
+   * (D9 §5 — parsing/prompting is unconditional); omitting this
+   * dependency only skips writing the result down, exactly like omitting
+   * `scores`/`qualifications` skips those steps without affecting
+   * Research/Discovery.
+   */
+  categoryPlausibility?: CategoryPlausibilityRepository;
 }
 
 /**
@@ -73,18 +103,72 @@ export async function runResearchForOwner(
   const company = await deps.companies.getById(userId, prospect.companyId);
   if (!company) throw new ResearchProspectNotFoundError(prospectId);
 
+  // Path 2 category plausibility (D8, Option B Candidate 2): resolve the
+  // owning Search the same way createOpportunityForOwner already does
+  // (prospect.searchId -> deps.searches.getById), then deterministically
+  // parse its immutable targetCustomer snapshot (D2) BEFORE the model
+  // ever sees it (D9 §5).
+  const search = await deps.searches.getById(userId, prospect.searchId);
+  if (!search) throw new ResearchProspectNotFoundError(prospectId);
+  const targetSegments = parseTargetSegments(search.parameters.targetCustomer);
+
+  // A11-P1 M-2: the model-seen source documents, exactly as the provider
+  // handed them to the model. Last call wins — in a fallback chain that is
+  // the attempt that produced `research` (every call carries the same
+  // documents regardless).
+  // A holder object, not a `let`: TypeScript does not track assignments
+  // made inside the callback below.
+  const capture: { supplied?: SuppliedSourceDocuments } = {};
   const research = await deps.provider.research({
     prospectId: prospect.id,
     companyId: company.id,
     companyName: company.name,
     normalizedDomain: company.normalizedDomain,
+    targetSegments,
+    onSourceDocumentsSupplied: (value) => {
+      capture.supplied = value;
+    },
   });
 
   const signalInputs = toNewResearchSignals(research);
   const superseded = await deps.signals.supersedePrevious(prospect.id, now);
   const signals = await deps.signals.saveSignals(prospect.id, signalInputs, now);
 
+  if (deps.categoryPlausibility) {
+    const segmentResults = toSegmentDeterminations(targetSegments, research.categoryPlausibility);
+    const aggregateResult = aggregateCategoryFit(segmentResults.map((result) => result.fit));
+    // Supersede-then-insert, scoped to THIS Search + Prospect only (D6) —
+    // a different Search's row for the same Prospect is never touched.
+    await deps.categoryPlausibility.supersedePrevious(search.id, prospect.id, now);
+    await deps.categoryPlausibility.save(
+      {
+        searchId: search.id,
+        prospectId: prospect.id,
+        targetCustomer: search.parameters.targetCustomer,
+        targetSegments,
+        aggregateResult,
+        segmentResults,
+      },
+      now,
+      toCapturedSourceDocuments(capture.supplied),
+    );
+  }
+
   return { prospectId: prospect.id, superseded, signals };
+}
+
+/** Flattens one run's supplied documents into per-document capture rows — text passed through untouched. */
+function toCapturedSourceDocuments(
+  supplied: SuppliedSourceDocuments | undefined,
+): readonly CapturedSourceDocumentInput[] {
+  if (!supplied) return [];
+  return supplied.documents.map((doc) => ({
+    label: doc.label,
+    url: doc.url,
+    text: doc.text,
+    fetchedAt: supplied.fetchedAt,
+    extractionMethod: supplied.extractionMethod,
+  }));
 }
 
 /**
@@ -110,6 +194,33 @@ export async function listResearchSignals(
   if (!prospect) throw new ResearchProspectNotFoundError(validated);
 
   return deps.signals.listByProspect(userId, prospect.id);
+}
+
+/**
+ * Reads the caller's own current category-plausibility determination
+ * (D1/D6/D10) for one Prospect — "current" meaning the latest
+ * non-superseded row for that Prospect, which is exactly "the CURRENT
+ * Search + Prospect determination" D6 requires, since a Prospect's own
+ * Search is immutable and unique to it. Returns `null` when Research has
+ * never produced one (a stage that has not run yet, or ran before this
+ * dependency existed) — the same "not yet" convention every other
+ * getX-style read in this codebase uses, never an error.
+ */
+export async function getCategoryPlausibilityDetermination(
+  deps: Pick<ResearchDeps, 'identity' | 'prospects'> & {
+    categoryPlausibility: CategoryPlausibilityRepository;
+  },
+  rawToken: string | undefined | null,
+  prospectId: string,
+  now: Date = new Date(),
+) {
+  const userId = await requireUser(deps.identity, rawToken, now);
+  const { prospectId: validated } = validateRunResearchInput({ prospectId });
+
+  const prospect = await deps.prospects.getById(userId, validated);
+  if (!prospect) throw new ResearchProspectNotFoundError(validated);
+
+  return deps.categoryPlausibility.getCurrentByProspectId(userId, prospect.id);
 }
 
 /**

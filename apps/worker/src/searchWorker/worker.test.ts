@@ -1,3 +1,5 @@
+import { createPrivateKey, createPublicKey, sign } from 'node:crypto';
+
 import type {
   CompanyRepository,
   DiscoveryCandidate,
@@ -22,22 +24,42 @@ import type {
 } from '@acos/core-outreach-preparation';
 import type { PersonalizationRepository, StoredPersonalization } from '@acos/core-personalization';
 import type { QualificationRepository, StoredQualification } from '@acos/core-qualification';
-import { researchLead } from '@acos/core-research';
+import {
+  createProviderPublicKeyRegistry,
+  isIntentSignalKind,
+  IntentSignalValidationError,
+  normalizeProviderBatch,
+  normalizeVerifiedProviderResult,
+  researchLead,
+  verifyProviderEnvelope,
+} from '@acos/core-research';
 import type {
+  AuthorizationEvidence,
+  CategoryPlausibilityRepository,
   LeadResearch,
+  NewCategoryPlausibilityDeterminationInput,
+  NewResearchSignalInput,
   ResearchInput,
   ResearchModel,
   ResearchProvider,
   ResearchProviderInput,
   ResearchSignalRepository,
+  ResearchSignalTransaction,
+  StoredCategoryPlausibilityDetermination,
   StoredResearchSignal,
 } from '@acos/core-research';
 import type { SearchRepository, SearchStatus, StoredSearch } from '@acos/core-search';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  IntentIntakeSearchNotFoundError,
+  recordIntentIntakeForOwner,
+  recordIntentSignalForOwner,
+} from './intentIntake';
+import {
   claimAndProcessNextSearch,
   DEFAULT_SEARCH_LEASE_DURATION_MS,
+  researchProspectForOwner,
   type SearchWorkerDeps,
 } from './worker';
 
@@ -211,15 +233,20 @@ function fakeDiscoveryProvider(candidates: readonly DiscoveryCandidate[]): Disco
 
 function fakeResearchSignalRepository(): ResearchSignalRepository & {
   rows: StoredResearchSignal[];
+  /** Every input handed to saveSignals, in order — the authorization evidence lives only here. */
+  inputs: NewResearchSignalInput[];
 } {
   const rows: StoredResearchSignal[] = [];
+  const inputs: NewResearchSignalInput[] = [];
   let counter = 0;
   return {
     rows,
+    inputs,
     async supersedePrevious(prospectId, at) {
       let count = 0;
       for (const row of rows) {
-        if (row.prospectId === prospectId && row.supersededAt === null) {
+        // Mirrors pgRepository: intent intake kinds are never research-superseded (C2).
+        if (row.prospectId === prospectId && row.supersededAt === null && !isIntentSignalKind(row.kind)) {
           row.supersededAt = at;
           count += 1;
         }
@@ -229,6 +256,7 @@ function fakeResearchSignalRepository(): ResearchSignalRepository & {
     async saveSignals(prospectId, signals, observedAt) {
       const created: StoredResearchSignal[] = [];
       for (const input of signals) {
+        inputs.push(input);
         counter += 1;
         created.push({
           id: `signal_${counter}`,
@@ -250,6 +278,25 @@ function fakeResearchSignalRepository(): ResearchSignalRepository & {
     async listByProspect(_userId, prospectId) {
       return rows.filter((r) => r.prospectId === prospectId && r.supersededAt === null);
     },
+  };
+}
+
+/**
+ * Mirrors createPgResearchSignalTransactionRunner: `fn` gets the repository;
+ * a throw removes every row / input written inside it, then rethrows (OD-8).
+ */
+function fakeSignalTransaction(signals: ResearchSignalRepository): ResearchSignalTransaction {
+  return async <T,>(fn: (tx: ResearchSignalRepository) => Promise<T>): Promise<T> => {
+    const store = signals as Partial<{ rows: StoredResearchSignal[]; inputs: NewResearchSignalInput[] }>;
+    const rowCount = store.rows?.length ?? 0;
+    const inputCount = store.inputs?.length ?? 0;
+    try {
+      return await fn(signals);
+    } catch (error) {
+      store.rows?.splice(rowCount);
+      store.inputs?.splice(inputCount);
+      throw error;
+    }
   };
 }
 
@@ -380,6 +427,49 @@ function fakeQualificationRepository(): QualificationRepository & { rows: Stored
     },
     async listByUserId() {
       throw new Error('not used by these tests');
+    },
+  };
+}
+
+// Path 2 — Category Plausibility (D1/D6/D7). Local fake, same convention
+// as fakeQualificationRepository above: real append-only/supersede
+// behavior for the methods these tests actually exercise
+// (supersedePrevious/save/getCurrentByProspectId, mirroring
+// @acos/core-research's own testSupport.ts fakeCategoryPlausibilityRepository
+// without importing it).
+function fakeCategoryPlausibilityRepository(
+  seed: StoredCategoryPlausibilityDetermination[] = [],
+): CategoryPlausibilityRepository & { rows: StoredCategoryPlausibilityDetermination[] } {
+  const rows = [...seed];
+  let counter = rows.length;
+  return {
+    rows,
+    async supersedePrevious(searchId: string, prospectId: string, at: Date) {
+      let count = 0;
+      for (const row of rows) {
+        if (row.searchId === searchId && row.prospectId === prospectId && row.supersededAt === null) {
+          row.supersededAt = at;
+          count += 1;
+        }
+      }
+      return count;
+    },
+    async save(input: NewCategoryPlausibilityDeterminationInput, observedAt: Date) {
+      counter += 1;
+      const row: StoredCategoryPlausibilityDetermination = {
+        id: `category_plausibility_${counter}`,
+        ...input,
+        observedAt,
+        supersededAt: null,
+      };
+      rows.push(row);
+      return row;
+    },
+    async listBySearchAndProspect() {
+      throw new Error('not used by these tests');
+    },
+    async getCurrentByProspectId(_userId: string, prospectId: string) {
+      return rows.find((row) => row.prospectId === prospectId && row.supersededAt === null) ?? null;
     },
   };
 }
@@ -572,6 +662,20 @@ function sampleResearch(): LeadResearch {
     recommendedService: { service: 'NONE', rationale: 'insufficient evidence', basedOn: [] },
     confidence: 60,
     gaps: [],
+    // Path 2 — one entry, since seedSearch()'s default `targetCustomer:
+    // 'Restaurants'` parses to exactly one segment (no `;`). This fixture
+    // is only ever consumed through a stub ResearchProvider (never the
+    // real researchLead()/provenance engine), so the evidence below needs
+    // no real source-document backing.
+    categoryPlausibility: [
+      {
+        fit: 'MATCH',
+        rationale: 'fixture',
+        evidence: [
+          { quote: 'Acme sells warehouse robotics', sourceUrl: 'https://acme.test/about', sourceLabel: 'homepage' },
+        ],
+      },
+    ],
   } as unknown as LeadResearch;
 }
 
@@ -606,6 +710,20 @@ function qualifyingResearch(): LeadResearch {
     recommendedService: { service: 'NONE', rationale: 'insufficient evidence', basedOn: [] },
     confidence: 60,
     gaps: [],
+    // Path 2 — one entry: every caller of qualifyingResearch() also uses
+    // qualifyingSearchOverrides() or websiteKeywordSearchOverrides(),
+    // both still `targetCustomer: 'Restaurants'` (one segment). Consumed
+    // only through a stub ResearchProvider, so no real source-document
+    // backing is needed.
+    categoryPlausibility: [
+      {
+        fit: 'MATCH',
+        rationale: 'fixture',
+        evidence: [
+          { quote: 'needs a website redesign', sourceUrl: 'https://acme.test/about', sourceLabel: 'homepage' },
+        ],
+      },
+    ],
   } as unknown as LeadResearch;
 }
 
@@ -623,12 +741,15 @@ function qualifyingSearchOverrides(): Partial<StoredSearch> {
   };
 }
 
-function buildDeps(overrides: Partial<SearchWorkerDeps> = {}): SearchWorkerDeps & {
+function buildDeps(
+  overrides: Partial<SearchWorkerDeps & { signalTransaction: ResearchSignalTransaction }> = {},
+): SearchWorkerDeps & {
   searches: ReturnType<typeof fakeSearchRepository>;
   opportunities: ReturnType<typeof fakeOpportunityRepository>;
   qualifications: ReturnType<typeof fakeQualificationRepository>;
+  signalTransaction: ResearchSignalTransaction;
 } {
-  return {
+  const deps = {
     searches: fakeSearchRepository(),
     companies: fakeCompanyRepository(),
     prospects: fakeProspectRepository(),
@@ -639,6 +760,7 @@ function buildDeps(overrides: Partial<SearchWorkerDeps> = {}): SearchWorkerDeps 
     researchProvider: () => fakeResearchProvider(sampleResearch()),
     opportunities: fakeOpportunityRepository(),
     qualifications: fakeQualificationRepository(),
+    categoryPlausibility: fakeCategoryPlausibilityRepository(),
     workerId: 'worker-a',
     now: () => NOW,
     ...overrides,
@@ -647,6 +769,7 @@ function buildDeps(overrides: Partial<SearchWorkerDeps> = {}): SearchWorkerDeps 
     opportunities: ReturnType<typeof fakeOpportunityRepository>;
     qualifications: ReturnType<typeof fakeQualificationRepository>;
   };
+  return { ...deps, signalTransaction: overrides.signalTransaction ?? fakeSignalTransaction(deps.signals) };
 }
 
 describe('claiming', () => {
@@ -1092,6 +1215,46 @@ describe('canonical pipeline', () => {
     });
   });
 
+  it('logs discovery.completed with raw/accepted/skipped counts (Discovery-Query Audit — observability only)', async () => {
+    // 3 raw candidates: 2 valid (distinct domains), 1 unusable (no website) —
+    // proves candidatesReceived, accepted and skipped are all reported
+    // correctly, not just the all-valid default fixture's 1/1/0 case.
+    const discoveryProvider = fakeDiscoveryProvider([
+      { name: 'Acme Co', website: 'https://acme.example.com' },
+      { name: 'Beta Co', website: 'https://beta.example.com' },
+      { name: 'No Website Co', website: null },
+    ]);
+    const searches = fakeSearchRepository([seedSearch()]);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    await claimAndProcessNextSearch(buildDeps({ searches, discoveryProvider }));
+    // Read calls BEFORE mockRestore() — it resets call history as well as
+    // restoring the original implementation.
+    const calls = [...logSpy.mock.calls];
+    logSpy.mockRestore();
+
+    const discoveryLogCall = calls.find((call) =>
+      String(call[0]).includes('"event":"discovery.completed"'),
+    );
+    expect(discoveryLogCall).toBeDefined();
+    const logged = JSON.parse(discoveryLogCall![0] as string) as {
+      event: string;
+      searchId: string;
+      candidatesReceived: number;
+      accepted: number;
+      skipped: number;
+    };
+    expect(logged).toMatchObject({
+      event: 'discovery.completed',
+      searchId: searches.rows[0]!.id,
+      candidatesReceived: 3,
+      accepted: 2,
+      skipped: 1,
+    });
+    // The observability contract's own invariant, checked end to end through the worker.
+    expect(logged.candidatesReceived).toBe(logged.accepted + logged.skipped);
+  });
+
   it('R-41: Qualification also runs for an already-existing Opportunity (retry path), not only a newly-created one', async () => {
     const opportunities = fakeOpportunityRepository();
     const qualifications = fakeQualificationRepository();
@@ -1200,6 +1363,11 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
         const outcome = await researchLead(model, {
           companyName: input.companyName,
           websiteUrl: `https://${input.normalizedDomain}`,
+          // Path 2: mirrors anthropicResearchProvider.ts's own
+          // `targetSegments: [...(input.targetSegments ?? [])]` — the real
+          // pipeline (runResearchForOwner) now supplies this on every
+          // ResearchProviderInput.
+          targetSegments: [...(input.targetSegments ?? [])],
           sourceDocuments,
         });
         return outcome.research;
@@ -1256,6 +1424,18 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
         recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
         confidence: 75,
         gaps: [],
+        // Path 2: this test asserts QUALIFIED, so the Prospect's target
+        // segment ('Restaurants', from websiteKeywordSearchOverrides())
+        // needs a MATCH determination — reuse the test's own genuine
+        // quote/URL so provenance stays real.
+        categoryPlausibility: [
+          {
+            fit: 'MATCH',
+            rationale: 'fixture',
+            evidence: [{ quote: problemQuote, sourceUrl: TARGET_URL, sourceLabel: 'Homepage' }],
+            confidence: 90,
+          },
+        ],
       });
 
       const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
@@ -1456,6 +1636,18 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
         recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
         confidence: 78,
         gaps: [],
+        // Path 2: this test asserts QUALIFIED, so the Prospect's target
+        // segment ('Restaurants', from websiteKeywordSearchOverrides())
+        // needs a MATCH determination — reuse the test's own genuine
+        // quote/URL so provenance stays real.
+        categoryPlausibility: [
+          {
+            fit: 'MATCH',
+            rationale: 'fixture',
+            evidence: [{ quote: problemQuote, sourceUrl: TARGET_URL, sourceLabel: 'Homepage' }],
+            confidence: 90,
+          },
+        ],
       });
 
       const searches = fakeSearchRepository([seedSearch(websiteKeywordSearchOverrides())]);
@@ -1685,6 +1877,7 @@ describe('personalization (Phase 21, R-51/R-52)', () => {
       signals: fakeResearchSignalRepository(),
       researchProvider: () => fakeResearchProvider(qualifyingResearch()),
       opportunities: fakeOpportunityRepository(),
+      categoryPlausibility: fakeCategoryPlausibilityRepository(),
       personalizations,
       workerId: 'worker-a',
       now: () => NOW,
@@ -1876,6 +2069,7 @@ describe('outreach preparation (Phase 22, R-59)', () => {
       researchProvider: () => fakeResearchProvider(qualifyingResearch()),
       opportunities: fakeOpportunityRepository(),
       qualifications: fakeQualificationRepository(),
+      categoryPlausibility: fakeCategoryPlausibilityRepository(),
       outreachPreparations,
       workerId: 'worker-a',
       now: () => NOW,
@@ -2028,6 +2222,7 @@ describe('follow-up preparation (Phase 23, R-66)', () => {
       researchProvider: () => fakeResearchProvider(qualifyingResearch()),
       opportunities: fakeOpportunityRepository(),
       qualifications: fakeQualificationRepository(),
+      categoryPlausibility: fakeCategoryPlausibilityRepository(),
       personalizations: fakePersonalizationRepository(),
       followUpPreparations,
       workerId: 'worker-a',
@@ -2136,5 +2331,856 @@ describe('follow-up preparation (Phase 23, R-66)', () => {
     expect(followUpPreparations.rows[0]).not.toHaveProperty('sentAt');
     expect(followUpPreparations.rows[0]).not.toHaveProperty('deliveredAt');
     expect(followUpPreparations.rows[0]).not.toHaveProperty('scheduledAt');
+  });
+});
+
+// ---- Intent intake (INTENT-INTAKE-PO-DEC-001) -----------------------------
+// recordIntentSignalForOwner feeds ONE PUBLIC_INTENT/FIRST_PARTY signal into
+// the existing pipeline (D4: existing Research, then the same post-research
+// code runCanonicalPipeline runs). Fakes only — no provider is ever called.
+
+describe('intent intake (INTENT-INTAKE-PO-DEC-001)', () => {
+  const OBSERVED_AT = new Date('2026-01-30T09:15:00.000Z');
+  /** Complete integration evidence (INTENT-INTAKE-AUTH-EVIDENCE-DESIGN-001 OD-1..OD-5); fixture values only. */
+  const AUTHORIZATION_EVIDENCE: AuthorizationEvidence = {
+    businessId: 'integration-business-0001',
+    status: 'GRANTED',
+    scope: 'ACQUISITION',
+    authorizedAt: new Date('2026-01-15T00:00:00.000Z'),
+    integrationId: 'integration-0001',
+  };
+
+  // OD-13 Option B (IA-OD13-B): FIRST_PARTY intake needs the proof the
+  // verifier issued. Test-only Ed25519 key (fixed seed) and test-only ids.
+  const TEST_SIGNING_KEY = createPrivateKey({
+    key: Buffer.from(`302e020100300506032b657004220420${'33'.repeat(32)}`, 'hex'),
+    format: 'der',
+    type: 'pkcs8',
+  });
+  /** Signs `result` as `integrationId` and verifies it (P1), received at NOW. */
+  function signedProof(result: unknown, integrationId = AUTHORIZATION_EVIDENCE.integrationId) {
+    const registry = createProviderPublicKeyRegistry([
+      { integrationId, keyId: 'test-key-1', publicKey: createPublicKey(TEST_SIGNING_KEY), validFrom: new Date(0), validUntil: null },
+    ]);
+    const rawBody = Buffer.from(
+      JSON.stringify({ version: 1, integrationId, keyId: 'test-key-1', signedAt: NOW.toISOString(), result }),
+    );
+    const verification = verifyProviderEnvelope(
+      { rawBody, integrationId, keyId: 'test-key-1', signature: sign(null, rawBody, TEST_SIGNING_KEY).toString('base64') },
+      { registry, receivedAt: NOW },
+    );
+    if (!verification.ok) throw new Error('test proof failed verification');
+    return verification.verified;
+  }
+  /**
+   * OD-13 X1: the proof must carry the exact result the FIRST_PARTY signals
+   * derive from. Signs an AI-platform result (AI_REFERRAL) whose
+   * SUPPLIED_TO_US items are `event`'s FIRST_PARTY entries, in order, for
+   * `event`'s company. PUBLIC_INTENT entries are outside the binding.
+   */
+  function providerProof(
+    event: { companyName: string; website: string; signals: readonly Record<string, unknown>[] },
+    integrationId = AUTHORIZATION_EVIDENCE.integrationId,
+  ) {
+    const firstParty = event.signals.filter((entry) => entry.kind === 'FIRST_PARTY');
+    return signedProof(
+      {
+        sourceFamily: 'AI_PLATFORM_ACQUISITION',
+        acquisitionType: 'AI_REFERRAL',
+        externalId: 'aiad-evt-0001',
+        business: { name: event.companyName, website: event.website },
+        sourceReference: (firstParty[0]?.sourceUrl as string | undefined) ?? 'https://landing.example.com/forms/7',
+        evidence: firstParty.map((entry) => ({
+          origin: 'SUPPLIED_TO_US',
+          derivation: 'STATED_BY_BUSINESS',
+          requirement: entry.field,
+          statement: entry.quote,
+          referenceUrl: entry.sourceUrl,
+          observedAt: entry.observedAt,
+        })),
+        capturedAt: NOW,
+        provenance: { integration: integrationId, retrieval: 'AUTHORIZED_INTEGRATION' },
+        authorization: { ...AUTHORIZATION_EVIDENCE, integrationId, basis: 'fixture: basis as stated by the integration', reference: null },
+      },
+      integrationId,
+    );
+  }
+
+  function intakeInput(overrides: Record<string, unknown> = {}) {
+    return {
+      searchId: 'search_1',
+      companyName: 'Acme Co',
+      website: 'https://acme.example.com',
+      kind: 'PUBLIC_INTENT' as const,
+      field: 'requestedMobileApp' as const,
+      quote: 'Looking for someone to build an app for our restaurant',
+      sourceUrl: 'https://forum.example.org/t/123',
+      sourceLabel: 'Public forum post',
+      observedAt: OBSERVED_AT,
+      ...overrides,
+    } as Parameters<typeof recordIntentSignalForOwner>[2];
+  }
+
+  function intakeSearch(parameters: Partial<StoredSearch['parameters']> = {}): StoredSearch {
+    const base = seedSearch({ status: 'COMPLETE' });
+    return { ...base, parameters: { ...base.parameters, ...parameters } };
+  }
+
+  function mismatchResearch(): LeadResearch {
+    return {
+      ...sampleResearch(),
+      categoryPlausibility: [
+        {
+          fit: 'MISMATCH',
+          rationale: 'fixture',
+          evidence: [
+            { quote: 'Acme sells warehouse robotics', sourceUrl: 'https://acme.test/about', sourceLabel: 'homepage' },
+          ],
+        },
+      ],
+    } as unknown as LeadResearch;
+  }
+
+  it('intake → Prospect → OBSERVED signal → existing Research → determination → Opportunity → Score → Qualification, in order', async () => {
+    const calls: string[] = [];
+    const signals = fakeResearchSignalRepository();
+    const realSave = signals.saveSignals.bind(signals);
+    signals.saveSignals = (async (...args: Parameters<typeof realSave>) => {
+      calls.push(`signals:${args[1][0]!.kind}`);
+      return realSave(...args);
+    }) as typeof signals.saveSignals;
+    const scores = fakeOpportunityScoreRepository();
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch()]),
+      signals,
+      scores,
+      researchProvider: () => ({
+        async research() {
+          calls.push('research');
+          return sampleResearch();
+        },
+      }),
+    });
+
+    const result = await recordIntentSignalForOwner(deps, 'user_a', intakeInput(), NOW);
+
+    expect(calls[0]).toBe('signals:PUBLIC_INTENT');
+    expect(calls[1]).toBe('research');
+    expect(result.researched).toBe(true);
+    expect(result.prospect.searchId).toBe('search_1');
+    expect(result.company.normalizedDomain).toBe('acme.example.com');
+    expect(result.signal).toMatchObject({
+      kind: 'PUBLIC_INTENT',
+      classification: 'OBSERVED',
+      confidence: 70,
+      field: 'requestedMobileApp',
+      signal: 'Looking for someone to build an app for our restaurant',
+      basis: null,
+      observedAt: OBSERVED_AT,
+      supersededAt: null,
+    });
+    expect(result.signal.sources).toEqual([
+      expect.objectContaining({
+        sourceUrl: 'https://forum.example.org/t/123',
+        sourceQuote: 'Looking for someone to build an app for our restaurant',
+        sourceLabel: 'Public forum post',
+      }),
+    ]);
+    // Research ran through the existing path and persisted its determination.
+    const categoryPlausibility = deps.categoryPlausibility as ReturnType<
+      typeof fakeCategoryPlausibilityRepository
+    >;
+    expect(categoryPlausibility.rows).toHaveLength(1);
+    expect(categoryPlausibility.rows[0]!.prospectId).toBe(result.prospect.id);
+    // The intake signal survives the Research run it triggered (C2).
+    const active = await signals.listByProspect('user_a', result.prospect.id);
+    expect(active.map((row) => row.kind)).toContain('PUBLIC_INTENT');
+    // Existing post-research pipeline ran once, for this Prospect.
+    expect(deps.opportunities.rows).toHaveLength(1);
+    expect(deps.opportunities.rows[0]!.id).toBe(result.opportunityId);
+    expect(scores.rows).toHaveLength(1);
+    expect(deps.qualifications.rows).toHaveLength(1);
+  });
+
+  it('D5: FIRST_PARTY is stored OBSERVED at confidence 90 with its observedAt, distinct from the capture clock', async () => {
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]) });
+    const result = await recordIntentIntakeForOwner(
+      deps,
+      'user_a',
+      intakeEvent([{ ...FIRST_PARTY_ENTRY, quote: 'I need an app for my coaching institute', observedAt: OBSERVED_AT }]),
+      NOW,
+    );
+    expect(result.signals[0]).toMatchObject({ kind: 'FIRST_PARTY', classification: 'OBSERVED', confidence: 90 });
+    expect(result.signals[0]!.observedAt).toEqual(OBSERVED_AT);
+    expect(result.signals[0]!.observedAt).not.toEqual(NOW);
+  });
+
+  it('OD-7: the single-signal form rejects FIRST_PARTY, even with evidence — nothing is created', async () => {
+    const companies = fakeCompanyRepository();
+    const findOrCreate = vi.spyOn(companies, 'findOrCreateByDomain');
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]), companies });
+    await expect(
+      recordIntentSignalForOwner(
+        deps,
+        'user_a',
+        intakeInput({ kind: 'FIRST_PARTY', field: 'statedRequirement', authorizationEvidence: AUTHORIZATION_EVIDENCE }),
+        NOW,
+      ),
+    ).rejects.toMatchObject({ name: 'IntentSignalValidationError', field: 'kind', reason: 'not-allowed' });
+    expect((deps.signals as ReturnType<typeof fakeResearchSignalRepository>).rows).toHaveLength(0);
+    expect(findOrCreate).not.toHaveBeenCalled();
+    expect(deps.opportunities.rows).toHaveLength(0);
+  });
+
+  it('D5: a caller-supplied confidence is rejected and nothing is persisted', async () => {
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]) });
+    await expect(
+      recordIntentSignalForOwner(deps, 'user_a', intakeInput({ confidence: 100 }), NOW),
+    ).rejects.toMatchObject({ name: 'IntentSignalValidationError', field: 'confidence', reason: 'not-allowed' });
+    expect((deps.signals as ReturnType<typeof fakeResearchSignalRepository>).rows).toHaveLength(0);
+    expect(deps.opportunities.rows).toHaveLength(0);
+  });
+
+  it('rejects a kind outside PUBLIC_INTENT/FIRST_PARTY', async () => {
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]) });
+    await expect(
+      recordIntentSignalForOwner(deps, 'user_a', intakeInput({ kind: 'JOB_POST' }), NOW),
+    ).rejects.toBeInstanceOf(IntentSignalValidationError);
+  });
+
+  it('G1: an unusable website is rejected — no Company, Prospect or Signal is invented', async () => {
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]) });
+    await expect(
+      recordIntentSignalForOwner(deps, 'user_a', intakeInput({ website: 'http://' }), NOW),
+    ).rejects.toMatchObject({ name: 'IntentSignalValidationError', field: 'website' });
+    expect((deps.signals as ReturnType<typeof fakeResearchSignalRepository>).rows).toHaveLength(0);
+  });
+
+  it("G2: requires the caller's own existing Search — unknown or another user's Search is not found", async () => {
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]) });
+    await expect(
+      recordIntentSignalForOwner(deps, 'user_a', intakeInput({ searchId: 'search_missing' }), NOW),
+    ).rejects.toBeInstanceOf(IntentIntakeSearchNotFoundError);
+    await expect(
+      recordIntentSignalForOwner(deps, 'user_b', intakeInput(), NOW),
+    ).rejects.toBeInstanceOf(IntentIntakeSearchNotFoundError);
+    expect(deps.searches.rows).toHaveLength(1); // no intake Search created
+  });
+
+  it('dedup within one Search: two signals for the same company → one Company, one Prospect, one Opportunity, two Signals; research runs once (D4)', async () => {
+    const researchCalls = vi.fn();
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch()]),
+      researchProvider: () => ({
+        async research() {
+          researchCalls();
+          return sampleResearch();
+        },
+      }),
+    });
+
+    const first = await recordIntentSignalForOwner(deps, 'user_a', intakeInput(), NOW);
+    const second = await recordIntentIntakeForOwner(
+      deps,
+      'user_a',
+      intakeEvent([FIRST_PARTY_ENTRY], { website: 'www.ACME.example.com/contact' }),
+      NOW,
+    );
+
+    expect(second.company.id).toBe(first.company.id);
+    expect(second.prospect.id).toBe(first.prospect.id);
+    expect(second.opportunityId).toBe(first.opportunityId);
+    expect(deps.opportunities.rows).toHaveLength(1);
+    expect(second.researched).toBe(false); // determination already existed
+    expect(researchCalls).toHaveBeenCalledTimes(1);
+    const active = await deps.signals.listByProspect('user_a', first.prospect.id);
+    expect(active.filter((row) => row.kind === 'PUBLIC_INTENT')).toHaveLength(1);
+    expect(active.filter((row) => row.kind === 'FIRST_PARTY')).toHaveLength(1);
+  });
+
+  it('C2: re-running Research supersedes and replaces research signals only — PUBLIC_INTENT and FIRST_PARTY stay active', async () => {
+    const signals = fakeResearchSignalRepository();
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]), signals });
+    const first = await recordIntentSignalForOwner(deps, 'user_a', intakeInput(), NOW);
+    await recordIntentIntakeForOwner(
+      deps,
+      'user_a',
+      intakeEvent([{ ...FIRST_PARTY_ENTRY, quote: 'Need an app, 3 lakh' }]),
+      NOW,
+    );
+    const isResearchRow = (row: StoredResearchSignal) => !isIntentSignalKind(row.kind);
+    const researchBefore = signals.rows.filter((row) => isResearchRow(row) && row.supersededAt === null);
+    expect(researchBefore.length).toBeGreaterThan(0);
+
+    await researchProspectForOwner(deps, 'user_a', first.prospect.id);
+
+    // Existing research semantics unchanged: every prior research row is superseded, fresh rows replace them.
+    expect(researchBefore.every((row) => row.supersededAt !== null)).toBe(true);
+    const active = await signals.listByProspect('user_a', first.prospect.id);
+    const researchAfter = active.filter(isResearchRow);
+    expect(researchAfter).toHaveLength(researchBefore.length);
+    expect(researchAfter.some((row) => researchBefore.some((before) => before.id === row.id))).toBe(false);
+    expect(active.filter((row) => row.kind === 'PUBLIC_INTENT')).toHaveLength(1);
+    expect(active.filter((row) => row.kind === 'FIRST_PARTY')).toHaveLength(1);
+  });
+
+  it('D3: a ServiceProfile that does not list the intake kind gets no offer from it', async () => {
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch({ triggers: ['WEBSITE'], keywords: ['app'] })]),
+    });
+    await recordIntentSignalForOwner(deps, 'user_a', intakeInput(), NOW);
+    expect(deps.opportunities.rows[0]!.needDetected).toBe(false);
+    expect(deps.qualifications.rows[0]!.state).toBe('NOT_QUALIFIED');
+  });
+
+  it('D3: a ServiceProfile opting into PUBLIC_INTENT can consume the signal through the existing offer engine', async () => {
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch({ triggers: ['PUBLIC_INTENT'], keywords: ['app'] })]),
+    });
+    await recordIntentSignalForOwner(deps, 'user_a', intakeInput(), NOW);
+    const opportunity = deps.opportunities.rows[0]!;
+    expect(opportunity.needDetected).toBe(true);
+    expect(opportunity.offer!.basedOn).toEqual(['Looking for someone to build an app for our restaurant']);
+    expect(opportunity.offer!.fit).toBe(70);
+    expect(deps.qualifications.rows[0]!.state).toBe('QUALIFIED');
+  });
+
+  it('D3: a ServiceProfile opting into FIRST_PARTY consumes FIRST_PARTY but not PUBLIC_INTENT', async () => {
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch({ triggers: ['FIRST_PARTY'], keywords: ['app'] })]),
+    });
+    await recordIntentIntakeForOwner(
+      deps,
+      'user_a',
+      intakeEvent([{ ...FIRST_PARTY_ENTRY, quote: 'I need an app for my institute' }]),
+      NOW,
+    );
+    expect(deps.opportunities.rows[0]!.needDetected).toBe(true);
+    expect(deps.opportunities.rows[0]!.offer!.fit).toBe(90);
+
+    const other = buildDeps({
+      searches: fakeSearchRepository([intakeSearch({ triggers: ['FIRST_PARTY'], keywords: ['app'] })]),
+    });
+    await recordIntentSignalForOwner(other, 'user_a', intakeInput(), NOW); // PUBLIC_INTENT
+    expect(other.opportunities.rows[0]!.needDetected).toBe(false);
+  });
+
+  it('D4: CATEGORY_PLAUSIBLE stays enforced — an opted-in intent need with a MISMATCH determination is NOT_QUALIFIED', async () => {
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch({ triggers: ['PUBLIC_INTENT'], keywords: ['app'] })]),
+      researchProvider: () => fakeResearchProvider(mismatchResearch()),
+    });
+    await recordIntentSignalForOwner(deps, 'user_a', intakeInput(), NOW);
+    expect(deps.opportunities.rows[0]!.needDetected).toBe(true);
+    const qualification = deps.qualifications.rows[0]!;
+    expect(qualification.state).toBe('NOT_QUALIFIED');
+    expect(qualification.criteria.find((c) => c.criterion === 'CATEGORY_PLAUSIBLE')!.satisfied).toBe(false);
+  });
+
+  // ---- Multi-signal intake event ------------------------------------------
+
+  function intakeEvent(signals: Record<string, unknown>[], overrides: Record<string, unknown> = {}) {
+    const event = {
+      searchId: 'search_1',
+      companyName: 'Acme Co',
+      website: 'https://acme.example.com',
+      signals: signals.map((entry) => ({
+        kind: 'PUBLIC_INTENT',
+        field: 'requestedMobileApp',
+        quote: 'Looking for someone to build an app for our restaurant',
+        sourceUrl: 'https://forum.example.org/t/123',
+        sourceLabel: 'Public forum post',
+        observedAt: OBSERVED_AT,
+        ...entry,
+      })),
+      ...overrides,
+    };
+    return {
+      ...(signals.some((entry) => entry.kind === 'FIRST_PARTY') ? { providerAuthenticity: providerProof(event) } : {}),
+      ...event,
+    } as Parameters<typeof recordIntentIntakeForOwner>[2];
+  }
+
+  const FIRST_PARTY_ENTRY = {
+    kind: 'FIRST_PARTY',
+    field: 'statedRequirement',
+    quote: 'We want an ordering app, budget 3 lakh',
+    sourceUrl: 'https://landing.example.com/forms/7',
+    sourceLabel: 'AI-platform acquisition · ai referral',
+    observedAt: new Date('2026-01-31T10:00:00.000Z'),
+    authorizationEvidence: AUTHORIZATION_EVIDENCE,
+  };
+
+  // ---- FIRST_PARTY authorization evidence (INTENT-INTAKE-AUTH-EVIDENCE-DESIGN-001) ----
+
+  it('OD-7 / OD-8: evidence reaches saveSignals on the FIRST_PARTY row only; PUBLIC_INTENT carries none', async () => {
+    const signals = fakeResearchSignalRepository();
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]), signals });
+    await recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}, FIRST_PARTY_ENTRY]), NOW);
+    const intakeInputs = signals.inputs.filter((input) => isIntentSignalKind(input.kind));
+    expect(intakeInputs.map((input) => input.kind)).toEqual(['PUBLIC_INTENT', 'FIRST_PARTY']);
+    expect(intakeInputs[0]).not.toHaveProperty('authorizationEvidence');
+    expect(intakeInputs[1]!.authorizationEvidence).toEqual(AUTHORIZATION_EVIDENCE);
+    // Research-produced rows never carry evidence.
+    expect(signals.inputs.filter((input) => !isIntentSignalKind(input.kind)).every((input) => input.authorizationEvidence === undefined)).toBe(true);
+  });
+
+  it.each([
+    ['no evidence', { authorizationEvidence: undefined }, 'signals[1].authorizationEvidence', 'required'],
+    ['REVOKED', { authorizationEvidence: { ...AUTHORIZATION_EVIDENCE, status: 'REVOKED' } }, 'signals[1].authorizationEvidence.status', 'not-allowed'],
+    [
+      'expired (> 90 days before receipt)',
+      { authorizationEvidence: { ...AUTHORIZATION_EVIDENCE, authorizedAt: new Date('2025-11-01T00:00:00.000Z') } },
+      'signals[1].authorizationEvidence.authorizedAt',
+      'not-allowed',
+    ],
+  ])('OD-6 / OD-7: FIRST_PARTY with %s rejects the whole event before any write', async (_name, patch, field, reason) => {
+    const signals = fakeResearchSignalRepository();
+    const companies = fakeCompanyRepository();
+    const findOrCreate = vi.spyOn(companies, 'findOrCreateByDomain');
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]), signals, companies });
+    await expect(
+      recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}, { ...FIRST_PARTY_ENTRY, ...patch }]), NOW),
+    ).rejects.toMatchObject({ name: 'IntentSignalValidationError', field, reason });
+    expect(signals.rows).toHaveLength(0);
+    expect(findOrCreate).not.toHaveBeenCalled();
+    expect(deps.opportunities.rows).toHaveLength(0);
+  });
+
+  it.each([
+    ['no proof', { providerAuthenticity: undefined }, 'providerAuthenticity', 'required'],
+    ['a forged proof', { providerAuthenticity: { integrationId: 'integration-0001', keyId: 'test-key-1' } }, 'providerAuthenticity', 'required'],
+    ['a proof for another integration', { providerAuthenticity: 'OTHER' }, 'signals[1].authorizationEvidence.integrationId', 'invalid'],
+  ])('OD-13 P3: FIRST_PARTY with %s is refused at the save boundary before any lookup or write', async (_name, patch, field, reason) => {
+    const signals = fakeResearchSignalRepository();
+    const companies = fakeCompanyRepository();
+    const findOrCreate = vi.spyOn(companies, 'findOrCreateByDomain');
+    const searches = fakeSearchRepository([intakeSearch()]);
+    const getById = vi.spyOn(searches, 'getById');
+    const deps = buildDeps({ searches, signals, companies });
+    const proof =
+      patch.providerAuthenticity === 'OTHER'
+        ? providerProof(intakeEvent([{}, FIRST_PARTY_ENTRY]), 'integration-9999')
+        : patch.providerAuthenticity;
+    await expect(
+      recordIntentIntakeForOwner(deps, 'user_a', { ...intakeEvent([{}, FIRST_PARTY_ENTRY]), providerAuthenticity: proof as never }, NOW),
+    ).rejects.toMatchObject({ name: 'IntentSignalValidationError', field, reason });
+    expect(getById).not.toHaveBeenCalled();
+    expect(findOrCreate).not.toHaveBeenCalled();
+    expect(signals.rows).toHaveLength(0);
+    expect(deps.opportunities.rows).toHaveLength(0);
+  });
+
+  it.each([
+    ['a changed quote', (event: Record<string, unknown>) => ({ ...event, signals: [(event.signals as unknown[])[0], { ...FIRST_PARTY_ENTRY, quote: 'We want a different app' }] }), 'signals[1]'],
+    ['an extra FIRST_PARTY entry', (event: Record<string, unknown>) => ({ ...event, signals: [...(event.signals as unknown[]), FIRST_PARTY_ENTRY] }), 'signals[3]'],
+    ['a missing FIRST_PARTY entry', (event: Record<string, unknown>) => ({ ...event, signals: (event.signals as unknown[]).slice(0, 2) }), 'signals'],
+    ['a changed companyName', (event: Record<string, unknown>) => ({ ...event, companyName: 'Other Co' }), 'companyName'],
+    ['a changed website', (event: Record<string, unknown>) => ({ ...event, website: 'https://other.example.com' }), 'website'],
+  ])('OD-13 X1: FIRST_PARTY with %s is refused as result-mismatch before any lookup or write', async (_name, alter, field) => {
+    const signals = fakeResearchSignalRepository();
+    const companies = fakeCompanyRepository();
+    const findOrCreate = vi.spyOn(companies, 'findOrCreateByDomain');
+    const searches = fakeSearchRepository([intakeSearch()]);
+    const getById = vi.spyOn(searches, 'getById');
+    const deps = buildDeps({ searches, signals, companies });
+    const genuine = intakeEvent([{}, FIRST_PARTY_ENTRY, { ...FIRST_PARTY_ENTRY, quote: 'Delivery tracking is a must' }]);
+    const presented = { ...alter(genuine as unknown as Record<string, unknown>), providerAuthenticity: genuine.providerAuthenticity };
+    const error = await recordIntentIntakeForOwner(deps, 'user_a', presented as never, NOW).catch((e: unknown) => e);
+    expect(error).toMatchObject({ name: 'IntentSignalValidationError', field, reason: 'result-mismatch' });
+    expect(JSON.stringify(error) + (error as Error).message).not.toMatch(/Other Co|other\.example|different app|ordering app|Delivery tracking|Acme|integration-/);
+    expect(getById).not.toHaveBeenCalled();
+    expect(findOrCreate).not.toHaveBeenCalled();
+    expect(signals.rows).toHaveLength(0);
+    expect(deps.opportunities.rows).toHaveLength(0);
+  });
+
+  it('OD-13 X1: a genuine proof whose result carries no SUPPLIED_TO_US item cannot authorize hand-built FIRST_PARTY signals', async () => {
+    const signals = fakeResearchSignalRepository();
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]), signals });
+    const event = { ...intakeEvent([{}, FIRST_PARTY_ENTRY]), providerAuthenticity: signedProof({ fixture: true }) };
+    await expect(recordIntentIntakeForOwner(deps, 'user_a', event, NOW)).rejects.toMatchObject({
+      name: 'IntentSignalValidationError',
+      field: 'signals[1]',
+      reason: 'result-mismatch',
+    });
+    expect(signals.rows).toHaveLength(0);
+  });
+
+  it('OD-13 X1: PUBLIC_INTENT entries and searchId are outside the binding; the same proof is accepted again (not single-use)', async () => {
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch(), { ...intakeSearch(), id: 'search_2' }]) });
+    const genuine = intakeEvent([{}, FIRST_PARTY_ENTRY]);
+    const extraPublic = { ...genuine.signals[0]!, quote: 'Also want a loyalty app' };
+    const first = await recordIntentIntakeForOwner(deps, 'user_a', { ...genuine, signals: [extraPublic, ...genuine.signals, extraPublic] }, NOW);
+    const second = await recordIntentIntakeForOwner(deps, 'user_a', { ...genuine, searchId: 'search_2' }, NOW);
+    expect(first.signals.map((row) => row.kind)).toEqual(['PUBLIC_INTENT', 'PUBLIC_INTENT', 'FIRST_PARTY', 'PUBLIC_INTENT']);
+    expect(second.signals.map((row) => row.kind)).toEqual(['PUBLIC_INTENT', 'FIRST_PARTY']);
+  });
+
+  it('OD-13 Q12: an event with no FIRST_PARTY signal needs no proof', async () => {
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]) });
+    const result = await recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}]), NOW);
+    expect(result.signals.map((row) => row.kind)).toEqual(['PUBLIC_INTENT']);
+  });
+
+  it('OD-7: evidence on a PUBLIC_INTENT entry rejects the whole event', async () => {
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]) });
+    await expect(
+      recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{ authorizationEvidence: AUTHORIZATION_EVIDENCE }]), NOW),
+    ).rejects.toMatchObject({ field: 'signals[0].authorizationEvidence', reason: 'not-allowed' });
+    expect((deps.signals as ReturnType<typeof fakeResearchSignalRepository>).rows).toHaveLength(0);
+  });
+
+  it('OD-8 / OD-12: a failed signal write rolls back every signal of the event, is thrown, and is not retried; nothing downstream runs', async () => {
+    const signals = fakeResearchSignalRepository();
+    const realSave = signals.saveSignals.bind(signals);
+    let calls = 0;
+    signals.saveSignals = (async (...args: Parameters<typeof realSave>) => {
+      calls += 1;
+      if (calls === 2) throw new Error('simulated source INSERT failure');
+      return realSave(...args);
+    }) as typeof signals.saveSignals;
+    const researchCalls = vi.fn();
+    const companies = fakeCompanyRepository();
+    const findOrCreate = vi.spyOn(companies, 'findOrCreateByDomain');
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch()]),
+      signals,
+      companies,
+      researchProvider: () => ({
+        async research() {
+          researchCalls();
+          return sampleResearch();
+        },
+      }),
+    });
+
+    await expect(
+      recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}, FIRST_PARTY_ENTRY]), NOW),
+    ).rejects.toThrow('simulated source INSERT failure');
+
+    expect(calls).toBe(2); // no automatic retry
+    expect(signals.rows).toHaveLength(0);
+    expect(signals.inputs).toHaveLength(0);
+    expect(researchCalls).not.toHaveBeenCalled();
+    expect(deps.opportunities.rows).toHaveLength(0);
+    // Company / Prospect find-or-create stay outside the transaction (OD-8 item 2).
+    expect(findOrCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('OD-8: every signal write of one event runs inside one signalTransaction call', async () => {
+    const signals = fakeResearchSignalRepository();
+    let transactions = 0;
+    let writesOutside = 0;
+    let inside = false;
+    const realSave = signals.saveSignals.bind(signals);
+    signals.saveSignals = (async (...args: Parameters<typeof realSave>) => {
+      if (!inside && isIntentSignalKind(args[1][0]!.kind)) writesOutside += 1;
+      return realSave(...args);
+    }) as typeof signals.saveSignals;
+    const base = fakeSignalTransaction(signals);
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch()]),
+      signals,
+      signalTransaction: async (fn) => {
+        transactions += 1;
+        inside = true;
+        try {
+          return await base(fn);
+        } finally {
+          inside = false;
+        }
+      },
+    });
+    await recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}, FIRST_PARTY_ENTRY, {}]), NOW);
+    expect(transactions).toBe(1);
+    expect(writesOutside).toBe(0);
+  });
+
+  it('multi-signal: one event with PUBLIC_INTENT + FIRST_PARTY persists both — OBSERVED, 70 / 90, each with its own observedAt, neither superseded', async () => {
+    const researchCalls = vi.fn();
+    const signals = fakeResearchSignalRepository();
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch()]),
+      signals,
+      researchProvider: () => ({
+        async research() {
+          researchCalls();
+          return sampleResearch();
+        },
+      }),
+    });
+
+    const result = await recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}, FIRST_PARTY_ENTRY]), NOW);
+
+    expect(result.signals).toHaveLength(2);
+    expect(result.signals[0]).toMatchObject({
+      kind: 'PUBLIC_INTENT',
+      classification: 'OBSERVED',
+      confidence: 70,
+      observedAt: OBSERVED_AT,
+      supersededAt: null,
+    });
+    expect(result.signals[1]).toMatchObject({
+      kind: 'FIRST_PARTY',
+      classification: 'OBSERVED',
+      confidence: 90,
+      observedAt: FIRST_PARTY_ENTRY.observedAt,
+      supersededAt: null,
+    });
+    // Research ran after both signals were stored, and neither was superseded by it.
+    const active = await signals.listByProspect('user_a', result.prospect.id);
+    expect(active.filter((row) => row.kind === 'PUBLIC_INTENT')).toHaveLength(1);
+    expect(active.filter((row) => row.kind === 'FIRST_PARTY')).toHaveLength(1);
+    expect(researchCalls).toHaveBeenCalledTimes(1);
+    expect(result.researched).toBe(true);
+    // The existing pipeline ran once for the one Prospect.
+    expect(deps.opportunities.rows).toHaveLength(1);
+    expect(deps.opportunities.rows[0]!.id).toBe(result.opportunityId);
+    expect(deps.qualifications.rows).toHaveLength(1);
+  });
+
+  it('multi-signal: a one-signal event behaves exactly like the single-signal form', async () => {
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]) });
+    const result = await recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}]), NOW);
+    expect(result.signals).toHaveLength(1);
+    expect(result.signals[0]).toMatchObject({ kind: 'PUBLIC_INTENT', classification: 'OBSERVED', confidence: 70 });
+    expect(deps.opportunities.rows).toHaveLength(1);
+  });
+
+  it('multi-signal: a caller-supplied confidence on any entry rejects the whole event — nothing is persisted', async () => {
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]) });
+    await expect(
+      recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}, { ...FIRST_PARTY_ENTRY, confidence: 100 }]), NOW),
+    ).rejects.toMatchObject({ name: 'IntentSignalValidationError', field: 'signals[1].confidence', reason: 'not-allowed' });
+    await expect(
+      recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}], { confidence: 100 }), NOW),
+    ).rejects.toMatchObject({ field: 'confidence', reason: 'not-allowed' });
+    await expect(recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([]), NOW)).rejects.toMatchObject({
+      field: 'signals',
+      reason: 'required',
+    });
+    expect((deps.signals as ReturnType<typeof fakeResearchSignalRepository>).rows).toHaveLength(0);
+    expect(deps.opportunities.rows).toHaveLength(0);
+  });
+
+  it('supersession: repeated multi-signal intake and a later Research run keep every intake signal active; research rows are still superseded same-kind', async () => {
+    const signals = fakeResearchSignalRepository();
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch()]), signals });
+    const first = await recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}, FIRST_PARTY_ENTRY]), NOW);
+    const second = await recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}, FIRST_PARTY_ENTRY]), NOW);
+    expect(second.prospect.id).toBe(first.prospect.id);
+    expect(second.researched).toBe(false);
+
+    const isResearchRow = (row: StoredResearchSignal) => !isIntentSignalKind(row.kind);
+    const researchBefore = signals.rows.filter((row) => isResearchRow(row) && row.supersededAt === null);
+    expect(researchBefore.length).toBeGreaterThan(0);
+
+    await researchProspectForOwner(deps, 'user_a', first.prospect.id);
+
+    expect(researchBefore.every((row) => row.supersededAt !== null)).toBe(true);
+    const active = await signals.listByProspect('user_a', first.prospect.id);
+    expect(active.filter(isResearchRow)).toHaveLength(researchBefore.length);
+    expect(active.filter((row) => row.kind === 'PUBLIC_INTENT')).toHaveLength(2);
+    expect(active.filter((row) => row.kind === 'FIRST_PARTY')).toHaveLength(2);
+  });
+
+  it('E1: intake on a Prospect with an existing Opportunity creates no second Opportunity and leaves its offer / next action untouched', async () => {
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch({ triggers: ['PUBLIC_INTENT'], keywords: ['app'] })]),
+    });
+    // FIRST_PARTY is not opted in, so the Opportunity is created with no offer.
+    const first = await recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([FIRST_PARTY_ENTRY]), NOW);
+    expect(deps.opportunities.rows).toHaveLength(1);
+    const before = structuredClone(deps.opportunities.rows[0]!);
+    expect(before.needDetected).toBe(false);
+
+    // An opted-in PUBLIC_INTENT signal arrives later — it is persisted, but the offer is not re-evaluated.
+    const later = new Date(NOW.getTime() + 60_000);
+    const second = await recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}, FIRST_PARTY_ENTRY]), later);
+
+    expect(second.opportunityId).toBe(first.opportunityId);
+    expect(deps.opportunities.rows).toHaveLength(1);
+    expect(deps.opportunities.rows[0]).toEqual(before);
+    const active = await deps.signals.listByProspect('user_a', first.prospect.id);
+    expect(active.filter((row) => row.kind === 'PUBLIC_INTENT')).toHaveLength(1);
+  });
+
+  it.each(['PENDING', 'RUNNING', 'COMPLETE', 'FAILED', 'CANCELLED'] as const)(
+    'E2: a %s Search is accepted — status is neither gated nor changed, and never stands in for research evidence',
+    async (status) => {
+      const search = { ...intakeSearch({ triggers: ['PUBLIC_INTENT'], keywords: ['app'] }), status };
+      const deps = buildDeps({
+        searches: fakeSearchRepository([search]),
+        researchProvider: () => fakeResearchProvider(mismatchResearch()),
+      });
+
+      const result = await recordIntentIntakeForOwner(deps, 'user_a', intakeEvent([{}, FIRST_PARTY_ENTRY]), NOW);
+
+      expect(result.signals).toHaveLength(2);
+      expect(deps.searches.rows).toHaveLength(1);
+      expect(deps.searches.rows[0]!.status).toBe(status);
+      // The only determination is the one the existing Research run produced (MISMATCH);
+      // the Search's status never yields CATEGORY_PLAUSIBLE.
+      const categoryPlausibility = deps.categoryPlausibility as ReturnType<
+        typeof fakeCategoryPlausibilityRepository
+      >;
+      expect(categoryPlausibility.rows).toHaveLength(1);
+      const qualification = deps.qualifications.rows[0]!;
+      expect(qualification.state).toBe('NOT_QUALIFIED');
+      expect(qualification.criteria.find((c) => c.criterion === 'CATEGORY_PLAUSIBLE')!.satisfied).toBe(false);
+    },
+  );
+
+  // ---- Acquisition-source adapters → canonical intake -----------------------
+
+  /** A signed AI-platform result through P1 + P2 (normalizeVerifiedProviderResult): the intake carries its proof. */
+  function aiPlatformEvent() {
+    const outcome = normalizeVerifiedProviderResult(
+      signedProof({
+        sourceFamily: 'AI_PLATFORM_ACQUISITION',
+        acquisitionType: 'AI_REFERRAL',
+        externalId: 'aiad-evt-0042',
+        business: { name: 'Acme Co', website: 'https://acme.example.com' },
+        sourceReference: 'https://landing.example.com/forms/ai-referral',
+        evidence: [
+          {
+            origin: 'SUPPLIED_TO_US',
+            derivation: 'STATED_BY_BUSINESS',
+            requirement: 'statedRequirement',
+            statement: 'We want an ordering app, budget 3 lakh',
+            observedAt: new Date('2026-01-31T10:00:00.000Z'),
+          },
+          {
+            origin: 'PUBLISHED',
+            derivation: 'STATED_BY_BUSINESS',
+            requirement: 'requestedMobileApp',
+            statement: 'Looking for someone to build an app for our restaurant',
+            referenceUrl: 'https://forum.example.org/t/123',
+            observedAt: OBSERVED_AT,
+          },
+        ],
+        capturedAt: NOW,
+        provenance: { integration: AUTHORIZATION_EVIDENCE.integrationId, retrieval: 'AUTHORIZED_INTEGRATION' },
+        authorization: { ...AUTHORIZATION_EVIDENCE, basis: 'fixture: basis as stated by the integration', reference: null },
+      }),
+      { searchId: 'search_1', now: NOW },
+    );
+    if (outcome.status !== 'NORMALIZED') throw new Error(`expected NORMALIZED, got ${JSON.stringify(outcome)}`);
+    return outcome.event;
+  }
+
+  it('source adapter: a normalized PUBLIC_INTENT + FIRST_PARTY event goes through the unchanged intake — provenance persisted, research then qualification', async () => {
+    const signals = fakeResearchSignalRepository();
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch({ triggers: ['WEBSITE'], keywords: ['app'] })]),
+      signals,
+      researchProvider: () => fakeResearchProvider(mismatchResearch()),
+    });
+
+    const result = await recordIntentIntakeForOwner(deps, 'user_a', aiPlatformEvent().intake, NOW);
+
+    expect(result.signals.map((row) => [row.kind, row.classification, row.confidence])).toEqual([
+      ['FIRST_PARTY', 'OBSERVED', 90],
+      ['PUBLIC_INTENT', 'OBSERVED', 70],
+    ]);
+    expect(result.signals.map((row) => row.sources[0]!.sourceLabel)).toEqual([
+      'AI-platform acquisition · ai referral',
+      'AI-platform acquisition · ai referral',
+    ]);
+    expect(result.signals[1]!.sources[0]!.sourceUrl).toBe('https://forum.example.org/t/123');
+    expect(result.researched).toBe(true);
+    // Opt-in unchanged (profile lists neither intake kind) and no category-plausibility shortcut.
+    expect(deps.opportunities.rows).toHaveLength(1);
+    expect(deps.opportunities.rows[0]!.needDetected).toBe(false);
+    expect(deps.qualifications.rows[0]!.state).toBe('NOT_QUALIFIED');
+    expect(
+      deps.qualifications.rows[0]!.criteria.find((c) => c.criterion === 'CATEGORY_PLAUSIBLE')!.satisfied,
+    ).toBe(false);
+  });
+
+  it('source adapter: replaying the same normalized event reuses the Opportunity unchanged (E1); persistence is append-only, not deduplicated', async () => {
+    const deps = buildDeps({
+      searches: fakeSearchRepository([intakeSearch({ triggers: ['PUBLIC_INTENT'], keywords: ['app'] })]),
+    });
+    const first = aiPlatformEvent();
+    const replay = aiPlatformEvent();
+    expect(replay.eventId).toBe(first.eventId);
+
+    const a = await recordIntentIntakeForOwner(deps, 'user_a', first.intake, NOW);
+    const before = structuredClone(deps.opportunities.rows[0]!);
+    const b = await recordIntentIntakeForOwner(deps, 'user_a', replay.intake, NOW);
+
+    expect(b.opportunityId).toBe(a.opportunityId);
+    expect(deps.opportunities.rows).toHaveLength(1);
+    expect(deps.opportunities.rows[0]).toEqual(before);
+    const active = await deps.signals.listByProspect('user_a', a.prospect.id);
+    expect(active.filter((row) => isIntentSignalKind(row.kind))).toHaveLength(4);
+  });
+
+  it('provider contract: mock provider batch → adapter → normalizeIntentEvent → unchanged multi-signal intake → Prospect / Research / Qualification; no I/O', async () => {
+    const fetchSpy = vi.fn(() => {
+      throw new Error('network access is not allowed');
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    try {
+      const provenance = { integration: 'fixture', retrieval: 'PUBLIC_NOTICE_FEED' } as const;
+      const notice = {
+        sourceFamily: 'PUBLIC_INTENT_NOTICE',
+        noticeType: 'TECHNOLOGY_MIGRATION',
+        externalId: 'notice-migr-0042',
+        title: 'Acme Co platform migration',
+        url: 'https://notices.example.org/acme/migration',
+        body: 'Acme Co will migrate its ordering website to a new platform and needs a native mobile app.',
+        observedAt: OBSERVED_AT,
+        capturedAt: NOW,
+        business: { name: 'Acme Co', website: 'https://acme.example.com' },
+        publication: { publisher: 'Example Notices', publishedAt: OBSERVED_AT },
+        provenance,
+        intentEvidence: [
+          { requirement: 'requestedRedesign', evidence: 'will migrate its ordering website to a new platform' },
+          { requirement: 'requestedMobileApp', evidence: 'needs a native mobile app' },
+        ],
+      } as const;
+      const outcomes = normalizeProviderBatch(
+        [notice, notice, { ...notice, externalId: 'notice-anon', business: null }],
+        { searchId: 'search_1', now: NOW },
+      );
+      expect(outcomes.map((o) => o.status)).toEqual(['NORMALIZED', 'DUPLICATE_IN_BATCH', 'UNATTRIBUTED']);
+      const event = outcomes[0]!.status === 'NORMALIZED' ? outcomes[0]!.event : undefined;
+
+      const deps = buildDeps({
+        searches: fakeSearchRepository([intakeSearch({ triggers: ['WEBSITE'], keywords: ['app'] })]),
+        researchProvider: () => fakeResearchProvider(mismatchResearch()),
+      });
+      const result = await recordIntentIntakeForOwner(deps, 'user_a', event!.intake, NOW);
+
+      expect(result.prospect.id).toBeDefined();
+      expect(result.signals.map((row) => [row.kind, row.classification, row.confidence])).toEqual([
+        ['PUBLIC_INTENT', 'OBSERVED', 70],
+        ['PUBLIC_INTENT', 'OBSERVED', 70],
+      ]);
+      expect(result.signals.map((row) => row.sources[0]!.sourceLabel)).toEqual([
+        'Public intent notice · technology migration',
+        'Public intent notice · technology migration',
+      ]);
+      expect(result.signals[0]!.sources[0]!.sourceUrl).toBe('https://notices.example.org/acme/migration');
+      expect(result.researched).toBe(true);
+      // Existing semantics unchanged: opt-in (profile lists no intake kind), D4, no category-plausibility shortcut.
+      expect(deps.opportunities.rows).toHaveLength(1);
+      expect(deps.opportunities.rows[0]!.needDetected).toBe(false);
+      expect(deps.qualifications.rows[0]!.state).toBe('NOT_QUALIFIED');
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('D4: without any determination repository there is no Qualification — intake never bypasses CATEGORY_PLAUSIBLE', async () => {
+    const deps = buildDeps({ searches: fakeSearchRepository([intakeSearch({ triggers: ['PUBLIC_INTENT'], keywords: ['app'] })]) });
+    delete (deps as Partial<SearchWorkerDeps>).categoryPlausibility;
+    const result = await recordIntentSignalForOwner(deps, 'user_a', intakeInput(), NOW);
+    expect(result.researched).toBe(true);
+    expect(deps.qualifications.rows).toHaveLength(0);
   });
 });

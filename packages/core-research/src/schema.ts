@@ -165,6 +165,117 @@ export type Observation = z.infer<typeof observationSchema>;
 /** A list of claims, each independently classified. */
 const observationList = z.array(observationSchema).max(8);
 
+// Category plausibility (Path 2, D2/D3/D9) — a separate axis from the
+// OBSERVED/INFERRED/UNKNOWN provenance model above: not "how do we know
+// this", but "does the evidence show this business serves THIS specific
+// target-customer segment". Deliberately reuses evidenceSchema (the same
+// quote/sourceUrl/sourceLabel shape) rather than inventing a second
+// evidence representation (D3: "reuse the existing evidence/provenance
+// model where technically appropriate").
+//
+// Segment IDENTIFICATION is deterministic code, never the model's job
+// (D2/D9 §5 — "parsing is code, not provider interpretation"): the caller
+// supplies the already-parsed segments (ResearchInput.targetSegments,
+// rendered by prompt.ts), in order, and the model returns exactly one
+// verdict per segment, in that same order — see
+// ./categoryPlausibility.ts's verifyCategoryPlausibility() for the
+// count/order check, which feeds the same repair loop provenance
+// failures do. Aggregation across segments (ANY-match, D2) is likewise
+// deterministic code, not a model output — see
+// ./categoryPlausibility.ts's aggregateCategoryFit().
+export const CATEGORY_FITS = ['MATCH', 'MISMATCH', 'UNKNOWN'] as const;
+export const categoryFitSchema = z.enum(CATEGORY_FITS);
+export type CategoryFit = (typeof CATEGORY_FITS)[number];
+
+export const categorySegmentSchema = z
+  .object({
+    fit: categoryFitSchema.describe(
+      'MATCH: the evidence shows this business serves THIS specific target-customer segment. ' +
+        'MISMATCH: the evidence shows this business does NOT serve this segment. UNKNOWN: the ' +
+        'evidence does not say either way. Generic or weak evidence is UNKNOWN, never a guess.',
+    ),
+    /**
+     * Required for every model-returned entry (F-1 §13/§14): the verdict's
+     * reasoning for MATCH/MISMATCH, the insufficiency reasoning for UNKNOWN.
+     * Stays nullable in the model-facing schema only so the JSON Schema
+     * shape is unchanged; the superRefine below rejects null. The only
+     * persisted null is code's NO_MODEL_VERDICT fill (./categoryPlausibility.ts).
+     */
+    rationale: z
+      .string()
+      .trim()
+      .min(1)
+      .max(400)
+      .nullable()
+      .describe(
+        'Always required. For MATCH/MISMATCH: one sentence explaining the verdict from the cited ' +
+          'quotes. For UNKNOWN: one sentence stating what evidence was absent or insufficient for ' +
+          'this segment — never asserting MATCH or MISMATCH.',
+      ),
+    evidence: z
+      .array(evidenceSchema)
+      .max(3)
+      .default([])
+      .describe(
+        'Required, at least one entry, for MATCH/MISMATCH — a quote copied verbatim from a ' +
+          'supplied source document, exactly like OBSERVED evidence elsewhere in this schema. ' +
+          'Must be [] for UNKNOWN — insufficient evidence is UNKNOWN, never a guessed verdict.',
+      ),
+    /**
+     * F-1 §6 (F1-A): a category-plausibility-specific 0-100 value — how
+     * strongly the cited, verbatim-verified evidence supports THIS
+     * segment's verdict. Not a probability, not LeadResearch.confidence,
+     * not an Observation's confidence, and never changes the outcome.
+     */
+    confidence: z
+      .number()
+      .int()
+      .min(0)
+      .max(100)
+      .describe(
+        'How strongly the cited quotes support this segment\'s verdict: an integer 1-100 for ' +
+          'MATCH/MISMATCH; exactly 0 for UNKNOWN. It does not change the verdict.',
+      ),
+  })
+  .superRefine((seg, ctx) => {
+    if (seg.rationale === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rationale'],
+        message:
+          seg.fit === 'UNKNOWN'
+            ? 'UNKNOWN requires a rationale stating what evidence was absent or insufficient for this segment'
+            : `${seg.fit} requires a rationale`,
+      });
+    }
+    if (seg.fit === 'UNKNOWN') {
+      if (seg.evidence.length > 0) {
+        ctx.addIssue({ code: 'custom', path: ['evidence'], message: 'UNKNOWN cannot have evidence' });
+      }
+      if (seg.confidence !== 0) {
+        ctx.addIssue({ code: 'custom', path: ['confidence'], message: 'UNKNOWN must have confidence 0' });
+      }
+    } else {
+      if (seg.confidence < 1) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['confidence'],
+          message: `${seg.fit} requires a confidence between 1 and 100`,
+        });
+      }
+      if (seg.evidence.length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['evidence'],
+          message: `${seg.fit} requires at least one quote with a source URL — if the evidence is ` +
+            `insufficient to be sure, the verdict is UNKNOWN, not ${seg.fit}`,
+        });
+      }
+    }
+  });
+
+export type CategorySegmentResult = z.infer<typeof categorySegmentSchema>;
+
 export const RECOMMENDED_SERVICES = [
   'AI content system',
   'Lead generation automation',
@@ -177,6 +288,13 @@ export const leadResearchSchema = z.object({
   companySummary: observationSchema,
   businessModel: observationSchema,
   targetCustomers: observationSchema,
+
+  // Path 2 category plausibility (D1/D7): deliberately NOT part of
+  // allObservations() below — this field never becomes a ResearchSignal,
+  // never enters FIELD_KIND, and never reaches toOfferSignals()/
+  // suggestOffers() (R-71). One entry per ResearchInput.targetSegments,
+  // in the same order — see ./categoryPlausibility.ts.
+  categoryPlausibility: z.array(categorySegmentSchema).max(10).default([]),
 
   visibleProblems: observationList,
   growthOpportunities: observationList,
@@ -210,6 +328,15 @@ export const researchInputSchema = z.object({
   industry: z.string().trim().min(1).max(120).optional(),
   location: z.string().trim().min(1).max(120).optional(),
   socialProfileUrl: z.string().trim().url().optional(),
+  /**
+   * The participant's target-customer, already deterministically parsed
+   * into segments (D2/D9 §5 — see ./categoryPlausibility.ts's
+   * parseTargetSegments()). Empty when no Search context was supplied
+   * (e.g. a caller outside the worker's Search-scoped pipeline) — the
+   * model then returns categoryPlausibility: [], and the aggregate is
+   * UNKNOWN (E9: absence of segments is not evaluated as MISMATCH).
+   */
+  targetSegments: z.array(z.string().trim().min(1).max(200)).max(10).default([]),
   /** Raw text the caller already fetched. The model sees only this. */
   sourceDocuments: z
     .array(

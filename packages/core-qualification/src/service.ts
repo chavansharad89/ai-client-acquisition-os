@@ -1,6 +1,6 @@
 import { requireUser, type IdentityRepository } from '@acos/core-identity';
 import { OpportunityNotFoundError, type OpportunityRepository } from '@acos/core-opportunity';
-import type { ResearchSignalRepository } from '@acos/core-research';
+import type { CategoryPlausibilityRepository, ResearchSignalRepository } from '@acos/core-research';
 
 import { evaluateQualification } from './evaluator';
 import type { QualificationRepository } from './repository';
@@ -11,13 +11,25 @@ import type { StoredQualification } from './types';
 // -----------------------------------------------------------------------
 
 /** Identifies the evaluator build that produced a row (R-40) — bumped only if rules.ts's rule set changes. */
-export const EVALUATOR_VERSION = 'qualification-v1';
+export const EVALUATOR_VERSION = 'qualification-v2';
 
 export interface QualificationDeps {
   identity: IdentityRepository;
   opportunities: OpportunityRepository;
   signals: ResearchSignalRepository;
   qualifications: QualificationRepository;
+  /**
+   * Path 2 category plausibility (D4/D6): reads the CURRENT Search +
+   * Prospect determination by `getCurrentByProspectId` — resolving
+   * ownership AND "which Search is current for this Prospect" entirely
+   * inside that one repository call (a Prospect's `searchId` is
+   * immutable and unique to it), so this stays the only new dependency
+   * `QualificationDeps` needs; no `prospects`/`searches` dependency is
+   * added here (E4 — see @acos/core-research's
+   * CategoryPlausibilityRepository doc comment for why that candidate,
+   * not `OpportunityDeps.searches`'s, was chosen for this read path).
+   */
+  categoryPlausibility: CategoryPlausibilityRepository;
 }
 
 /**
@@ -66,7 +78,15 @@ export async function evaluateQualificationForOwner(
   if (!opportunity) throw new OpportunityNotFoundError(opportunityId);
 
   const signals = await deps.signals.listByProspect(userId, opportunity.prospectId);
-  const evaluation = evaluateQualification({ needDetected: opportunity.needDetected, signals });
+  const categoryPlausibility = await deps.categoryPlausibility.getCurrentByProspectId(
+    userId,
+    opportunity.prospectId,
+  );
+  const evaluation = evaluateQualification({
+    needDetected: opportunity.needDetected,
+    signals,
+    categoryPlausibility,
+  });
 
   return deps.qualifications.upsert(
     opportunity.id,

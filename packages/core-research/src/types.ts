@@ -1,3 +1,4 @@
+import type { AuthorizationEvidence } from './intentSignal';
 import type { ResearchSourceKind } from './persist';
 import type { Classification } from './schema';
 
@@ -35,6 +36,11 @@ export interface NewResearchSignalInput {
   basis: string | null;
   /** Empty for INFERRED/UNKNOWN; one or more for OBSERVED. */
   sources: readonly ResearchSignalSourceInput[];
+  /**
+   * FIRST_PARTY intake only (OD-7): written in the signal row's own INSERT
+   * and never updated (OD-8; migration 0030 trigger). Absent everywhere else.
+   */
+  authorizationEvidence?: AuthorizationEvidence;
 }
 
 export interface StoredResearchSignalSource extends ResearchSignalSourceInput {

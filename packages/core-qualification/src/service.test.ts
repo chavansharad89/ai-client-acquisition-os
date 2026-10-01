@@ -5,7 +5,11 @@ import {
   type StoredSessionToken,
 } from '@acos/core-identity';
 import { OpportunityNotFoundError, type OpportunityRepository, type StoredOpportunity } from '@acos/core-opportunity';
-import type { ResearchSignalRepository, StoredResearchSignal } from '@acos/core-research';
+import type {
+  ResearchSignalRepository,
+  StoredCategoryPlausibilityDetermination,
+  StoredResearchSignal,
+} from '@acos/core-research';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -15,7 +19,7 @@ import {
   getOpportunityQualification,
   type QualificationDeps,
 } from './service';
-import { fakeQualificationRepository } from './testSupport';
+import { fakeCategoryPlausibilityRepository, fakeQualificationRepository } from './testSupport';
 
 // UNIT tests (fakes only — local fakes of other packages' repository
 // interfaces, mirroring apps/worker/src/searchWorker/worker.test.ts's own
@@ -135,9 +139,34 @@ function seedSignal(overrides: Partial<StoredResearchSignal> = {}): StoredResear
   };
 }
 
+function seedDetermination(
+  overrides: Partial<StoredCategoryPlausibilityDetermination> = {},
+): StoredCategoryPlausibilityDetermination {
+  return {
+    id: 'category_plausibility_1',
+    searchId: 'search_1',
+    prospectId: 'prospect_1',
+    targetCustomer: 'Restaurants, Cafes',
+    targetSegments: ['Restaurants, Cafes'],
+    aggregateResult: 'MATCH',
+    segmentResults: [
+      {
+        segment: 'Restaurants, Cafes',
+        fit: 'MATCH',
+        rationale: 'fixture',
+        evidence: [{ quote: 'we serve restaurants and cafes', sourceUrl: 'https://acme.test/about', sourceLabel: 'homepage' }],
+      },
+    ],
+    observedAt: NOW,
+    supersededAt: null,
+    ...overrides,
+  };
+}
+
 function deps(
   opportunities: StoredOpportunity[],
   signals: StoredResearchSignal[] = [],
+  determinations: StoredCategoryPlausibilityDetermination[] = [seedDetermination()],
 ): QualificationDeps {
   const identity = fakeIdentity({
     ...sessionFor('token-a', 'user_a'),
@@ -149,6 +178,7 @@ function deps(
     opportunities: opportunityRepo,
     signals: fakeResearchSignalRepository(signals),
     qualifications: fakeQualificationRepository(opportunities),
+    categoryPlausibility: fakeCategoryPlausibilityRepository(determinations),
   };
 }
 
@@ -214,6 +244,7 @@ describe('evaluateOpportunityQualification / evaluateQualificationForOwner', () 
       opportunities: opportunityRepo,
       signals: fakeResearchSignalRepository(signalRows),
       qualifications: fakeQualificationRepository(opportunities),
+      categoryPlausibility: fakeCategoryPlausibilityRepository([seedDetermination()]),
     };
 
     const first = await evaluateQualificationForOwner(d, 'user_a', 'opportunity_1', NOW);

@@ -43,6 +43,7 @@ export {
   formatProvenanceIssues,
   MIN_QUOTE_CHARS,
   normaliseForMatch,
+  normaliseUrl,
   verifyProvenance,
 } from './provenance';
 export type { ProvenanceIssue, SourceDocument } from './provenance';
@@ -58,6 +59,9 @@ export type {
 
 export {
   allObservations,
+  CATEGORY_FITS,
+  categoryFitSchema,
+  categorySegmentSchema,
   CLASSIFICATIONS,
   classificationSchema,
   evidenceSchema,
@@ -67,7 +71,52 @@ export {
   RECOMMENDED_SERVICES,
   researchInputSchema,
 } from './schema';
-export type { Classification, Evidence, LeadResearch, Observation, ResearchInput } from './schema';
+export type {
+  CategoryFit,
+  CategorySegmentResult,
+  Classification,
+  Evidence,
+  LeadResearch,
+  Observation,
+  ResearchInput,
+} from './schema';
+
+// ---- Path 2: Research-level Category Plausibility (D0-D11, migration
+// 0027) — a dedicated Search + Prospect determination, structurally
+// outside FIELD_KIND/ResearchSignal (D7). See ./categoryPlausibility.ts.
+
+export {
+  aggregateCategoryFit,
+  isF1CompleteSegmentDetermination,
+  parseTargetSegments,
+  SEGMENT_BASES,
+  SEGMENT_CLASSIFICATIONS,
+  toSegmentDeterminations,
+  verifyCategoryPlausibility,
+} from './categoryPlausibility';
+export type {
+  CategoryPlausibilityIssue,
+  NewCategoryPlausibilityDeterminationInput,
+  SegmentBasis,
+  SegmentClassification,
+  SegmentDetermination,
+  StoredCategoryPlausibilityDetermination,
+  StoredSegmentDetermination,
+} from './categoryPlausibility';
+
+export {
+  createPgCategoryPlausibilityRepository,
+  sourceContentSha256,
+} from './categoryPlausibilityPgRepository';
+export { MODEL_SEEN_SOURCE } from './categoryPlausibilityRepository';
+export type {
+  CapturedSourceDocumentInput,
+  CategoryPlausibilityRepository,
+  CategoryPlausibilitySourceDocumentReader,
+  StoredCapturedSourceDocument,
+} from './categoryPlausibilityRepository';
+export { listSourceDocumentsForReview } from './sourceDocumentReview';
+export type { SourceDocumentReviewDeps } from './sourceDocumentReview';
 
 // ---- Research Foundation: ResearchSignal persistence (migration 0016) ----
 // Owned by this same package (Research), but a distinct boundary from the
@@ -77,9 +126,13 @@ export type { Classification, Evidence, LeadResearch, Observation, ResearchInput
 
 export { toNewResearchSignals } from './mapping';
 
-export type { ResearchProvider, ResearchProviderInput } from './provider';
+export type { ResearchProvider, ResearchProviderInput, SuppliedSourceDocuments } from './provider';
 
-export { createHttpSourceDocumentProvider, SourceFetchTransportError } from './sourceDocumentProvider';
+export {
+  createHttpSourceDocumentProvider,
+  HTTP_HOMEPAGE_EXTRACTION_METHOD,
+  SourceFetchTransportError,
+} from './sourceDocumentProvider';
 export type {
   HttpSourceDocumentProviderOptions,
   SourceDocumentProvider,
@@ -116,8 +169,12 @@ export type {
   ResearchProviderAttempt,
 } from './fallbackResearchProvider';
 
-export { createPgResearchSignalRepository } from './pgRepository';
-export type { ResearchSignalRepository } from './repository';
+export {
+  createPgResearchSignalRepository,
+  createPgResearchSignalTransactionRunner,
+} from './pgRepository';
+export type { ResearchSignalSqlPool } from './pgRepository';
+export type { ResearchSignalRepository, ResearchSignalTransaction } from './repository';
 
 export { ResearchProspectNotFoundError, RunResearchValidationError } from './signalErrors';
 export type { RunResearchValidationReason } from './signalErrors';
@@ -125,6 +182,114 @@ export type { RunResearchValidationReason } from './signalErrors';
 export { PROSPECT_ID_MAX_LENGTH, validateRunResearchInput } from './validation';
 
 export {
+  AUTHORIZATION_DURATION_DAYS,
+  AUTHORIZATION_SCOPES,
+  AUTHORIZATION_STATUSES,
+  INTENT_SIGNAL_CONFIDENCE,
+  INTENT_SIGNAL_FIELDS,
+  INTENT_SIGNAL_KINDS,
+  IntentSignalValidationError,
+  isIntentSignalKind,
+  toIntentIntakeInput,
+  toIntentSignalInput,
+  validateAuthorizationEvidence,
+} from './intentSignal';
+export type {
+  AuthorizationEvidence,
+  AuthorizationScope,
+  AuthorizationStatus,
+  IntentSignalEntry,
+  IntentSignalField,
+  IntentSignalKind,
+  IntentSignalValidationReason,
+  RecordIntentIntakeInput,
+  RecordIntentSignalInput,
+  ValidatedIntentIntake,
+  ValidatedIntentSignal,
+} from './intentSignal';
+
+export {
+  INTENT_SOURCE_FAMILIES,
+  INTENT_SOURCE_TYPES,
+  normalizeIntentEvent,
+  PROHIBITED_PERSONAL_DATA_KEYS,
+} from './intentSource';
+export type {
+  AcquisitionSourceAdapter,
+  IntentDisclosure,
+  IntentSourceCandidate,
+  IntentSourceContext,
+  IntentSourceFamily,
+  IntentSourceIdentity,
+  IntentSourcePrivacy,
+  IntentSourceProvenance,
+  IntentSourceSignalCandidate,
+  IntentSourceType,
+  NormalizedIntentEvent,
+  NormalizedIntentSignal,
+} from './intentSource';
+export {
+  aiPlatformAcquisitionAdapter,
+  publicIntentNoticeAdapter,
+  publicWebSearchAdapter,
+} from './intentSourceAdapters';
+export type {
+  AiPlatformAcquisitionRecord,
+  PublicIntentNoticeRecord,
+  PublicWebSearchRecord,
+  RawBusiness,
+  RawSourceContext,
+} from './intentSourceAdapters';
+export {
+  createProviderCallBudget,
+  FIRST_PARTY_CONSENT_POLICY,
+  normalizeProviderBatch,
+  normalizeProviderResult,
+  normalizeVerifiedProviderResult,
+  PROVIDER_FAILURE_HANDLING,
+  PROVIDER_FAILURE_KINDS,
+  PROVIDER_OPERATIONAL_CONTRACT,
+  PROVIDER_PROHIBITED_KEYS,
+  ProviderCallBudgetExceededError,
+  requireExactProviderResultForIntake,
+} from './intentSourceProviderContract';
+export type {
+  AiPlatformAuthorization,
+  AiPlatformEvidenceItem,
+  AiPlatformProviderSignal,
+  IntentProviderResult,
+  ProviderBusinessIdentity,
+  ProviderCallBudget,
+  ProviderContractNotes,
+  ProviderFailureHandling,
+  ProviderFailureKind,
+  ProviderIntentEvidence,
+  ProviderPublication,
+  ProviderResultOutcome,
+  ProviderResultProvenance,
+  PublicIntentProviderNotice,
+  PublicWebSearchProviderResult,
+} from './intentSourceProviderContract';
+export {
+  createProviderPublicKeyRegistry,
+  MAX_PROVIDER_ENVELOPE_BYTES,
+  PROVIDER_ENVELOPE_VERSION,
+  PROVIDER_SIGNATURE_FRESHNESS_MS,
+  ProviderKeyRegistryConfigurationError,
+  verifyProviderEnvelope,
+} from './providerAuthenticity';
+export type {
+  ProviderAuthenticityRejection,
+  ProviderEnvelopeRequest,
+  ProviderEnvelopeVerification,
+  ProviderPublicKeyEntry,
+  ProviderPublicKeyRegistry,
+  RegisteredProviderPublicKey,
+  VerifiedProviderResult,
+} from './providerAuthenticity';
+
+export {
+  getCategoryPlausibilityDetermination,
   listResearchSignals,
   runResearch,
   runResearchForOwner,

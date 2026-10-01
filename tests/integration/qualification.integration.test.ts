@@ -28,6 +28,7 @@ import {
   type QualificationDeps,
 } from '@acos/core-qualification';
 import {
+  createPgCategoryPlausibilityRepository,
   createPgResearchSignalRepository,
   runResearch,
   type LeadResearch,
@@ -75,6 +76,20 @@ function matchingResearch(): LeadResearch {
     companySummary: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     businessModel: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     targetCustomers: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
+    // One entry: sampleProfileInput()'s targetCustomer ('Restaurants')
+    // has no ';' and parses to exactly one segment (Path 2, D2). MATCH
+    // here is what keeps this fixture's pre-existing QUALIFIED
+    // assertions true now that CATEGORY_PLAUSIBLE also gates state.
+    categoryPlausibility: [
+      {
+        fit: 'MATCH',
+        rationale: 'the homepage says they serve restaurants',
+        evidence: [
+          { quote: 'we cater to restaurants across the city', sourceUrl: CAREERS.url, sourceLabel: CAREERS.label },
+        ],
+        confidence: 90,
+      },
+    ],
     visibleProblems: [
       {
         classification: 'OBSERVED',
@@ -102,6 +117,7 @@ function unmatchedResearch(): LeadResearch {
     companySummary: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     businessModel: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     targetCustomers: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
+    categoryPlausibility: [],
     visibleProblems: [],
     growthOpportunities: [],
     aiOpportunities: [],
@@ -139,6 +155,7 @@ function repos() {
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
     signals: createPgResearchSignalRepository(db.client),
+    categoryPlausibility: createPgCategoryPlausibilityRepository(db.client),
     opportunities: createPgOpportunityRepository(db.client),
     qualifications: createPgQualificationRepository(db.client),
   };
@@ -270,7 +287,13 @@ describe('evaluateOpportunityQualification', () => {
     const stored = await evaluateOpportunityQualification(qualificationDeps(base), a.token, opportunity.id);
 
     expect(stored.state).toBe('NOT_QUALIFIED');
-    expect(stored.criteria).toHaveLength(1);
+    // 2, not 1: NEED_DETECTED short-circuits EVIDENCE_PRESENT (Decision
+    // D1, unchanged), but Path 2's CATEGORY_PLAUSIBLE (D4) is
+    // deliberately NOT part of that short-circuit — it is evaluated
+    // unconditionally, purely for observability (E5) — so it is still
+    // present here alongside NEED_DETECTED.
+    expect(stored.criteria).toHaveLength(2);
+    expect(stored.criteria.map((c) => c.criterion).sort()).toEqual(['CATEGORY_PLAUSIBLE', 'NEED_DETECTED']);
   });
 
   it('idempotency: repeated evaluation of unchanged evidence overwrites the same row — no duplicates', async () => {

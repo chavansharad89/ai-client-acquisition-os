@@ -1,4 +1,4 @@
-import type { StoredResearchSignal } from '@acos/core-research';
+import type { StoredCategoryPlausibilityDetermination, StoredResearchSignal } from '@acos/core-research';
 
 import type { QualificationCriterionResult } from './types';
 
@@ -64,6 +64,49 @@ export function evaluateNeedDetected(needDetected: boolean): QualificationCriter
  * the overall state becomes INSUFFICIENT_EVIDENCE rather than trusting a
  * possibly-stale flag (R-36).
  */
+/**
+ * CATEGORY_PLAUSIBLE (Path 2, D4/D5): passes on MATCH; fails on MISMATCH
+ * or UNKNOWN (D3: absence of evidence is never treated as a pass) — and
+ * fails when no determination exists at all yet (Research has not run,
+ * or ran before this Search had one), the same as UNKNOWN, never a
+ * silent pass. Reads the determination as-is; it never re-derives or
+ * re-classifies it — that is @acos/core-research's job (D1/D7).
+ * `evidenceSignalIds` is always `[]`: this determination is deliberately
+ * outside ResearchSignal (D7), so it has none to cite.
+ */
+export function evaluateCategoryPlausible(
+  determination: StoredCategoryPlausibilityDetermination | null,
+): QualificationCriterionResult {
+  const fit = determination?.aggregateResult ?? 'UNKNOWN';
+
+  if (fit === 'MATCH') {
+    return {
+      criterion: 'CATEGORY_PLAUSIBLE',
+      satisfied: true,
+      reason: 'the target customer plausibly matches at least one supplied segment (MATCH)',
+      evidenceSignalIds: [],
+    };
+  }
+
+  if (fit === 'MISMATCH') {
+    return {
+      criterion: 'CATEGORY_PLAUSIBLE',
+      satisfied: false,
+      reason: 'evidence indicates this business serves none of the supplied target-customer segments (MISMATCH)',
+      evidenceSignalIds: [],
+    };
+  }
+
+  return {
+    criterion: 'CATEGORY_PLAUSIBLE',
+    satisfied: false,
+    reason: determination
+      ? 'evidence is insufficient to determine target-customer fit (UNKNOWN)'
+      : 'no category-plausibility determination exists yet for this Search + Prospect',
+    evidenceSignalIds: [],
+  };
+}
+
 export function evaluateEvidencePresent(
   signals: readonly StoredResearchSignal[],
 ): QualificationCriterionResult {

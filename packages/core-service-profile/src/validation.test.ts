@@ -108,6 +108,13 @@ describe('triggers vocabulary contract', () => {
     expect(result.triggers).toEqual(['JOB_POST', 'WEBSITE', 'NEWS']);
   });
 
+  it('INTENT-INTAKE-PO-DEC-001 D3: a profile may opt into PUBLIC_INTENT and FIRST_PARTY', () => {
+    const result = validateServiceProfileInput(
+      validInput({ triggers: ['WEBSITE', 'PUBLIC_INTENT', 'FIRST_PARTY'] }),
+    );
+    expect(result.triggers).toEqual(['WEBSITE', 'PUBLIC_INTENT', 'FIRST_PARTY']);
+  });
+
   it('rejects a free-text trigger outside the vocabulary, rather than silently dropping it', () => {
     expect(() => validateServiceProfileInput(validInput({ triggers: ['outdated website'] }))).toThrow(
       ServiceProfileValidationError,

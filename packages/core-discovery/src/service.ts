@@ -28,6 +28,15 @@ export interface DiscoveryRunResult {
   searchId: string;
   companies: readonly StoredCompany[];
   prospects: readonly StoredProspect[];
+  /**
+   * Raw candidate count returned by the provider, before normalization —
+   * i.e. `deps.provider.discover(search).length`. Observability only
+   * (Discovery-Query Audit): lets a caller distinguish "the provider
+   * returned few candidates" from "the provider returned many and
+   * normalization discarded most" without changing normalization or
+   * filtering behavior. Always equals `prospects.length + skipped`.
+   */
+  candidatesReceived: number;
   /** Provider candidates that could not be normalized (missing name/website, unparsable URL) — skipped, never persisted. */
   skipped: number;
 }
@@ -119,5 +128,5 @@ export async function runDiscoveryForOwner(
     prospects.push(prospect);
   }
 
-  return { searchId: search.id, companies, prospects, skipped };
+  return { searchId: search.id, companies, prospects, candidatesReceived: candidates.length, skipped };
 }
