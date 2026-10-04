@@ -373,3 +373,85 @@ describe('scoring contract (D1/D2) — unchanged arithmetic, downstream eligibil
     expect(evidence.raw).toBeCloseTo(1 / 3);
   });
 });
+
+// K1 intake-path enforcement (CLIENT_INTENT_DISCOVERY_CODE_GAP_K1_ENGINEERING_SPECIFICATION_REVISION_005.md §7, §9).
+describe('K1 — intake-path contact-identifier enforcement', () => {
+  it('L6/L7/L8: a personal email, phone, obfuscated email or uncertain email in quote is rejected on quote', () => {
+    expectRejected({ quote: 'Reach us at jane@gmail.com' }, 'quote', 'not-allowed');
+    expectRejected({ quote: 'Call 98765 43210' }, 'quote', 'not-allowed');
+    expectRejected({ quote: 'Reach us at jane [at] gmail [dot] com' }, 'quote', 'not-allowed');
+    expectRejected({ quote: 'Reach us at jane@gmail' }, 'quote', 'not-allowed');
+  });
+
+  it('L9: a business email at the website domain in quote is accepted', () => {
+    const validated = toIntentSignalInput(
+      input({ website: 'https://www.acme.example.com', quote: 'Reach us at info@acme.example.com' }),
+      NOW,
+    );
+    expect(validated.signal.signal).toBe('Reach us at info@acme.example.com');
+  });
+
+  it('L10: an email/phone-like companyName or digit runs in website/sourceUrl/sourceLabel are not rejected by K1', () => {
+    const validated = toIntentSignalInput(
+      input({
+        companyName: 'Acme 98765 Co',
+        website: 'https://acme192168.example.com',
+        sourceUrl: 'https://forum.example.org/t/9876543210',
+        sourceLabel: 'Public forum post #9876543210',
+        quote: 'Looking for someone to build an app',
+      }),
+      NOW,
+    );
+    expect(validated.companyName).toBe('Acme 98765 Co');
+  });
+
+  it('L12: non-normalizable website still rejects an offending quote via K1 (checked before the website rejection)', () => {
+    expectRejected({ website: 'not a url', quote: 'Call 98765 43210' }, 'quote', 'not-allowed');
+  });
+
+  it('multi-signal intake: offending quote in signals[1] of 3 is rejected with the prefixed field, no other write path reached', () => {
+    const intake: RecordIntentIntakeInput = {
+      searchId: 'search_1',
+      companyName: 'Acme Co',
+      website: 'https://acme.example.com',
+      signals: [
+        { kind: 'PUBLIC_INTENT', field: 'requestedMobileApp', quote: 'Looking for an app', sourceUrl: 'https://forum.example.org/t/1', sourceLabel: 'Post', observedAt: OBSERVED_AT },
+        { kind: 'PUBLIC_INTENT', field: 'requestedWebsite', quote: 'Call 98765 43210', sourceUrl: 'https://forum.example.org/t/2', sourceLabel: 'Post', observedAt: OBSERVED_AT },
+        { kind: 'PUBLIC_INTENT', field: 'requestedRedesign', quote: 'Need a redesign', sourceUrl: 'https://forum.example.org/t/3', sourceLabel: 'Post', observedAt: OBSERVED_AT },
+      ],
+    };
+    try {
+      toIntentIntakeInput(intake, NOW);
+      throw new Error('expected rejection');
+    } catch (error) {
+      expect(error).toBeInstanceOf(IntentSignalValidationError);
+      expect(error).toMatchObject({ field: 'signals[1].quote', reason: 'not-allowed' });
+    }
+  });
+
+  it('single-signal form reports field "quote" (not "signals[0].quote")', () => {
+    try {
+      toIntentSignalInput(input({ quote: 'jane@gmail.com' }), NOW);
+      throw new Error('expected rejection');
+    } catch (error) {
+      expect(error).toMatchObject({ field: 'quote', reason: 'not-allowed' });
+    }
+  });
+
+  it('provider / intake equivalence (§9): the same text and website yield the same decision as the provider path', () => {
+    const cases: { text: string; website: string; shouldReject: boolean }[] = [
+      { text: 'jane@gmail.com', website: 'https://www.example.com', shouldReject: true },
+      { text: 'info@example.com', website: 'https://www.example.com', shouldReject: false },
+      { text: 'call 98765 43210', website: 'https://www.example.com', shouldReject: true },
+      { text: 'Tender No. 2026/IT/0457', website: 'https://www.example.com', shouldReject: false },
+      { text: 'jane [at] gmail [dot] com', website: 'https://www.example.com', shouldReject: true },
+    ];
+    for (const { text, website, shouldReject } of cases) {
+      if (shouldReject) {
+        expectRejected({ website, quote: text }, 'quote', 'not-allowed');
+      } else {
+        expect(() => toIntentSignalInput(input({ website, quote: text }), NOW)).not.toThrow();
+      }
+    }
+  });
+});

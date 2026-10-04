@@ -1,3 +1,4 @@
+import { containsAnyContactIdentifier, containsPersonalContactIdentifier as k1ContainsPersonal } from './contactIdentifiers';
 import {
   INTENT_SIGNAL_FIELDS,
   IntentSignalValidationError,
@@ -363,6 +364,37 @@ function checkCommon(result: {
   checkProvenance(result.provenance);
 }
 
+// ---- K1 (CLIENT_INTENT_DISCOVERY_CODE_GAP_K1_ENGINEERING_SPECIFICATION_REVISION_005.md §6) ---------------
+// Called once in each of preparePublicWeb / prepareAiPlatform / preparePublicIntent, immediately after the
+// UNATTRIBUTED skip and before `raw` is built. Screens evidence statements (array order) with
+// containsPersonalContactIdentifier, then context.targetCustomer / geography / service with
+// containsAnyContactIdentifier (PG-2 net effect). First hit rejects the whole IntentProviderResult.
+
+function runK1(
+  website: string,
+  evidence: readonly { path: string; text: string }[],
+  context: RawSourceContext | undefined,
+): void {
+  for (const { path, text } of evidence) {
+    if (k1ContainsPersonal(text, website)) {
+      reject(path, 'not-allowed', `${path} contains a personal contact identifier — evidence must be business-level`);
+    }
+  }
+  if (context !== undefined) {
+    for (const name of ['targetCustomer', 'geography', 'service'] as const) {
+      const value = context[name];
+      if (typeof value === 'string' && containsAnyContactIdentifier(value, website)) {
+        const path = `context.${name}`;
+        reject(
+          path,
+          'not-allowed',
+          `${path} contains a contact identifier — context values must not contain email addresses or phone numbers`,
+        );
+      }
+    }
+  }
+}
+
 function hasIdentity(business: ProviderBusinessIdentity | null | undefined): business is ProviderBusinessIdentity {
   return (
     typeof business?.name === 'string' &&
@@ -414,6 +446,11 @@ function preparePublicWeb(result: PublicWebSearchProviderResult): Prepared {
       },
     };
   }
+  runK1(
+    result.business.website,
+    [{ path: 'intentEvidence.evidence', text: result.intentEvidence.evidence }],
+    result.context,
+  );
   const raw: PublicWebSearchRecord = {
     resultType: result.resultType,
     resultId: result.externalId,
@@ -490,6 +527,11 @@ function prepareAiPlatform(result: AiPlatformProviderSignal, now: Date, authenti
       outcome: { status: 'UNATTRIBUTED', externalId: result.externalId, reason: 'the integration supplied no business identity' },
     };
   }
+  runK1(
+    result.business.website,
+    result.evidence.map((item, index) => ({ path: `evidence[${index}].statement`, text: item.statement })),
+    result.context,
+  );
   const raw: AiPlatformAcquisitionRecord = {
     placement: result.acquisitionType,
     integrationEventId: result.externalId,
@@ -545,6 +587,11 @@ function preparePublicIntent(result: PublicIntentProviderNotice): Prepared {
       outcome: { status: 'UNATTRIBUTED', externalId: result.externalId, reason: 'the notice names no business identity' },
     };
   }
+  runK1(
+    result.business.website,
+    result.intentEvidence.map((item, index) => ({ path: `intentEvidence[${index}].evidence`, text: item.evidence })),
+    result.context,
+  );
   const raw: PublicIntentNoticeRecord = {
     noticeType: result.noticeType,
     noticeId: result.externalId,

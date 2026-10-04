@@ -44,6 +44,10 @@ Scraping/browser automation authority: NONE
 Credential-sharing authority: NONE
 ```
 
+**Amendment 2 (2026-10-01) — provider-neutral, multi-source Client Intent Discovery architecture.** Requirement-only,
+additive amendment; adds §13 (§13.0–§13.11) at the end of this record. No original or Amendment 1 text, decision, open
+question, provider selection or authority boundary is removed or changed. Authority state is unchanged (§13.11).
+
 > **This record states a product need. It does not select, name or authorize any provider, and it does not claim
 > that any provider exposes the data or API capability described. It authorizes no implementation, provider call,
 > credential, configuration, runtime wiring, database or schema change, scraping, validation, outreach, contact or
@@ -466,6 +470,290 @@ Deployment authority: NONE
 
 ```text
 Requirement definition: AMENDED
+Implementation authorization: NONE
+Provider-call authorization: NONE
+External HTTP authorization: NONE
+Production provider access: NONE
+Database authority: NONE
+Schema/migration authority: NONE
+Runtime-wiring authorization: NONE
+Integration naming authority: NONE
+Key-registration authority: NONE
+Validation authority: NONE
+Outreach/contact authority: NONE
+Deployment authority: NONE
+Scraping/browser automation authority: NONE
+Credential-sharing authority: NONE
+```
+
+---
+
+## §13 Amendment 2 — Provider-neutral, multi-source Client Intent Discovery — REQUIREMENT
+
+**Amendment ID:** CLIENT-INTENT-DISCOVERY-REQ-001 Amendment 2
+**Date:** 2026-10-01
+**Type:** additive requirement amendment. **Not an implementation authorization**, not a decision record, not a
+provider selection, not an implementation plan.
+
+> **Amendment 2 formalizes the product direction that Client Intent Discovery is a provider-neutral, multi-source
+> capability built on legitimately exposed intent evidence. It names source categories only. It does not select,
+> rank or authorize any provider, does not state that any provider exposes the required data, and grants no
+> execution authority of any kind.**
+
+### §13.0 Amendment 2 baseline (verified before amending)
+
+| Item | Value |
+|---|---|
+| Branch | `feature/client-intent-discovery-complete` |
+| HEAD | `2c2543b01bd9222536bbd1855f7f8537a0bb9fd0` |
+| Staged files | 0 |
+| Working-tree entries before amending | 2 untracked (`CLIENT_INTENT_DISCOVERY_OQ_1_2_8_PRODUCT_OWNER_DECISION.md`, `CLIENT_INTENT_DISCOVERY_PROVIDER_FINALIZATION_DECISION.md`) |
+| This record, pre-Amendment-2 sha256 | `e107b3e2ba42793f9a57937ef1946c0ef130e88840fe97039afd463de419860e` (matches the canonical value cited in OQ-1-2-8-PO-DEC-001 and PROVIDER-FINALIZATION-DEC-001) |
+
+**Governing records verified (sha256 at baseline; none modified by Amendment 2):**
+
+| Record | ID | sha256 |
+|---|---|---|
+| `CLIENT_INTENT_DISCOVERY_OQ_DECISION.md` | CLIENT-INTENT-DISCOVERY-OQ-PO-DEC-001 | `152a9ec976f55d0207f265aa2ef60cdef8f0410aa2f68b30f90e5f11857834fc` |
+| `CLIENT_INTENT_DISCOVERY_OQ_DECISION_LOG.md` | CLIENT-INTENT-DISCOVERY-OQ-DEC-001 | `ccf11dc7dad6de6ed617070974963042eac977da45a8e9c3bf630d36f0270bb2` |
+| `CLIENT_INTENT_DISCOVERY_OQ_DECISION_PREPARATION.md` | CLIENT-INTENT-DISCOVERY-OQ-PREP-001 | `4b60c6e3ad1052f321036dc1325ecc9b8d5f0b3df2cb159b94ce560fbdd83314` |
+| `CLIENT_INTENT_DISCOVERY_OQ_PRODUCT_OWNER_SESSION_PREPARATION.md` | CLIENT-INTENT-DISCOVERY-OQ-SESSION-PREP-001 | `4506a050d215805e483fbaf07c2f56a57a43655f80b47808472cbe94a62ebe44` |
+| `CLIENT_INTENT_DISCOVERY_OQ_1_2_8_PRODUCT_OWNER_DECISION.md` | CLIENT-INTENT-DISCOVERY-OQ-1-2-8-PO-DEC-001 | `21c815851d37bc3dd5a7e1cdb21799e2e03c7cb24c0eda1446bcba09a992f548` |
+| `CLIENT_INTENT_DISCOVERY_PROVIDER_EVIDENCE.md` | CLIENT-INTENT-DISCOVERY-PROVIDER-EVIDENCE-001 | `2387838ff125c35a8f6bf19e88eab4e8f91ef43a5665aecd2c0d18ad7be31647` |
+| `CLIENT_INTENT_DISCOVERY_PROVIDER_EVIDENCE_PREPARATION.md` | CLIENT-INTENT-DISCOVERY-PROVIDER-EVIDENCE-PREP-001 | `1f7e0af55c526aa491d443be297221860e116f4290a2aead52b29a7d70fb973f` |
+| `CLIENT_INTENT_DISCOVERY_PROVIDER_FINALIZATION_DECISION.md` | CLIENT-INTENT-DISCOVERY-PROVIDER-FINALIZATION-DEC-001 | `adcb7f5333511cdc673bd4046b86217d1c6e889801521c80c34bd9fae2ab6bab` |
+| `CLIENT_INTENT_DISCOVERY_REQUIREMENT_HASH_RECONCILIATION.md` | CLIENT-INTENT-DISCOVERY-REQ-HASH-RECON-001 | `a5973f4f644369b910547436ccadd4c31e66ee3787025173ece6c269a12b5765` |
+| `INTENT_INTAKE_GOOGLE_ADS_PROVIDER_REQUIREMENT.md` | INTENT-INTAKE-GOOGLE-ADS-REQ-001 | `928f157d58a9b245cafae7b15ccf8e724f085a331a3735da2e6e7ad4b44961a4` |
+
+**Additivity check:** Amendment 2 inserts one header paragraph and appends §13. It deletes or rewrites no existing
+sentence, requirement (R-1 … R-9, R-2A–R-2C, R-3A), open question (OQ-1..OQ-12), dependency (AMD1-DEP-1..4) or
+authority block. Where §13 restates an existing rule, the existing rule governs and §13 adds no exception to it.
+
+### §13.1 Product direction — REQUIREMENT
+
+**R-13.1** Client Intent Discovery must **not depend on** obtaining private Google Search history, private ChatGPT
+conversations, private search logs, private AI prompts or personally identifiable search histories. No product
+capability may be defined such that it works only if such data is obtained.
+
+**R-13.2** The product discovers legitimate client-intent signals from sources where the relevant intent is
+**intentionally / publicly exposed**, or is otherwise **lawfully made available to the product through an authorized
+provider / access route** (§13.5).
+
+**R-13.3** Conceptual target evidence (examples only; they do not restrict the product to these services — R-1.3 and
+R-3A.2 continue to apply):
+
+- "Looking for someone to build our company's website."
+- "Need a web developer for our new website."
+- "Looking for a company to build an e-commerce website."
+- "Need a mobile app developer for our MVP."
+- "We need a developer to build a SaaS product."
+- "Looking for an agency to redesign our website."
+- "Need a React/Node developer for a new project."
+- "Looking for someone to build an internal business application."
+- "Need a development team for a new product."
+
+### §13.2 Intent evidence classes — REQUIREMENT (preserves §3A)
+
+**R-13.4** The three intent concepts defined in §3A remain distinct evidence classes and must **not** be treated as
+equivalent, merged or relabelled (R-3A.1):
+
+| Evidence class | Meaning (per §3A) | Amendment 2 note |
+|---|---|---|
+| **Search intent** | A person entered a search query or other search activity. | Not by itself an identifiable client request (§3A). R-13.1 applies: the product does not depend on access to individuals' private queries. |
+| **Published / self-declared client intent** | A person or organization intentionally published or submitted a request or requirement. | The primary conceptual target of §13.1 evidence, subject to §13.5 and §13.7. |
+| **Inferred business need** | The system infers a possible need from permitted evidence. | A system inference; never presented as explicit client intent (R-3A.1, AMD1-DEP-3). |
+
+**R-13.5** Whether and when search intent may contribute to a canonical opportunity remains governed by existing
+records (AMD1-DEP-2; OQ-3 and OQ-9 as recorded in OQ-PO-DEC-001). Amendment 2 does not decide it.
+
+### §13.3 Source architecture — REQUIREMENT
+
+**R-13.6** Client Intent Discovery is organized around the six existing source categories of §2A. Amendment 2 states
+their scope descriptively; it does not replace §2 or §2A and does not change OQ-12.
+
+| Category | Scope (descriptive) | Examples of source kinds (category examples only) |
+|---|---|---|
+| **A. Search / public web** | Search activity and publicly accessible web content | Search engines; public web pages |
+| **B. AI / assistant** | Only what an AI / assistant provider actually documents and authorizes (R-2A.3) | AI / assistant platforms |
+| **C. Professional / social** | Publicly accessible professional / social content (R-2A.4) | LinkedIn and similar networks |
+| **D. Communities** | Publicly published project requests / service needs (R-2A.5) | Reddit and similar communities; public forums |
+| **E. Marketplaces / freelance / RFP / project-request sources** | Explicit commercial project requirements and requests for proposal | Freelance / project marketplaces; RFP, tender and procurement sources; project-request platforms |
+| **F. Other authorized intent providers** | Future providers added through governance (R-2A.7) | Other authorized intent feeds / providers |
+
+**R-13.7** Naming a provider or source kind in §13 is a **product / source-category requirement only**. It is **not**
+evidence that the provider exposes the desired data, offers an API, permits the intended or commercial use, or permits
+automated collection, and it is **not** authorization to access it (R-2.1, R-2A.8, R-5.4 apply unchanged).
+
+**R-13.8** No provider is stated by §13 to currently expose the required data. Provider capability statuses remain
+exactly as recorded in PROVIDER-EVIDENCE-001 and adopted in OQ-1-2-8-PO-DEC-001 §3–§4.
+
+### §13.4 Provider-neutral core — REQUIREMENT
+
+**R-13.9** The core Client Intent Discovery engine must be independent of any single provider. Conceptual flow:
+
+```text
+Provider / source
+        ↓
+Source-specific evidence
+        ↓
+Canonical Intent Signal          (provider-neutral)
+        ↓
+Intent classification
+        ↓
+Business identification
+        ↓
+Qualification
+        ↓
+Opportunity creation
+        ↓
+Human approval
+        ↓
+Outreach workflow
+```
+
+**R-13.10** The canonical Intent Signal (§3, R-3.1) is **provider-neutral**: its meaning must not depend on any one
+provider's data format, terminology, access mechanism or terms (extends R-4.1–R-4.3).
+
+**R-13.11** Provider-specific adapters / connectors must remain **separate from the core engine**. Provider-specific
+concerns stay per-provider (R-4.2, R-2B.1).
+
+**R-13.12** **Core system capability and provider access are separate concerns.**
+
+**R-13.13** The product may be architected so that the core intent-processing capability can be developed without
+first obtaining production access to Google, OpenAI / ChatGPT, LinkedIn, Reddit or any other provider. **No provider
+integration, provider access, credential, call or implementation is authorized merely by defining this
+architecture**; each remains subject to §9 (R-9.1–R-9.2) and to separate authorization for the core itself.
+
+**R-13.14** The conceptual flow does not modify existing behavior (R-7.1). Classification remains central (R-3.3;
+PO-DEC-001 D5); opportunity creation, human approval and outreach remain governed by existing records (R-7.2;
+OQ-9 and OQ-10 as recorded in OQ-PO-DEC-001; PHASE_22 / PHASE_23).
+
+### §13.5 Public / authorized evidence principle — REQUIREMENT
+
+**R-13.15** Usable intent evidence must come through one of:
+
+1. intentionally published / public information;
+2. an officially documented provider capability;
+3. an authorized API / feed / export;
+4. another explicitly approved access mechanism.
+
+**R-13.16** Meeting R-13.15 does **not** by itself authorize collection: R-5.1–R-5.5 and §9 continue to apply, and
+publicly accessible content remains subject to the source's access terms (R-2A.4–R-2A.6).
+
+**R-13.17** The system must **not** rely on:
+
+- private search history;
+- private AI conversations;
+- private user prompts;
+- private platform data not legitimately exposed to the product;
+- credential sharing;
+- scraping where prohibited or not authorized;
+- browser automation used to circumvent access controls;
+- bypassing authentication, rate limits, terms or technical restrictions.
+
+### §13.6 High-intent opportunity sources — REQUIREMENT
+
+**R-13.18** The product may **conceptually** support high-intent sources where users explicitly request services,
+including:
+
+- freelance / project marketplaces;
+- RFP and tender sources;
+- public project requests;
+- business / community posts;
+- professional / social posts where the relevant content is legitimately accessible;
+- search / public-web evidence;
+- other authorized intent feeds.
+
+**R-13.19** No named marketplace, RFP / tender source or other provider is approved, selected or stated to be
+technically available by this section. Each requires per-provider verification (R-2B.1) and separate authorization
+(§9).
+
+### §13.7 Privacy boundary — EXISTING DECISION (preserved)
+
+**R-13.20** All existing privacy restrictions remain in force unchanged: R-3.3, R-3A.3, DEC-003 §6 and the
+provider-contract privacy screen. Amendment 2 weakens none of them.
+
+**R-13.21** Amendment 2 introduces **no** requirement to identify anonymous searchers or AI users, and does not
+require: names of private searchers; private email addresses; private phone numbers; individual AI conversation
+content; individual search histories; advertising IDs; click IDs; or identity resolution from prohibited / private
+data.
+
+**R-13.22** Where an **organization** can legitimately be identified from permitted evidence, the system may
+conceptually create an **organization-level** opportunity, subject to existing requirements and decisions (including
+OQ-3, OQ-7 and OQ-9 as recorded in OQ-PO-DEC-001).
+
+**R-13.23** The existing Product Owner decision excluding private individuals (OQ-11 as recorded in OQ-PO-DEC-001) is
+unchanged. No existing decision permits changing it, and Amendment 2 does not.
+
+### §13.8 Sustainability — no single-provider dependency — REQUIREMENT
+
+**R-13.24** The architecture must avoid single-provider dependency. Client Intent Discovery must not be defined such
+that its core capability requires any one provider.
+
+**R-13.25** The product must support multiple source adapters so that discovery can continue, from other authorized
+sources, when:
+
+- one provider becomes unavailable;
+- provider terms change;
+- APIs change;
+- access is revoked;
+- pricing changes;
+- one source has insufficient coverage.
+
+**R-13.26** The canonical opportunity model must remain independent of such provider-specific changes (R-4.3).
+
+**R-13.27** R-13.24–R-13.26 are product-level requirements only. They define no adapter, interface, schema, storage,
+scheduling or implementation plan, and they do not authorize adding any adapter or provider.
+
+### §13.9 Relationship to existing records — EXISTING DECISION boundary
+
+**R-13.28** Not reopened, modified, answered or re-ranked by Amendment 2:
+
+- OQ-1..OQ-12 in §10 (text unchanged) and their answers / statuses in OQ-PO-DEC-001, the OQ decision log and
+  OQ-1-2-8-PO-DEC-001 — including the OQ-1 answer (Google Search selected for first consideration, policy level only)
+  and the OQ-2 / OQ-8 adopted statuses;
+- PROVIDER-EVIDENCE-001, PROVIDER-EVIDENCE-PREP-001 and PROVIDER-FINALIZATION-DEC-001;
+- INTENT-INTAKE-GOOGLE-ADS-REQ-001, GA-Q0..GA-Q15 and R-2C.1 (Google Ads separation);
+- OD-1..OD-13, OD13-M (Option B), Alternative I, PS-1..PS-8, D1–D5, DEC-003 (incl. §6), X1, C-1 and the §8 OD-13
+  separation;
+- AMD1-DEP-1..AMD1-DEP-4;
+- outreach governance (PHASE_22 / PHASE_23), source / provenance rules (§6; OD-10; OD-13 Q9).
+
+**R-13.29** Provider selection is unchanged. No "possible source" in §13 is converted into an "authorized provider".
+`Other authorized providers: NOT AUTHORIZED BY THIS AMENDMENT.`
+
+**R-13.30** Conflict check: no instruction implemented by Amendment 2 required changing an existing decision or
+authority state; no conflict is recorded.
+
+### §13.10 Execution counters (Amendment 2)
+
+```text
+Files modified: 1 (this record)
+Other requirement / decision / evidence records modified: 0
+Files created: 0
+Production code changes: 0
+Test changes: 0
+Schema/migration changes: 0
+Configuration changes: 0
+Provider calls: 0
+External HTTP requests: 0
+Database connections: 0
+Database writes: 0
+Runtime wiring changes: 0
+Scraping/browser automation: 0
+Validation: 0
+Outreach/contact: 0
+Deployment: 0
+Commits: 0
+```
+
+### §13.11 Final state after Amendment 2
+
+```text
+Requirement definition: AMENDED (Amendment 2 — additive)
+Providers authorized by Amendment 2: NONE
+Provider selection: UNCHANGED
+OQ-1..OQ-12: UNCHANGED
 Implementation authorization: NONE
 Provider-call authorization: NONE
 External HTTP authorization: NONE

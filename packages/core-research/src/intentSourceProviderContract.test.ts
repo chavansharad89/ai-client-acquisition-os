@@ -575,7 +575,11 @@ describe('privacy — every source family', () => {
     expect(rejected(tracked).reason).toBe('not-allowed');
   });
 
-  it('a free-text evidence field may quote a business contact (known limitation: free text is not PII-scanned)', () => {
+  // L21 (REV-005 §10.8): retitled per K1-I5 rule 3 / PG-3 — `body` is transient on the pulled
+  // path (never persisted, displayed, logged or passed onward) and is therefore not screened by
+  // K1; PG-3 is the pushed-path counterpart (see intentSourceProviderContract L14 coverage).
+  // Expectation unchanged (NORMALIZED).
+  it('body is transient on the pulled path (K1-I5 rule 3) and is not screened for a contact identifier', () => {
     const notice = noticeFixtures.publicNotice();
     const withContact = { ...notice, body: `${notice.body} Questions: procurement@college.example.edu` };
     expect(normalizeProviderResult(withContact, OPTIONS).status).toBe('NORMALIZED');
@@ -876,5 +880,94 @@ describe('OD-13 X1 exact-result binding at the save boundary (INTENT-INTAKE-OD13
       field: 'providerAuthenticity',
       reason: 'required',
     });
+  });
+});
+
+// K1 (CLIENT_INTENT_DISCOVERY_CODE_GAP_K1_ENGINEERING_SPECIFICATION_REVISION_005.md §6, §10.6, §10.8).
+describe('K1 — provider-path contact-identifier enforcement', () => {
+  it('L1/L3: an offending evidence statement rejects the whole result; other batch results unaffected', () => {
+    const offending = webFixtures.ordinary();
+    const withOffending = {
+      ...offending,
+      snippet: `${offending.snippet} Call 98765 43210 for details.`,
+      intentEvidence: { ...offending.intentEvidence!, evidence: 'Call 98765 43210 for details' },
+    };
+    const outcomes = normalizeProviderBatch([webFixtures.hiring(), withOffending, webFixtures.migration()], OPTIONS);
+    expect(outcomes.map((o) => o.status)).toEqual(['NORMALIZED', 'REJECTED', 'NORMALIZED']);
+    expect(outcomes[1]).toMatchObject({ field: 'intentEvidence.evidence', reason: 'not-allowed' });
+  });
+
+  it('personal email in evidence is rejected; business email at the website domain is not', () => {
+    const base = webFixtures.ordinary();
+    const personal = {
+      ...base,
+      snippet: `${base.snippet} Reach us at jane@gmail.com.`,
+      intentEvidence: { ...base.intentEvidence!, evidence: 'Reach us at jane@gmail.com' },
+    };
+    expect(rejected(personal)).toMatchObject({ field: 'intentEvidence.evidence', reason: 'not-allowed' });
+
+    const business = {
+      ...base,
+      business: { name: base.business!.name, website: 'https://www.bakery.example.com' },
+      snippet: `${base.snippet} Reach us at info@bakery.example.com.`,
+      intentEvidence: { ...base.intentEvidence!, evidence: 'Reach us at info@bakery.example.com' },
+    };
+    expect(normalized(business).status).toBe('NORMALIZED');
+  });
+
+  it('L4: K1 runs after the UNATTRIBUTED skip -- an unattributed result with a personal email is UNATTRIBUTED, not REJECTED', () => {
+    const base = webFixtures.ordinary();
+    const unattributed = {
+      ...base,
+      business: null,
+      snippet: `${base.snippet} jane@gmail.com`,
+      intentEvidence: { ...base.intentEvidence!, evidence: base.intentEvidence!.evidence },
+    };
+    expect(normalize(unattributed).status).toBe('UNATTRIBUTED');
+  });
+
+  it('L2: AI-platform pushed path rejects a FIRST_PARTY+PUBLISHED mix on an offending PUBLISHED statement', () => {
+    const clean = aiPlatformSignal().evidence[0]!;
+    const offending = {
+      ...clean,
+      origin: 'PUBLISHED' as const,
+      statement: 'Call 98765 43210 about the admissions website',
+    };
+    const result = aiPlatformSignal({ evidence: [clean, offending] });
+    expect(rejected(result)).toMatchObject({ field: 'evidence[1].statement', reason: 'not-allowed' });
+  });
+
+  it('public-intent notice: offending intentEvidence[i].evidence rejects the whole notice', () => {
+    const base = noticeFixtures.publicNotice();
+    const offending = {
+      ...base,
+      body: `${base.body} Contact jane@gmail.com for queries.`,
+      intentEvidence: base.intentEvidence.map((item, i) => (i === 0 ? { ...item, evidence: 'Contact jane@gmail.com for queries' } : item)),
+    };
+    expect(rejected(offending)).toMatchObject({ field: 'intentEvidence[0].evidence', reason: 'not-allowed' });
+  });
+
+  it('context.* (PG-2): an obfuscated email or phone in context.targetCustomer/geography/service rejects the result', () => {
+    const base = webFixtures.ordinary();
+    for (const field of ['targetCustomer', 'geography', 'service'] as const) {
+      const withContext = { ...base, context: { [field]: 'call 98765 43210' } };
+      expect(rejected(withContext)).toMatchObject({ field: `context.${field}`, reason: 'not-allowed' });
+    }
+    const obfuscatedEmail = { ...base, context: { targetCustomer: 'contact info [at] example [dot] com' } };
+    expect(rejected(obfuscatedEmail)).toMatchObject({ field: 'context.targetCustomer', reason: 'not-allowed' });
+  });
+
+  it('context.* : ordinary values and fragments are not rejected by K1', () => {
+    const base = webFixtures.ordinary();
+    const ok = { ...base, context: { targetCustomer: 'mid-size manufacturers', geography: 'Pune, India', service: 'mobile app development' } };
+    expect(normalized(ok).status).toBe('NORMALIZED');
+    const fragments = { ...base, context: { targetCustomer: 'jane@', geography: '98765 XXXXX' } };
+    expect(normalized(fragments).status).toBe('NORMALIZED');
+  });
+
+  it('PG-3 / L14: an identifier only in title or snippet (never in intentEvidence.evidence) is not screened and the result normalizes', () => {
+    const base = webFixtures.ordinary();
+    const titleOnly = { ...base, title: `${base.title} jane@gmail.com` };
+    expect(normalized(titleOnly).status).toBe('NORMALIZED');
   });
 });

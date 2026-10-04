@@ -1,3 +1,4 @@
+import { containsPersonalContactIdentifier as k1ContainsPersonal } from './contactIdentifiers';
 import type { ResearchSourceKind } from './persist';
 import type { VerifiedProviderResult } from './providerAuthenticity';
 import type { NewResearchSignalInput } from './types';
@@ -329,6 +330,16 @@ export function toIntentSignalInput(
       'authorizationEvidence',
       'not-allowed',
       'authorizationEvidence applies to FIRST_PARTY signals only',
+    );
+  }
+
+  // K1 (REV-005 §7): quote and website are the values after the existing trim above; the persisted
+  // signal / sourceQuote is this same trimmed quote. First hit rejects the whole intake event (PG-4).
+  if (k1ContainsPersonal(quote, website)) {
+    throw new IntentSignalValidationError(
+      'quote',
+      'not-allowed',
+      'quote contains a personal contact identifier — evidence must be business-level',
     );
   }
 
