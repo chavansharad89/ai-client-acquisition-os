@@ -18,6 +18,7 @@ import {
   createHttpSourceDocumentProvider,
   createPgCategoryPlausibilityRepository,
   createPgResearchSignalRepository,
+  createPgTargetCustomerMatchRepository,
   createResearchModel,
   type ResearchModelConfig,
   type ResearchProviderAttempt,
@@ -134,6 +135,19 @@ async function main(): Promise<void> {
     opportunities: createPgOpportunityRepository(pool),
     scores: createPgOpportunityScoreRepository(pool),
     categoryPlausibility: createPgCategoryPlausibilityRepository(pool),
+    // PDEF4-PCG4-TCMATCH-PRODWIRING-DEC-001 §1.1/§1.5: reuses the main
+    // research attempt's own provider/model config — never an
+    // independently configured one. modelId mirrors
+    // createAnthropicResearchModel's own default (anthropicModel.ts)
+    // when env.RESEARCH_MODEL is unset, rather than reinventing it.
+    targetCustomerMatch: {
+      repository: createPgTargetCustomerMatchRepository(pool),
+      model: {
+        model: createResearchModel(researchModelConfigFor(env.RESEARCH_PROVIDER, env.RESEARCH_MODEL, env)),
+        modelId: env.RESEARCH_MODEL ?? 'claude-opus-5',
+        providerId: env.RESEARCH_PROVIDER,
+      },
+    },
     qualifications: createPgQualificationRepository(pool),
     personalizations: createPgPersonalizationRepository(pool),
     outreachPreparations: createPgOutreachPreparationRepository(pool),

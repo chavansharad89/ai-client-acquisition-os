@@ -18,6 +18,8 @@ import type {
   CategoryPlausibilityRepository,
   ResearchProvider,
   ResearchSignalRepository,
+  TargetCustomerMatchModelDeps,
+  TargetCustomerMatchRepository,
 } from '@acos/core-research';
 import { runResearchForOwner } from '@acos/core-research';
 import { MAX_SEARCH_ATTEMPTS, type SearchRepository, type StoredSearch } from '@acos/core-search';
@@ -188,6 +190,17 @@ export interface SearchWorkerDeps {
    * already use for their own prerequisites.
    */
   categoryPlausibility?: CategoryPlausibilityRepository;
+  /**
+   * PCG-4 TARGET_CUSTOMER_MATCH (PDEF4-PCG4-TCMATCH-PRODWIRING-DEC-001).
+   * Forwarded to runResearchForOwner (as `targetCustomerMatch`, optional
+   * there too — see @acos/core-research's ResearchDeps). Optional for the
+   * same pre-existing-caller reason as `categoryPlausibility` above:
+   * omitting it skips the model call and the write, unchanged from today.
+   */
+  targetCustomerMatch?: {
+    repository: TargetCustomerMatchRepository;
+    model: TargetCustomerMatchModelDeps;
+  };
   /** Identifies this process/replica. Must be unique per worker instance. */
   workerId: string;
   now?: () => Date;
@@ -419,6 +432,7 @@ export async function researchProspectForOwner(
       // exactOptionalPropertyTypes: omit the key entirely when absent,
       // rather than assigning `undefined` to an optional property.
       ...(deps.categoryPlausibility ? { categoryPlausibility: deps.categoryPlausibility } : {}),
+      ...(deps.targetCustomerMatch ? { targetCustomerMatch: deps.targetCustomerMatch } : {}),
     },
     userId,
     { prospectId },

@@ -169,6 +169,47 @@ export type {
   ResearchProviderAttempt,
 } from './fallbackResearchProvider';
 
+// ---- PCG-4 TARGET_CUSTOMER_MATCH (requirement/
+// CLIENT_FINDER_PDEF_4_PCG4_TARGET_CUSTOMER_MATCH_*.md decision chain,
+// migrations 0036/0037) — a dedicated Search + Prospect determination,
+// never reusing category plausibility's computed output. See
+// ./targetCustomerMatch.ts / ./targetCustomerMatchRepository.ts.
+
+export {
+  aggregateTargetCustomerMatch,
+  callTargetCustomerMatchModel,
+  evaluateTargetCustomerMatch,
+  NO_MATCH_SENTINEL,
+  targetCustomerMatchFindingSchema,
+  targetCustomerMatchResponseSchema,
+  TARGET_CUSTOMER_MATCH_PROMPT_VERSION,
+  TARGET_CUSTOMER_MATCH_RESULTS,
+  toObservedTargetCustomer,
+  verifyTargetCustomerMatchFindings,
+} from './targetCustomerMatch';
+export type {
+  NewTargetCustomerMatchDeterminationInput,
+  StoredTargetCustomerMatchDetermination,
+  TargetCustomerMatchEvaluation,
+  TargetCustomerMatchEvidenceItem,
+  TargetCustomerMatchFinding,
+  TargetCustomerMatchModelDeps,
+  TargetCustomerMatchModelOptions,
+  TargetCustomerMatchResponse,
+  TargetCustomerMatchResult,
+} from './targetCustomerMatch';
+
+export {
+  CURRENT_ROW_UNIQUE_CONSTRAINT,
+  createPgTargetCustomerMatchRepository,
+  isPostgresUniqueViolation,
+  targetCustomerMatchSourceContentSha256,
+} from './targetCustomerMatchRepository';
+export type {
+  TargetCustomerMatchRepository,
+  TargetCustomerMatchSourceDocumentInput,
+} from './targetCustomerMatchRepository';
+
 export {
   createPgResearchSignalRepository,
   createPgResearchSignalTransactionRunner,

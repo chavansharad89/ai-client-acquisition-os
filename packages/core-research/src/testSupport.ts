@@ -11,6 +11,14 @@ import type { ResearchProvider, ResearchProviderInput } from './provider';
 import type { ResearchSignalRepository } from './repository';
 import type { LeadResearch } from './schema';
 import type {
+  NewTargetCustomerMatchDeterminationInput,
+  StoredTargetCustomerMatchDetermination,
+} from './targetCustomerMatch';
+import type {
+  TargetCustomerMatchRepository,
+  TargetCustomerMatchSourceDocumentInput,
+} from './targetCustomerMatchRepository';
+import type {
   NewResearchSignalInput,
   StoredResearchSignal,
   StoredResearchSignalSource,
@@ -155,6 +163,64 @@ export function fakeCategoryPlausibilityRepository(
 
     async getCurrentByProspectId(_userId: string, prospectId: string) {
       return rows.find((row) => row.prospectId === prospectId && row.supersededAt === null) ?? null;
+    },
+  };
+}
+
+/**
+ * In-memory TargetCustomerMatchRepository (migrations 0036/0037),
+ * mirroring fakeCategoryPlausibilityRepository's own append-only,
+ * supersede-then-insert convention and ownership-agnostic shape (real
+ * ownership is proven at the database level in an integration test).
+ */
+export function fakeTargetCustomerMatchRepository(
+  seed: StoredTargetCustomerMatchDetermination[] = [],
+): TargetCustomerMatchRepository & {
+  rows: StoredTargetCustomerMatchDetermination[];
+  sourceDocumentsByDeterminationId: Map<string, readonly TargetCustomerMatchSourceDocumentInput[]>;
+} {
+  const rows = [...seed];
+  const sourceDocumentsByDeterminationId = new Map<string, readonly TargetCustomerMatchSourceDocumentInput[]>();
+  let counter = rows.length;
+
+  return {
+    rows,
+    sourceDocumentsByDeterminationId,
+
+    async supersedePrevious(searchId: string, prospectId: string, at: Date) {
+      let count = 0;
+      for (const row of rows) {
+        if (row.searchId === searchId && row.prospectId === prospectId && row.supersededAt === null) {
+          row.supersededAt = at;
+          count += 1;
+        }
+      }
+      return count;
+    },
+
+    async save(
+      input: NewTargetCustomerMatchDeterminationInput,
+      observedAt: Date,
+      sourceDocuments: readonly TargetCustomerMatchSourceDocumentInput[] = [],
+    ) {
+      counter += 1;
+      const row: StoredTargetCustomerMatchDetermination = {
+        id: `target_customer_match_${counter}`,
+        ...input,
+        observedAt,
+        supersededAt: null,
+      };
+      rows.push(row);
+      sourceDocumentsByDeterminationId.set(row.id, sourceDocuments);
+      return row;
+    },
+
+    async getCurrent(_userId: string, searchId: string, prospectId: string) {
+      return (
+        rows.find(
+          (row) => row.searchId === searchId && row.prospectId === prospectId && row.supersededAt === null,
+        ) ?? null
+      );
     },
   };
 }

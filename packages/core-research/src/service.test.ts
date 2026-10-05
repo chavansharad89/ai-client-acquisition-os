@@ -24,6 +24,7 @@ import {
   fakeCategoryPlausibilityRepository,
   fakeResearchProvider,
   fakeResearchSignalRepository,
+  fakeTargetCustomerMatchRepository,
 } from './testSupport';
 
 /**
@@ -414,6 +415,133 @@ describe('runResearch — F-1 segment evidence fields', () => {
       expect(segment).toMatchObject({ fit: 'UNKNOWN', rationale: null, confidence: 0, basis: 'NO_MODEL_VERDICT', classification: 'UNKNOWN' });
     }
     expect(row!.aggregateResult).toBe('UNKNOWN');
+  });
+});
+
+// PCG-4 TARGET_CUSTOMER_MATCH (TD-10 Option A insertion point) —
+// requirement/CLIENT_FINDER_PDEF_4_PCG4_TARGET_CUSTOMER_MATCH_*.md.
+// -----------------------------------------------------------------------
+describe('runResearch — PCG-4 TARGET_CUSTOMER_MATCH', () => {
+  const MATCH_QUOTE = 'Acme serves independent restaurants directly';
+
+  function matchModelDeps() {
+    return {
+      model: async (): Promise<import('./researcher').ModelResult> => ({
+        kind: 'json',
+        value: {
+          findings: [
+            {
+              classification: 'MATCH',
+              quote: MATCH_QUOTE,
+              sourceUrl: HOMEPAGE.url,
+              sourceLabel: HOMEPAGE.label,
+            },
+          ],
+        },
+      }),
+      modelId: 'test-model',
+      providerId: 'test-provider',
+    };
+  }
+
+  /** Supplies a source document containing MATCH_QUOTE at HOMEPAGE.url, so the fake model's citation verifies. */
+  function providerWithMatchingSource() {
+    return {
+      async research(input: ResearchProviderInput) {
+        await input.onSourceDocumentsSupplied?.({
+          documents: [{ label: HOMEPAGE.label, url: HOMEPAGE.url, text: MATCH_QUOTE }],
+          fetchedAt: new Date('2026-09-26T00:00:00.000Z'),
+          extractionMethod: 'test-method',
+        });
+        return sampleResearch();
+      },
+    };
+  }
+
+  it('omitting the dependency skips both the model call and the write — unaffected, like categoryPlausibility', async () => {
+    const d = deps([seedCompany()], [seedProspect()]);
+    await expect(runResearch(d, 'token-a', { prospectId: 'prospect_1' })).resolves.toBeDefined();
+  });
+
+  it('supplying the dependency evaluates and persists a determination keyed to the Search + Prospect', async () => {
+    const targetCustomerMatch = fakeTargetCustomerMatchRepository();
+    const d = {
+      ...deps([seedCompany()], [seedProspect()]),
+      provider: providerWithMatchingSource(),
+      targetCustomerMatch: { repository: targetCustomerMatch, model: matchModelDeps() },
+    };
+
+    await runResearch(d, 'token-a', { prospectId: 'prospect_1' });
+
+    expect(targetCustomerMatch.rows).toHaveLength(1);
+    expect(targetCustomerMatch.rows[0]).toMatchObject({
+      searchId: 'search_1',
+      prospectId: 'prospect_1',
+      result: 'MATCH',
+      model: 'test-model',
+      provider: 'test-provider',
+    });
+  });
+
+  it('a re-run supersedes the prior determination instead of deleting it (ED-TC-8)', async () => {
+    const targetCustomerMatch = fakeTargetCustomerMatchRepository();
+    const d = {
+      ...deps([seedCompany()], [seedProspect()]),
+      provider: providerWithMatchingSource(),
+      targetCustomerMatch: { repository: targetCustomerMatch, model: matchModelDeps() },
+    };
+
+    await runResearch(d, 'token-a', { prospectId: 'prospect_1' });
+    await runResearch(d, 'token-a', { prospectId: 'prospect_1' });
+
+    expect(targetCustomerMatch.rows).toHaveLength(2);
+    expect(targetCustomerMatch.rows[0]!.supersededAt).not.toBeNull();
+    expect(targetCustomerMatch.rows[1]!.supersededAt).toBeNull();
+    expect(targetCustomerMatch.rows[1]!.result).toBe('MATCH');
+  });
+
+  it('a model/evaluator failure persists an explicit NOT_YET_OBSERVED row rather than throwing (TC-MATCH-9)', async () => {
+    const targetCustomerMatch = fakeTargetCustomerMatchRepository();
+    const failingDeps = {
+      model: async () => {
+        throw new Error('provider outage');
+      },
+      modelId: 'test-model',
+      providerId: 'test-provider',
+    };
+    const d = {
+      ...deps([seedCompany()], [seedProspect()]),
+      targetCustomerMatch: { repository: targetCustomerMatch, model: failingDeps, options: { maxAttempts: 1 } },
+    };
+
+    await expect(runResearch(d, 'token-a', { prospectId: 'prospect_1' })).resolves.toBeDefined();
+    expect(targetCustomerMatch.rows).toHaveLength(1);
+    expect(targetCustomerMatch.rows[0]!.result).toBe('NOT_YET_OBSERVED');
+  });
+
+  it('passes the model-seen source documents through to the capture-table input (migration 0037), same supplied set signals/categoryPlausibility already saw', async () => {
+    const targetCustomerMatch = fakeTargetCustomerMatchRepository();
+    const FETCHED_AT = new Date('2026-09-26T00:00:00.000Z');
+    const SUPPLIED = [{ label: 'Homepage', url: 'https://acme.example.com', text: 'first exact model-seen text' }];
+    const capturingProvider = {
+      async research(input: ResearchProviderInput) {
+        await input.onSourceDocumentsSupplied?.({
+          documents: SUPPLIED,
+          fetchedAt: FETCHED_AT,
+          extractionMethod: 'test-method',
+        });
+        return sampleResearch();
+      },
+    };
+    const d = {
+      ...deps([seedCompany()], [seedProspect()]),
+      provider: capturingProvider,
+      targetCustomerMatch: { repository: targetCustomerMatch, model: matchModelDeps() },
+    };
+    await runResearch(d, 'token-a', { prospectId: 'prospect_1' });
+    expect(targetCustomerMatch.rows).toHaveLength(1);
+    const captured = targetCustomerMatch.sourceDocumentsByDeterminationId.get(targetCustomerMatch.rows[0]!.id);
+    expect(captured).toEqual([{ label: 'Homepage', url: 'https://acme.example.com', text: 'first exact model-seen text', fetchedAt: FETCHED_AT }]);
   });
 });
 

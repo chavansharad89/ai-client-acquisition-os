@@ -13,6 +13,15 @@ import type { ResearchProvider, SuppliedSourceDocuments } from './provider';
 import type { ResearchSignalRepository } from './repository';
 import { toScoringSignals } from './scoringAdapter';
 import { ResearchProspectNotFoundError } from './signalErrors';
+import {
+  evaluateTargetCustomerMatch,
+  type TargetCustomerMatchModelDeps,
+  type TargetCustomerMatchModelOptions,
+} from './targetCustomerMatch';
+import type {
+  TargetCustomerMatchRepository,
+  TargetCustomerMatchSourceDocumentInput,
+} from './targetCustomerMatchRepository';
 import type { ResearchRunResult, RunResearchInput, StoredResearchSignal } from './types';
 import { validateRunResearchInput } from './validation';
 
@@ -54,6 +63,24 @@ export interface ResearchDeps {
    * Research/Discovery.
    */
   categoryPlausibility?: CategoryPlausibilityRepository;
+  /**
+   * PCG-4 TARGET_CUSTOMER_MATCH (requirement/
+   * CLIENT_FINDER_PDEF_4_PCG4_TARGET_CUSTOMER_MATCH_*.md — ED-TC-6/TD-10
+   * Option A). Optional, like `categoryPlausibility` above, so any
+   * existing caller/test that predates this feature keeps compiling and
+   * behaving exactly as before: omitting it skips both the model call
+   * and the write, leaving PCG-4's `observedTargetCustomer` translation
+   * (./targetCustomerMatch.ts) reading row-absence (`NOT_YET_OBSERVED`),
+   * unchanged from today. A dedicated, independent bounded model call
+   * (TD-1) — never category plausibility's computed output (TC-MATCH-12)
+   * — against the same source documents already supplied to the
+   * per-Prospect research call.
+   */
+  targetCustomerMatch?: {
+    repository: TargetCustomerMatchRepository;
+    model: TargetCustomerMatchModelDeps;
+    options?: TargetCustomerMatchModelOptions;
+  };
 }
 
 /**
@@ -154,7 +181,57 @@ export async function runResearchForOwner(
     );
   }
 
+  // TD-10 Option A: a third determination type, guarded by its own
+  // dependency flag, in the same non-transactional, sequential-await
+  // style as the signals/categoryPlausibility writes above — not sharing
+  // a DB transaction with them (that remains a separate, undecided
+  // question per TD-10 §5). Research-time (ED-TC-6): the same pipeline
+  // position, same already-fetched source documents, independent of
+  // categoryPlausibility's own (excluded, per TC-MATCH-12) computation.
+  if (deps.targetCustomerMatch) {
+    const { repository, model, options } = deps.targetCustomerMatch;
+    const sources = (capture.supplied?.documents ?? []).map((doc) => ({
+      label: doc.label,
+      url: doc.url,
+      text: doc.text,
+    }));
+    const evaluation = await evaluateTargetCustomerMatch(
+      model,
+      search.parameters.targetCustomer,
+      sources,
+      options,
+    );
+    await repository.supersedePrevious(search.id, prospect.id, now);
+    await repository.save(
+      {
+        searchId: search.id,
+        prospectId: prospect.id,
+        targetCustomer: search.parameters.targetCustomer,
+        result: evaluation.result,
+        evidence: evaluation.evidence,
+        model: evaluation.model,
+        provider: evaluation.provider,
+        promptVersion: evaluation.promptVersion,
+      },
+      now,
+      toCapturedTargetCustomerMatchSourceDocuments(capture.supplied),
+    );
+  }
+
   return { prospectId: prospect.id, superseded, signals };
+}
+
+/** Same flattening as toCapturedSourceDocuments, for the target-customer-match source-capture table (migration 0037). */
+function toCapturedTargetCustomerMatchSourceDocuments(
+  supplied: SuppliedSourceDocuments | undefined,
+): readonly TargetCustomerMatchSourceDocumentInput[] {
+  if (!supplied) return [];
+  return supplied.documents.map((doc) => ({
+    label: doc.label,
+    url: doc.url,
+    text: doc.text,
+    fetchedAt: supplied.fetchedAt,
+  }));
 }
 
 /** Flattens one run's supplied documents into per-document capture rows — text passed through untouched. */

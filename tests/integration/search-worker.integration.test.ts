@@ -12,7 +12,10 @@ import { createPgIdentityRepository, mintUserSession } from '@acos/core-identity
 import { createPgOpportunityRepository } from '@acos/core-opportunity';
 import {
   createPgResearchSignalRepository,
+  createPgTargetCustomerMatchRepository,
   type LeadResearch,
+  type ModelResult,
+  type ResearchModel,
   type ResearchProvider,
 } from '@acos/core-research';
 import { createPgSearchRepository, createSearch, type SearchDeps } from '@acos/core-search';
@@ -357,6 +360,41 @@ describe('end-to-end pipeline (real Postgres)', () => {
     expect(opportunityRows).toHaveLength(1);
     expect(opportunityRows[0].user_id).toBe(a.userId);
     expect(opportunityRows[0].need_detected).toBe(true);
+  });
+});
+
+describe('target customer match (PCG-4 production wiring, real Postgres)', () => {
+  it("claimAndProcessNextSearch's own targetCustomerMatch wiring writes a real target_customer_match_determinations row — not just runResearchForOwner called directly", async () => {
+    const a = await createUserAndSession('tcmatch_a');
+    const base = repos();
+    const search = await createPendingSearch(base, a.token);
+    const domain = `acme-${randomUUID()}.example.com`;
+    const { db } = suite.require();
+    const repository = createPgTargetCustomerMatchRepository(db.client);
+    const model: ResearchModel = async (): Promise<ModelResult> => ({ kind: 'json', value: { findings: [] } });
+
+    const outcome = await claimAndProcessNextSearch(
+      workerDeps(base, {
+        discoveryProvider: discoveryProvider([{ name: 'Acme Co', website: `https://${domain}` }]),
+        targetCustomerMatch: {
+          repository,
+          model: { model, modelId: 'test-model', providerId: 'test-provider' },
+        },
+      }),
+    );
+
+    expect(outcome).toMatchObject({ outcome: 'completed', searchId: search.id, prospectsProcessed: 1 });
+
+    const { rows: determinationRows } = await db.client.query(
+      `SELECT t.model, t.provider FROM target_customer_match_determinations t
+         JOIN prospects p ON p.id = t.prospect_id
+         JOIN companies c ON c.id = p.company_id
+        WHERE c.normalized_domain = $1 AND t.superseded_at IS NULL`,
+      [domain],
+    );
+    expect(determinationRows).toHaveLength(1);
+    expect(determinationRows[0].model).toBe('test-model');
+    expect(determinationRows[0].provider).toBe('test-provider');
   });
 });
 

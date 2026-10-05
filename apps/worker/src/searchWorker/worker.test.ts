@@ -37,8 +37,10 @@ import type {
   AuthorizationEvidence,
   CategoryPlausibilityRepository,
   LeadResearch,
+  ModelResult,
   NewCategoryPlausibilityDeterminationInput,
   NewResearchSignalInput,
+  NewTargetCustomerMatchDeterminationInput,
   ResearchInput,
   ResearchModel,
   ResearchProvider,
@@ -47,6 +49,8 @@ import type {
   ResearchSignalTransaction,
   StoredCategoryPlausibilityDetermination,
   StoredResearchSignal,
+  StoredTargetCustomerMatchDetermination,
+  TargetCustomerMatchRepository,
 } from '@acos/core-research';
 import type { SearchRepository, SearchStatus, StoredSearch } from '@acos/core-search';
 import { describe, expect, it, vi } from 'vitest';
@@ -144,6 +148,7 @@ function fakeSearchRepository(
         leaseOwner: null,
         leaseExpiresAt: null,
         updatedAt: now,
+        completedAt: now,
       };
       return true;
     },
@@ -474,6 +479,49 @@ function fakeCategoryPlausibilityRepository(
   };
 }
 
+// PCG-4 TARGET_CUSTOMER_MATCH production wiring (PDEF4-PCG4-TCMATCH-
+// PRODWIRING-DEC-001). Local fake, same convention as
+// fakeCategoryPlausibilityRepository above — not @acos/core-research's
+// own unexported testSupport.ts fakeTargetCustomerMatchRepository.
+function fakeTargetCustomerMatchRepository(
+  seed: StoredTargetCustomerMatchDetermination[] = [],
+): TargetCustomerMatchRepository & { rows: StoredTargetCustomerMatchDetermination[] } {
+  const rows = [...seed];
+  let counter = rows.length;
+  return {
+    rows,
+    async supersedePrevious(searchId: string, prospectId: string, at: Date) {
+      let count = 0;
+      for (const row of rows) {
+        if (row.searchId === searchId && row.prospectId === prospectId && row.supersededAt === null) {
+          row.supersededAt = at;
+          count += 1;
+        }
+      }
+      return count;
+    },
+    async save(input: NewTargetCustomerMatchDeterminationInput, observedAt: Date) {
+      counter += 1;
+      const row: StoredTargetCustomerMatchDetermination = {
+        id: `target_customer_match_${counter}`,
+        ...input,
+        observedAt,
+        supersededAt: null,
+      };
+      rows.push(row);
+      return row;
+    },
+    async getCurrent(_userId: string, searchId: string, prospectId: string) {
+      return rows.find((row) => row.searchId === searchId && row.prospectId === prospectId && row.supersededAt === null) ?? null;
+    },
+  };
+}
+
+/** No findings — callTargetCustomerMatchModel's own schema-valid-empty-array path, aggregating to NOT_YET_OBSERVED. */
+function fakeTargetCustomerMatchModel(): ResearchModel {
+  return async (): Promise<ModelResult> => ({ kind: 'json', value: { findings: [] } });
+}
+
 function fakePersonalizationRepository(): PersonalizationRepository & {
   rows: StoredPersonalization[];
 } {
@@ -629,6 +677,7 @@ function seedSearch(overrides: Partial<StoredSearch> = {}): StoredSearch {
     idempotencyKey: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    completedAt: null,
     ...overrides,
   };
 }
@@ -842,6 +891,7 @@ describe('lease / fencing', () => {
 
     expect(owned).toBe(true);
     expect(searches.rows[0]!.status).toBe('COMPLETE');
+    expect(searches.rows[0]!.completedAt).toEqual(NOW);
   });
 
   it('a stale (fenced) worker cannot mutate a row it no longer owns', async () => {
@@ -870,6 +920,29 @@ describe('lease / fencing', () => {
     expect(failed).toBeNull();
     expect(searches.rows[0]!.status).toBe('RUNNING');
     expect(searches.rows[0]!.leaseOwner).toBe('worker-b');
+    expect(searches.rows[0]!.completedAt).toBeNull();
+  });
+
+  it('a failed attempt never sets completedAt', async () => {
+    const searches = fakeSearchRepository([
+      seedSearch({
+        status: 'RUNNING',
+        attempts: 0,
+        leaseOwner: 'worker-a',
+        leaseExpiresAt: new Date(NOW.getTime() + 60_000),
+      }),
+    ]);
+
+    await searches.recordAttemptFailure({
+      id: 'search_1',
+      workerId: 'worker-a',
+      now: NOW,
+      error: 'boom',
+      maxAttempts: 3,
+    });
+
+    expect(searches.rows[0]!.status).toBe('PENDING');
+    expect(searches.rows[0]!.completedAt).toBeNull();
   });
 
   it('an expired lease is recoverable by another worker', async () => {
@@ -1999,6 +2072,47 @@ describe('idempotency', () => {
     await claimAndProcessNextSearch(buildDeps({ searches, companies, prospects, opportunities }));
 
     expect(opportunities.rows).toHaveLength(1);
+  });
+});
+
+describe('target customer match (PCG-4 production wiring, PDEF4-PCG4-TCMATCH-PRODWIRING-DEC-001)', () => {
+  it('forwards deps.targetCustomerMatch into runResearchForOwner, reaching the write path end-to-end', async () => {
+    const targetCustomerMatch = {
+      repository: fakeTargetCustomerMatchRepository(),
+      model: { model: fakeTargetCustomerMatchModel(), modelId: 'test-model', providerId: 'test-provider' },
+    };
+    const searches = fakeSearchRepository([seedSearch()]);
+
+    const outcome = await claimAndProcessNextSearch(buildDeps({ searches, targetCustomerMatch }));
+
+    expect(outcome).toMatchObject({ outcome: 'completed' });
+    expect(targetCustomerMatch.repository.rows).toHaveLength(1);
+    expect(targetCustomerMatch.repository.rows[0]!.searchId).toBe('search_1');
+    expect(targetCustomerMatch.repository.rows[0]!.model).toBe('test-model');
+    expect(targetCustomerMatch.repository.rows[0]!.provider).toBe('test-provider');
+  });
+
+  it('omitting deps.targetCustomerMatch changes nothing — existing pipeline compiles and completes unchanged', async () => {
+    // Built without `buildDeps()` (rather than overriding to `undefined`)
+    // so the field is genuinely absent, matching `exactOptionalPropertyTypes`
+    // — mirrors the equivalent tests for `qualifications`/`personalizations`/
+    // `outreachPreparations` above.
+    const deps: SearchWorkerDeps = {
+      searches: fakeSearchRepository([seedSearch()]),
+      companies: fakeCompanyRepository(),
+      prospects: fakeProspectRepository(),
+      discoveryProvider: fakeDiscoveryProvider([{ name: 'Acme Co', website: 'https://acme.example.com' }]),
+      signals: fakeResearchSignalRepository(),
+      researchProvider: () => fakeResearchProvider(sampleResearch()),
+      opportunities: fakeOpportunityRepository(),
+      categoryPlausibility: fakeCategoryPlausibilityRepository(),
+      workerId: 'worker-a',
+      now: () => NOW,
+    };
+
+    const outcome = await claimAndProcessNextSearch(deps);
+
+    expect(outcome).toMatchObject({ outcome: 'completed' });
   });
 });
 
