@@ -69,6 +69,7 @@ function makeFakeOrderRepository(
         currency: input.currency,
         status: 'PENDING',
         createdAt: new Date(),
+        visitorId: input.visitorId,
       };
       rows.push(row);
       return row;
@@ -377,6 +378,7 @@ describe('createOrder — duplicate/retry requests (idempotency)', () => {
       currency: 'INR',
       status: 'PENDING',
       createdAt: new Date(),
+      visitorId: null,
     };
 
     // First call to findByIdempotencyKey (the pre-check) returns null —

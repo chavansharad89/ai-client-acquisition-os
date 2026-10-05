@@ -43,6 +43,13 @@ vi.mock('../../../../src/server/clientFinderRepositories', () => ({
   clientFinderRepositories: () => state.repos,
 }));
 
+// This page records an 'opportunity_reviewed' funnel event (ED-9/B-1) via
+// a real Postgres pool — stubbed here exactly like every other
+// persistence dependency above: a unit render test proves the page's
+// markup, not database wiring (see tests/integration for that).
+vi.mock('../../../../src/server/db', () => ({ getPool: () => ({}) }));
+vi.mock('@acos/core-funnel-events', () => ({ recordFunnelEvent: async () => true }));
+
 vi.mock('@acos/core-opportunity', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@acos/core-opportunity')>()),
   getOpportunity: async (_repos: unknown, _token: unknown, id: string) => ({

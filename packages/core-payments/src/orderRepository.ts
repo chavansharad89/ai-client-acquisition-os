@@ -29,6 +29,8 @@ export interface PersistedOrder {
   currency: string;
   status: OrderStatus;
   createdAt: Date;
+  /** PCG-1 demonstrated-intent evidence's visitor bridge (B-10) — the first-party `acos_visitor` cookie, not `_fbp`. Null for a request that carried no cookie. */
+  visitorId: string | null;
 }
 
 export interface CreateOrderRecordInput {
@@ -40,6 +42,7 @@ export interface CreateOrderRecordInput {
   productName: string;
   amountPaise: number;
   currency: string;
+  visitorId: string | null;
 }
 
 /**
@@ -111,6 +114,7 @@ export interface MinimalPrismaOrderClient {
       currency: string;
       status: string;
       createdAt: Date;
+      visitorId: string | null;
     } | null>;
     create(args: {
       data: {
@@ -123,6 +127,7 @@ export interface MinimalPrismaOrderClient {
         amountPaise: number;
         currency: string;
         status: 'PENDING';
+        visitorId: string | null;
       };
     }): Promise<{
       id: string;
@@ -136,6 +141,7 @@ export interface MinimalPrismaOrderClient {
       currency: string;
       status: string;
       createdAt: Date;
+      visitorId: string | null;
     }>;
   };
 }
@@ -178,6 +184,7 @@ export function createPrismaOrderRepository(db: MinimalPrismaOrderClient): Order
             // default) so the "create as PENDING" requirement is visible
             // at the call site, not just implied by a schema default.
             status: 'PENDING',
+            visitorId: input.visitorId,
           },
         });
         return toPersistedOrder(row);
@@ -208,6 +215,7 @@ function toPersistedOrder(row: {
   currency: string;
   status: string;
   createdAt: Date;
+  visitorId: string | null;
 }): PersistedOrder {
   return {
     id: row.id,
@@ -221,5 +229,6 @@ function toPersistedOrder(row: {
     currency: row.currency,
     status: row.status as OrderStatus,
     createdAt: row.createdAt,
+    visitorId: row.visitorId,
   };
 }

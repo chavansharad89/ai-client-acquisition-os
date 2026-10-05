@@ -33,7 +33,8 @@ export function createPgOrderRepository(pool: Pool): OrderRepository {
     async findByIdempotencyKey(key: string): Promise<PersistedOrder | null> {
       const { rows } = await pool.query(
         `SELECT id, razorpay_order_id, idempotency_key, customer_email, customer_phone,
-                product_slug, product_name, amount_paise, currency, status, created_at
+                product_slug, product_name, amount_paise, currency, status, created_at,
+                visitor_id
          FROM orders
          WHERE idempotency_key = $1`,
         [key],
@@ -46,11 +47,13 @@ export function createPgOrderRepository(pool: Pool): OrderRepository {
         const { rows } = await pool.query(
           `INSERT INTO orders
              (id, razorpay_order_id, idempotency_key, customer_email, customer_phone,
-              product_slug, product_name, amount_paise, currency, status, updated_at)
+              product_slug, product_name, amount_paise, currency, status, updated_at,
+              visitor_id)
            VALUES
-             (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, 'PENDING', now())
+             (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, 'PENDING', now(), $9)
            RETURNING id, razorpay_order_id, idempotency_key, customer_email, customer_phone,
-                     product_slug, product_name, amount_paise, currency, status, created_at`,
+                     product_slug, product_name, amount_paise, currency, status, created_at,
+                     visitor_id`,
           [
             input.razorpayOrderId,
             input.idempotencyKey,
@@ -60,6 +63,7 @@ export function createPgOrderRepository(pool: Pool): OrderRepository {
             input.productName,
             input.amountPaise,
             input.currency,
+            input.visitorId,
           ],
         );
         return mapRow(rows[0]);
@@ -85,6 +89,7 @@ function mapRow(row: {
   currency: string;
   status: string;
   created_at: Date;
+  visitor_id: string | null;
 }): PersistedOrder {
   return {
     id: row.id,
@@ -98,6 +103,7 @@ function mapRow(row: {
     currency: row.currency,
     status: row.status as OrderStatus,
     createdAt: row.created_at,
+    visitorId: row.visitor_id,
   };
 }
 

@@ -325,6 +325,7 @@ describe('end-to-end pipeline (real Postgres)', () => {
 
     const finalSearch = await base.searches.getById(a.userId, search.id);
     expect(finalSearch!.status).toBe('COMPLETE');
+    expect(finalSearch!.completedAt).not.toBeNull();
 
     const { db } = suite.require();
     const { rows: companyRows } = await db.client.query(

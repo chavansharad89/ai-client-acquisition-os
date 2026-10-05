@@ -34,11 +34,12 @@ interface SearchRow {
   idempotency_key: string | null;
   created_at: Date;
   updated_at: Date;
+  completed_at: Date | null;
 }
 
 const COLUMNS = `id, user_id, service_profile_id, status, service, target_customer, geography,
                   min_project_value_paise, triggers, keywords, rationale, attempts, last_error,
-                  lease_owner, lease_expires_at, idempotency_key, created_at, updated_at`;
+                  lease_owner, lease_expires_at, idempotency_key, created_at, updated_at, completed_at`;
 
 export function createPgSearchRepository(sql: SqlExecutor): SearchRepository {
   return {
@@ -202,7 +203,8 @@ export function createPgSearchRepository(sql: SqlExecutor): SearchRepository {
             SET status = 'COMPLETE',
                 lease_owner = NULL,
                 lease_expires_at = NULL,
-                updated_at = $3
+                updated_at = $3,
+                completed_at = $3
           WHERE id = $1 AND status = 'RUNNING' AND lease_owner = $2`,
         [id, workerId, now],
       );
@@ -261,5 +263,6 @@ function mapRow(row: SearchRow): StoredSearch {
     idempotencyKey: row.idempotency_key,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
+    completedAt: row.completed_at ? new Date(row.completed_at) : null,
   };
 }

@@ -17,6 +17,8 @@
     "@acos/core-entitlements": "workspace:*",
     "@acos/core-followup-preparation": "workspace:*",
     "@acos/core-identity": "workspace:*",
+    "@acos/core-launch-gates": "workspace:*",
+    "@acos/core-launch-gates-validation": "workspace:*",
     "@acos/core-opportunity": "workspace:*",
     "@acos/core-outreach-preparation": "workspace:*",
     "@acos/core-payments": "workspace:*",

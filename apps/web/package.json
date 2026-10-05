@@ -20,6 +20,7 @@
     "@acos/core-discovery": "workspace:*",
     "@acos/core-entitlements": "workspace:*",
     "@acos/core-followup-preparation": "workspace:*",
+    "@acos/core-funnel-events": "workspace:*",
     "@acos/core-identity": "workspace:*",
     "@acos/core-opportunity": "workspace:*",
     "@acos/core-outreach-preparation": "workspace:*",

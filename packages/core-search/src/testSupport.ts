@@ -36,6 +36,7 @@ export function fakeSearchRepository(
         idempotencyKey: input.idempotencyKey,
         createdAt: now,
         updatedAt: now,
+        completedAt: null,
       };
       rows.push(created);
       return created;
@@ -134,6 +135,7 @@ export function fakeSearchRepository(
         leaseOwner: null,
         leaseExpiresAt: null,
         updatedAt: now,
+        completedAt: now,
       };
       return true;
     },

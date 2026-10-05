@@ -123,6 +123,13 @@ model Order {
   currency    String      @default("INR")
   status      OrderStatus @default(PENDING)
 
+  // PCG-1 demonstrated-intent evidence (B-11a/B-11b) is this Order row
+  // itself, anchored on createdAt; visitorId is what ties that evidence
+  // back to the first-party visitor cookie that created it (B-10). No
+  // merge with an authenticated user identity happens here (ED-2,
+  // deferred) — nullable, no FK.
+  visitorId String? @map("visitor_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

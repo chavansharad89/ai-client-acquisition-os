@@ -43,4 +43,6 @@ export interface StoredSearch {
 
   createdAt: Date;
   updatedAt: Date;
+  /** Set exactly once, by completeClaimed() — distinct from updatedAt, which every transition touches. */
+  completedAt: Date | null;
 }

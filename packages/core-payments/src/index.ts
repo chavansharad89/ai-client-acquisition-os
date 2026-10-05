@@ -102,6 +102,9 @@ export {
 } from './webhookPgStore';
 export type { SqlClient, SqlPool } from './webhookPgStore';
 
+export { findPaymentByRazorpayPaymentId, insertRefundEvent } from './refundEvents';
+export type { RefundEventInput } from './refundEvents';
+
 export {
   DEFAULT_BATCH_SIZE,
   DEFAULT_MAX_BATCHES,

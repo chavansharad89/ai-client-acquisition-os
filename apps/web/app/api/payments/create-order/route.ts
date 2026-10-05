@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 
 import { loadEnv } from '@acos/config';
 import {
@@ -13,8 +12,11 @@ import {
 } from '@acos/core-payments';
 import { prisma } from '@acos/db';
 import { CREATE_ORDER_EMAIL_POLICY, CREATE_ORDER_IP_POLICY } from '@acos/rate-limit';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 import { checkCreateOrderLimits } from '../../../../src/server/rateLimit';
+import { readVisitorIdFromRequest } from '../../../../src/server/visitor';
 
 // POST /api/payments/create-order
 // -----------------------------------------------------------------------
@@ -104,8 +106,9 @@ function tooManyRequests(retryAfterSeconds: number): NextResponse {
   );
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const { env, razorpay, orders } = getDeps();
+  const visitorId = readVisitorIdFromRequest(request);
 
   // The IP check runs FIRST, before the body is even read: an obvious
   // flood should cost us a counter increment, not a JSON parse.
@@ -148,6 +151,7 @@ export async function POST(request: Request) {
       body,
       {
         razorpayKeyId: env.RAZORPAY_KEY_ID,
+        visitorId,
         ...(idempotencyKeyHeader ? { idempotencyKey: idempotencyKeyHeader } : {}),
       },
       { razorpay, orders },

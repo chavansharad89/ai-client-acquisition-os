@@ -49,10 +49,19 @@ export interface TestRunIds {
  *   "entitlements_order_id_fkey" on table "entitlements"
  *
  * — twenty times. A broken migration was hiding a broken teardown.
+ *
+ * refund_events is the same shape as entitlements for this purpose:
+ * @acos/core-payments' insertRefundEvent() mints its own id
+ * (crypto.randomUUID()), so a test cannot register it the way it
+ * registers a row it inserted itself with a run-tagged id. Deleted by
+ * order_id instead (§idsFor), which IS this run's — and it must go
+ * before orders, since refund_events references orders ON DELETE
+ * RESTRICT (migration 0034, B-6).
  */
 export const CLEANUP_ORDER = [
   'meta_events',
   'webhook_events',
+  'refund_events',
   'payments',
   'entitlements',
   'orders',
@@ -130,11 +139,12 @@ export function createTestRunContext(seed?: string): TestRunContext {
     idsFor(table) {
       switch (table) {
         case 'entitlements':
-          // Entitlements are created THROUGH the repository, which mints
-          // its own ids, so a test cannot register them the way it
-          // registers an order it inserted itself. They are deleted by
-          // order_id instead — still strictly scoped to rows this run
-          // created, because the order ids are this run's.
+        case 'refund_events':
+          // Both are created THROUGH a repository that mints its own id,
+          // so a test cannot register them the way it registers an order
+          // it inserted itself. Deleted by order_id instead — still
+          // strictly scoped to rows this run created, because the order
+          // ids are this run's.
           return orderIds;
         case 'meta_events':
           return metaEventIds;
@@ -167,6 +177,7 @@ export async function cleanupTestRun(
   const leftover: Record<CleanupTable, string[]> = {
     meta_events: [],
     webhook_events: [],
+    refund_events: [],
     payments: [],
     entitlements: [],
     orders: [],
@@ -181,7 +192,7 @@ export async function cleanupTestRun(
     // run did not create.
     // Always a run-scoped id list. Never a predicate that could match a
     // row this run did not create.
-    const column = table === 'entitlements' ? 'order_id' : 'id';
+    const column = table === 'entitlements' || table === 'refund_events' ? 'order_id' : 'id';
     const result = await db.query(`DELETE FROM "${table}" WHERE ${column} = ANY($1::text[])`, [
       ids,
     ]);
@@ -192,7 +203,7 @@ export async function cleanupTestRun(
   for (const table of CLEANUP_ORDER) {
     const ids = context.idsFor(table);
     if (ids.length === 0) continue;
-    const verifyColumn = table === 'entitlements' ? 'order_id' : 'id';
+    const verifyColumn = table === 'entitlements' || table === 'refund_events' ? 'order_id' : 'id';
     const { rows } = await db.query(
       `SELECT id FROM "${table}" WHERE ${verifyColumn} = ANY($1::text[]) ORDER BY id`,
       [ids],
@@ -235,7 +246,7 @@ export async function countRunRows(
   for (const table of CLEANUP_ORDER) {
     const ids = context.idsFor(table);
     if (ids.length === 0) continue;
-    const countColumn = table === 'entitlements' ? 'order_id' : 'id';
+    const countColumn = table === 'entitlements' || table === 'refund_events' ? 'order_id' : 'id';
     const { rows } = await db.query(
       `SELECT count(*)::int AS n FROM "${table}" WHERE ${countColumn} = ANY($1::text[])`,
       [ids],
@@ -246,5 +257,12 @@ export async function countRunRows(
 }
 
 function emptyCounts(): Record<CleanupTable, number> {
-  return { meta_events: 0, webhook_events: 0, payments: 0, entitlements: 0, orders: 0 };
+  return {
+    meta_events: 0,
+    webhook_events: 0,
+    refund_events: 0,
+    payments: 0,
+    entitlements: 0,
+    orders: 0,
+  };
 }

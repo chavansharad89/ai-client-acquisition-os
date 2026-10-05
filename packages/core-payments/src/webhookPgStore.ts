@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
+import { findPaymentByRazorpayPaymentId, insertRefundEvent } from './refundEvents';
 import type { WebhookRejection } from './webhook';
-import type { RedactionStore } from './webhookRetention';
 import type { WebhookTx } from './webhookHandler';
+import type { RedactionStore } from './webhookRetention';
 
 // PostgreSQL wiring for the webhook boundary.
 // -----------------------------------------------------------------------
@@ -176,6 +177,14 @@ function makeTx(sql: SqlClient): WebhookTx {
           WHERE razorpay_event_id = $1`,
         [razorpayEventId, at],
       );
+    },
+
+    async findPaymentByRazorpayPaymentId(razorpayPaymentId) {
+      return findPaymentByRazorpayPaymentId(sql, razorpayPaymentId);
+    },
+
+    async insertRefundEvent(input) {
+      return insertRefundEvent(sql, input);
     },
   };
 }

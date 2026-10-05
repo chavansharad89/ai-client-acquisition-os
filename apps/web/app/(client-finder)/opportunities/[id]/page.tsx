@@ -1,6 +1,7 @@
-import { notFound, redirect } from 'next/navigation';
 
 import { listAiUsageEvents } from '@acos/core-ai-usage';
+import { getOpportunityFollowUpPreparation } from '@acos/core-followup-preparation';
+import { recordFunnelEvent } from '@acos/core-funnel-events';
 import { requireUser, UnauthenticatedError } from '@acos/core-identity';
 import {
   getFeedback,
@@ -9,15 +10,16 @@ import {
   getOpportunityScore,
   OpportunityNotFoundError,
 } from '@acos/core-opportunity';
-import { getOpportunityFollowUpPreparation } from '@acos/core-followup-preparation';
 import { getOpportunityOutreachPreparation } from '@acos/core-outreach-preparation';
 import { getOpportunityPersonalization } from '@acos/core-personalization';
 import { getOpportunityQualification } from '@acos/core-qualification';
 import { getCategoryPlausibilityDetermination, listResearchSignals } from '@acos/core-research';
+import { notFound, redirect } from 'next/navigation';
 
 import { FeedbackForm } from '../../../../src/components/client-finder/FeedbackForm';
 import { clientFinderRepositories } from '../../../../src/server/clientFinderRepositories';
 import { resolveBusinessIdentity } from '../../../../src/server/clientFinderView';
+import { getPool } from '../../../../src/server/db';
 import { readSessionTokenFromServerComponent } from '../../../../src/server/session';
 
 export const metadata = { title: 'Prospect detail — Client Finder' };
@@ -55,6 +57,21 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
     if (err instanceof UnauthenticatedError) redirect('/login');
     throw err;
   }
+
+  // PCG-6/B-1's "opportunity reviewed" event (ED-9): deliberately NOT
+  // derived from feedback submission (FeedbackForm below posts
+  // separately, to a different endpoint, on the user's own schedule).
+  // First-view-only/deduplicated via migration 0031's partial unique
+  // index — every later view of this page by this user is a no-op.
+  await recordFunnelEvent(getPool(), {
+    eventName: 'opportunity_reviewed',
+    visitorId: null,
+    userId,
+    subjectType: 'opportunity',
+    subjectId: opportunity.id,
+    payload: {},
+    occurredAt: new Date(),
+  });
 
   const [
     identity,

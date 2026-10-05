@@ -1,12 +1,15 @@
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
 
 import { getProduct, isValidProductId } from '@acos/catalog';
 import { isDuplicatePurchase } from '@acos/core-entitlements';
+import { recordFunnelEvent } from '@acos/core-funnel-events';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
 
 import { PriceTag } from '../../../src/components/PriceTag';
 import { UpsellTracker } from '../../../src/components/UpsellTracker';
 import { currentAccess } from '../../../src/server/access';
+import { getPool } from '../../../src/server/db';
+import { readVisitorIdFromServerComponent } from '../../../src/server/visitor';
 
 // The post-purchase upsell.
 // -----------------------------------------------------------------------
@@ -39,6 +42,28 @@ export default async function UpsellPage({ params }: { params: { productId: stri
         </div>
       </main>
     );
+  }
+
+  // PCG-3A/3B exposure instrumentation (ED-5/B-1): the server-rendered
+  // offer screen itself is the authoritative "exposure" record — the
+  // client-side UpsellTracker below fires a browser event for UI
+  // analytics only and is NOT the gate's data source (see that
+  // component). product.id is the existing server-resolved tier
+  // identity (no invented analytics-only ₹1,499 component). Fail-soft:
+  // a request that reached this page without the visitor cookie (e.g.
+  // middleware did not run) still renders the offer; it just is not
+  // counted.
+  const visitorId = readVisitorIdFromServerComponent();
+  if (visitorId) {
+    await recordFunnelEvent(getPool(), {
+      eventName: 'upsell_viewed',
+      visitorId,
+      userId: null,
+      subjectType: 'product',
+      subjectId: product.id,
+      payload: { fromTier: access.funnel.tier },
+      occurredAt: new Date(),
+    });
   }
 
   return (

@@ -1,6 +1,6 @@
+import { resolveProduct } from '@acos/catalog';
 import { z } from 'zod';
 
-import { resolveProduct } from '@acos/catalog';
 
 import type { VerifiedWebhook, WebhookRejection } from './webhook';
 
@@ -39,13 +39,29 @@ const webhookEnvelopeSchema = z.object({
         }),
       })
       .optional(),
+    // Refund processing (B-6), authorized under
+    // CLIENT-FINDER-PDEF-4-IMPLEMENTATION-AUTHORIZATION-PO-DEC-001.
+    // payment_id, not order_id: Razorpay refunds reference the payment
+    // they refund, not the order — findPaymentByRazorpayPaymentId below
+    // is how this handler recovers the order from it.
+    refund: z
+      .object({
+        entity: z.object({
+          id: z.string().trim().min(1).max(120),
+          payment_id: z.string().trim().min(1).max(120),
+          amount: z.number().int().nonnegative(),
+          currency: z.string().trim().min(1).max(8),
+          status: z.string().trim().min(1).max(40),
+        }),
+      })
+      .optional(),
   }),
 });
 
 export type WebhookEnvelope = z.infer<typeof webhookEnvelopeSchema>;
 
-/** The one event this system acts on today. */
-export const SUPPORTED_EVENTS = ['payment.captured'] as const;
+/** Payment confirmation, plus refund processing (B-6) — refunds were not handled at all before this. */
+export const SUPPORTED_EVENTS = ['payment.captured', 'refund.created', 'refund.processed'] as const;
 export type SupportedEvent = (typeof SUPPORTED_EVENTS)[number];
 
 export type WebhookOutcome =
@@ -107,6 +123,25 @@ export interface WebhookTx {
   }): Promise<void>;
 
   markWebhookProcessed(razorpayEventId: string, at: Date): Promise<void>;
+
+  /** The payment a refund webhook's payment_id refers to, or null. */
+  findPaymentByRazorpayPaymentId(razorpayPaymentId: string): Promise<{
+    id: string;
+    orderId: string;
+    amountPaise: number;
+  } | null>;
+
+  /** Inserts the refund ledger row (B-6). Returns false when the refund id already exists. */
+  insertRefundEvent(input: {
+    razorpayRefundId: string;
+    orderId: string;
+    paymentId: string;
+    amountPaise: number;
+    currency: string;
+    refundType: 'FULL' | 'PARTIAL';
+    status: string;
+    occurredAt: Date;
+  }): Promise<boolean>;
 }
 
 export interface WebhookHandlerDeps {
@@ -167,6 +202,7 @@ export async function handleRazorpayWebhook(
 
   const body = envelope.data;
   const entity = body.payload.payment?.entity ?? null;
+  const refundEntity = body.payload.refund?.entity ?? null;
 
   return deps.transaction(async (tx) => {
     // The dedupe. A unique index on razorpay_event_id decides the winner;
@@ -183,10 +219,53 @@ export async function handleRazorpayWebhook(
       return { status: 'duplicate', eventId: deps.eventId, event: body.event };
     }
 
-    if (!isSupported(body.event) || entity === null) {
+    if (!isSupported(body.event) || (entity === null && refundEntity === null)) {
       // Recorded, acknowledged, not acted on. Razorpay sends events this
       // system has no opinion about; 200-ing them without processing is
       // correct, and storing them keeps the audit trail complete.
+      await tx.markWebhookProcessed(deps.eventId, verified.receivedAt);
+      return {
+        status: 'ignored',
+        eventId: deps.eventId,
+        event: body.event,
+        reason: 'unsupported-event',
+      };
+    }
+
+    // Refund processing (B-6) — a disjoint path from payment.captured
+    // below: the dedupe above already happened, so this only needs to
+    // recover the order from the refunded payment and append the ledger
+    // row. refund_events' own unique index (razorpay_refund_id) is a
+    // SECOND, independent dedupe — this webhook_events dedupe guards
+    // against the whole event being retried; that one guards against two
+    // different webhook deliveries (e.g. refund.created AND
+    // refund.processed for the same refund) both trying to record it.
+    if (refundEntity !== null && (body.event === 'refund.created' || body.event === 'refund.processed')) {
+      const payment = await tx.findPaymentByRazorpayPaymentId(refundEntity.payment_id);
+      if (!payment) {
+        throw new WebhookPayloadError(
+          `refund webhook references unknown razorpay payment ${refundEntity.payment_id}`,
+        );
+      }
+      // FULL vs PARTIAL is classification only (B-6) — gate math (PCG-5)
+      // treats every refund as the same binary "had a refund" fact at
+      // the query layer, not here.
+      const refundType = refundEntity.amount >= payment.amountPaise ? 'FULL' : 'PARTIAL';
+      await tx.insertRefundEvent({
+        razorpayRefundId: refundEntity.id,
+        orderId: payment.orderId,
+        paymentId: payment.id,
+        amountPaise: refundEntity.amount,
+        currency: refundEntity.currency,
+        refundType,
+        status: refundEntity.status,
+        occurredAt: verified.receivedAt,
+      });
+      await tx.markWebhookProcessed(deps.eventId, verified.receivedAt);
+      return { status: 'processed', eventId: deps.eventId, event: body.event };
+    }
+
+    if (entity === null) {
       await tx.markWebhookProcessed(deps.eventId, verified.receivedAt);
       return {
         status: 'ignored',

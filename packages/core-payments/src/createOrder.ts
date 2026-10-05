@@ -53,6 +53,8 @@ export interface CreateOrderOptions {
    */
   idempotencyKey?: string;
   razorpayKeyId: string;
+  /** The first-party `acos_visitor` cookie (B-10) — PCG-1's visitor bridge. Null for a request that carried no cookie; never `_fbp`. */
+  visitorId?: string | null;
 }
 
 function defaultGenerateOrderId(): string {
@@ -134,6 +136,7 @@ export async function createOrder(
       productName: product.name,
       amountPaise: product.amountPaise,
       currency: product.currency,
+      visitorId: options.visitorId ?? null,
     });
     return toSafeOrderPaymentInfo(created, options.razorpayKeyId);
   } catch (err) {
