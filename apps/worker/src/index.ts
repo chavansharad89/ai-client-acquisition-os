@@ -26,6 +26,11 @@ import {
 import { createPgSearchRepository } from '@acos/core-search';
 import { Pool } from 'pg';
 
+import {
+  DEFAULT_GATE_EVALUATION_POLL_INTERVAL_MS,
+  runGateEvaluationPollLoop,
+  type GateEvaluationPollLoopDeps,
+} from './gateEvaluation';
 import { runSearchWorkerPollLoop, type SearchWorkerPollLoopDeps } from './searchWorker';
 
 // apps/worker entrypoint (R-34 — Worker Orchestration / Wiring)
@@ -156,13 +161,33 @@ async function main(): Promise<void> {
     pollIntervalMs: env.WORKER_POLL_INTERVAL_MS,
   };
 
+  // Engineering default cadence (ED-DEC-001 §3 item 2): once per day, a
+  // fixed in-code constant, not an environment variable — no governing
+  // record specifies a configurable number, and introducing one here
+  // would be new config surface beyond this record's authorized scope.
+  const gateEvaluationDeps: GateEvaluationPollLoopDeps = {
+    sql: pool,
+    pollIntervalMs: DEFAULT_GATE_EVALUATION_POLL_INTERVAL_MS,
+  };
+
   const shutdown = new AbortController();
   const onSignal = (): void => shutdown.abort();
   process.once('SIGTERM', onSignal);
   process.once('SIGINT', onSignal);
 
   try {
-    await runSearchWorkerPollLoop(deps, shutdown.signal);
+    // PDEF4-GATE-EVAL-WIRING-IMPL-AUTH-DEC-001 §3: a second, independent
+    // poll loop sharing this same Pool and shutdown signal — no new
+    // queue, broker, or scheduler process. Runs concurrently with the
+    // Search worker loop, not sequentially after it; either loop's own
+    // failure (not expected to be fatal, since each catches/logs its own
+    // tick errors) still propagates here if the loop function itself
+    // throws, matching how `try`/`finally` already surfaced the Search
+    // loop's own unexpected failures before this change.
+    await Promise.all([
+      runSearchWorkerPollLoop(deps, shutdown.signal),
+      runGateEvaluationPollLoop(gateEvaluationDeps, shutdown.signal),
+    ]);
   } finally {
     process.removeListener('SIGTERM', onSignal);
     process.removeListener('SIGINT', onSignal);

@@ -156,6 +156,9 @@ importers:
       '@acos/core-followup-preparation':
         specifier: workspace:*
         version: link:../../packages/core-followup-preparation
+      '@acos/core-launch-gates':
+        specifier: workspace:*
+        version: link:../../packages/core-launch-gates
       '@acos/core-opportunity':
         specifier: workspace:*
         version: link:../../packages/core-opportunity
