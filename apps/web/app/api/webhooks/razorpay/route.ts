@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 
 import { loadEnv } from '@acos/config';
 import { handleRazorpayWebhook, verifyRazorpayWebhook } from '@acos/core-payments';
+import { createClaimEmailSender, issueClaimLink } from '@acos/core-entitlements';
 import { buildPurchaseEventId } from '@acos/core-capi';
 
+import { commerceRepositories } from '../../../../src/server/commerceRepositories';
 import { recordWebhookRejection, webhookTransaction } from '../../../../src/server/webhookStore';
 
 // POST /api/webhooks/razorpay
@@ -101,6 +103,40 @@ export async function POST(request: Request) {
       await recordWebhookRejection(outcome.rejection);
       return NextResponse.json({ error: 'Unprocessable payload' }, { status: 400 });
     }
+
+    // DEC-014: a freshly granted entitlement gets a claim/setup link
+    // emailed to the purchase address. `grantedEntitlement` is only set
+    // the one time this specific razorpay event id is processed (the
+    // webhook_events dedupe above already guarantees that), so this
+    // cannot double-send for a retried delivery of the same event.
+    //
+    // Deliberately outside the DB transaction and deliberately
+    // non-fatal: the payment and entitlement are already committed by
+    // this point, and a mail-provider outage must not turn into a 500
+    // that makes Razorpay retry an already-processed payment. A failed
+    // send here is recovered by the buyer's own resend request, or by
+    // the next reconciliation pass finding the order still unclaimed —
+    // not by this endpoint.
+    if (outcome.status === 'processed' && outcome.grantedEntitlement) {
+      try {
+        const sender = createClaimEmailSender({
+          provider: config.EMAIL_PROVIDER,
+          nodeEnv: config.NODE_ENV,
+          gmailDev:
+            config.GMAIL_DEV_USER && config.GMAIL_DEV_APP_PASSWORD
+              ? { user: config.GMAIL_DEV_USER, appPassword: config.GMAIL_DEV_APP_PASSWORD }
+              : undefined,
+        });
+        await issueClaimLink(
+          commerceRepositories().entitlements,
+          sender,
+          { ...outcome.grantedEntitlement, baseUrl: config.APP_BASE_URL },
+        );
+      } catch (cause) {
+        console.error('Failed to issue/send DEC-014 claim link after webhook grant:', cause);
+      }
+    }
+
     // 200 for processed, duplicate and ignored alike. Razorpay retries on
     // anything else, and a duplicate is a success from its point of view:
     // the event has been received and is recorded exactly once.

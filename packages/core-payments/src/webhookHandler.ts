@@ -65,7 +65,17 @@ export const SUPPORTED_EVENTS = ['payment.captured', 'refund.created', 'refund.p
 export type SupportedEvent = (typeof SUPPORTED_EVENTS)[number];
 
 export type WebhookOutcome =
-  | { status: 'processed'; eventId: string; event: string }
+  | {
+      status: 'processed';
+      eventId: string;
+      event: string;
+      /**
+       * Present only when this event granted an entitlement
+       * (payment.captured) — the order to issue a DEC-014 claim link
+       * for. Absent for a refund event, which grants nothing.
+       */
+      grantedEntitlement?: { orderId: string; customerEmail: string };
+    }
   | { status: 'duplicate'; eventId: string; event: string }
   /** Verified and well-formed, but not an event we act on. Still recorded. */
   | { status: 'ignored'; eventId: string; event: string; reason: 'unsupported-event' }
@@ -317,7 +327,12 @@ export async function handleRazorpayWebhook(
     });
 
     await tx.markWebhookProcessed(deps.eventId, verified.receivedAt);
-    return { status: 'processed', eventId: deps.eventId, event: body.event };
+    return {
+      status: 'processed',
+      eventId: deps.eventId,
+      event: body.event,
+      grantedEntitlement: { orderId: order.id, customerEmail: order.customerEmail },
+    };
   });
 }
 

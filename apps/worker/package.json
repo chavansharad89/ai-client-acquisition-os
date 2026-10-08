@@ -21,6 +21,7 @@
     "@acos/core-launch-gates": "workspace:*",
     "@acos/core-opportunity": "workspace:*",
     "@acos/core-outreach-preparation": "workspace:*",
+    "@acos/core-payments": "workspace:*",
     "@acos/core-personalization": "workspace:*",
     "@acos/core-qualification": "workspace:*",
     "@acos/core-research": "workspace:*",

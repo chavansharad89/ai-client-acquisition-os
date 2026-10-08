@@ -43,6 +43,7 @@ function paidCustomer(email = BUYER) {
         orderId: 'o1',
         grantedAt: T0,
         revokedAt: null,
+        userId: null,
       },
     ],
     tokens: {

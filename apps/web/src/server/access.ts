@@ -1,21 +1,26 @@
-import { cookies } from 'next/headers';
+import { funnelStateFor, purchasedFrom, type AccessResolution } from '@acos/core-entitlements';
+import { resolveSession } from '@acos/core-identity';
 
-import { funnelStateFor, type AccessResolution } from '@acos/core-entitlements';
+import { commerceRepositories } from './commerceRepositories';
+import { readSessionTokenFromServerComponent } from './session';
 
-// Server-side access for pages.
+// Server-side access for pages — session-gated.
 // -----------------------------------------------------------------------
-// The cookie holds an opaque access token, httpOnly, so page JavaScript
-// cannot read it and nothing in the browser can fabricate entitlement.
-// Every protected page calls through here.
+// Resolves the `acos_session` cookie (the same core-identity session
+// mechanism Client Finder already uses — DEC-010 §5 is exactly what
+// activates it for this, a second, unrelated purpose) to a userId, then
+// reads that user's CLAIMED entitlements (entitlements.user_id, migration
+// 0038) — never the legacy ACCESS_COOKIE/email-token path, and never
+// `users.email == entitlements.customer_email` as an access decision:
+// only a completed claim (core-entitlements' claim-token mechanism)
+// produces the user_id link this reads.
 //
-// WIRING NOTE: the EntitlementRepository is not constructed yet — the
-// webhook handler that would grant entitlements and mint tokens is
-// unimplemented, so there is nothing to read. Until then this resolves to
-// "anonymous", which is the safe direction to fail: protected pages send
-// visitors to checkout rather than opening up.
+// An authenticated session with zero claimed entitlements (e.g. a
+// Client-Finder-only account, or every entitlement revoked) resolves to
+// "granted: true, purchased: []" rather than anonymous — the funnel
+// state correctly reflects "signed in, owns nothing" and the existing
+// /access page's upsell flow handles that case already.
 // -----------------------------------------------------------------------
-
-export const ACCESS_COOKIE = 'acos_access';
 
 const ANONYMOUS: AccessResolution = {
   granted: false,
@@ -23,17 +28,27 @@ const ANONYMOUS: AccessResolution = {
   funnel: funnelStateFor([]),
 };
 
-export function readAccessToken(): string | undefined {
-  return cookies().get(ACCESS_COOKIE)?.value;
-}
-
 /**
- * Resolves the current visitor's entitlements.
- *
- * Returns anonymous until the entitlement repository is wired, so no page
- * can accidentally grant access on the strength of a cookie that nothing
- * validates yet.
+ * Resolves the current visitor's entitlements from their authenticated
+ * session. Anonymous (no session, expired, revoked) resolves to
+ * ANONYMOUS, same as before — protected pages still send a visitor to
+ * checkout/login rather than opening up.
  */
 export async function currentAccess(): Promise<AccessResolution> {
-  return ANONYMOUS;
+  const { identity, entitlements } = commerceRepositories();
+  const resolution = await resolveSession(identity, readSessionTokenFromServerComponent());
+  if (!resolution.authenticated) return ANONYMOUS;
+
+  const [user, active] = await Promise.all([
+    identity.findUserById(resolution.userId),
+    entitlements.listActiveByUser(resolution.userId),
+  ]);
+  if (!user) return ANONYMOUS;
+
+  const purchased = purchasedFrom(active);
+  return {
+    granted: true,
+    context: { customerEmail: user.email, purchased },
+    funnel: funnelStateFor(purchased),
+  };
 }

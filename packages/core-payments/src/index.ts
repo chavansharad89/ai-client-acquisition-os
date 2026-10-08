@@ -26,6 +26,7 @@ export {
   IdempotencyKeyConflictError,
   InvalidProductError,
   OrderPersistenceError,
+  RazorpayApiError,
   RazorpayOrderCreationError,
 } from './errors';
 export type { CreateOrderErrorCode } from './errors';
@@ -34,7 +35,15 @@ export { createOrderRequestSchema } from './schemas';
 export type { CreateOrderRequestBody } from './schemas';
 
 export { createRazorpayOrdersClient } from './razorpayClient';
-export type { CreateRazorpayOrderParams, RazorpayOrder, RazorpayOrdersClient } from './razorpayClient';
+export type {
+  CreateRazorpayOrderParams,
+  RazorpayOrder,
+  RazorpayOrdersClient,
+  RazorpayPaymentSummary,
+} from './razorpayClient';
+
+export { reconcileOrder } from './reconciliation';
+export type { OrderToReconcile, ReconcileOrderDeps, ReconciliationOutcome } from './reconciliation';
 
 export {
   createPrismaOrderRepository,
@@ -98,6 +107,7 @@ export type {
 export {
   createRedactionStore,
   createWebhookTransactionRunner,
+  findEligibleOrdersForReconciliation,
   recordWebhookRejection,
 } from './webhookPgStore';
 export type { SqlClient, SqlPool } from './webhookPgStore';

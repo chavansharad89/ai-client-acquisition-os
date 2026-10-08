@@ -77,6 +77,9 @@ async function freshDeps(label: string): Promise<CreateOrderDeps & { calls: numb
         status: 'created',
       };
     },
+    async fetchPayments() {
+      return [];
+    },
   };
 
   const deps = { razorpay, orders: createPgOrderRepository(pool) };

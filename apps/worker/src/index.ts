@@ -11,6 +11,8 @@ import {
 import { createPgFollowUpPreparationRepository } from '@acos/core-followup-preparation';
 import { createPgOpportunityRepository, createPgOpportunityScoreRepository } from '@acos/core-opportunity';
 import { createPgOutreachPreparationRepository } from '@acos/core-outreach-preparation';
+import { createClaimEmailSender, createPgEntitlementRepository } from '@acos/core-entitlements';
+import { createRazorpayOrdersClient } from '@acos/core-payments';
 import { createPgPersonalizationRepository } from '@acos/core-personalization';
 import { createPgQualificationRepository } from '@acos/core-qualification';
 import {
@@ -26,11 +28,20 @@ import {
 import { createPgSearchRepository } from '@acos/core-search';
 import { Pool } from 'pg';
 
+import { buildPurchaseEventId } from '@acos/core-capi';
+
 import {
   DEFAULT_GATE_EVALUATION_POLL_INTERVAL_MS,
   runGateEvaluationPollLoop,
   type GateEvaluationPollLoopDeps,
 } from './gateEvaluation';
+import {
+  DEFAULT_RECONCILIATION_BATCH_SIZE,
+  DEFAULT_RECONCILIATION_ELIGIBILITY_AGE_MS,
+  DEFAULT_RECONCILIATION_POLL_INTERVAL_MS,
+  runReconciliationPollLoop,
+  type ReconciliationPollLoopDeps,
+} from './reconciliation';
 import { runSearchWorkerPollLoop, type SearchWorkerPollLoopDeps } from './searchWorker';
 
 // apps/worker entrypoint (R-34 — Worker Orchestration / Wiring)
@@ -170,6 +181,33 @@ async function main(): Promise<void> {
     pollIntervalMs: DEFAULT_GATE_EVALUATION_POLL_INTERVAL_MS,
   };
 
+  // DEC-010 item 6: payment/webhook reconciliation, launch-blocking for
+  // ₹99 validation. See ./reconciliation/pollLoop.ts for why the cadence
+  // below is an engineering default, not a governed value.
+  const reconciliationDeps: ReconciliationPollLoopDeps = {
+    pool,
+    razorpay: createRazorpayOrdersClient({
+      keyId: env.RAZORPAY_KEY_ID,
+      keySecret: env.RAZORPAY_KEY_SECRET,
+    }),
+    buildMetaEventId: (paymentId: string) => buildPurchaseEventId({ paymentId }),
+    eligibilityAgeMs: DEFAULT_RECONCILIATION_ELIGIBILITY_AGE_MS,
+    batchSize: DEFAULT_RECONCILIATION_BATCH_SIZE,
+    pollIntervalMs: DEFAULT_RECONCILIATION_POLL_INTERVAL_MS,
+    claimLink: {
+      entitlements: createPgEntitlementRepository(pool),
+      sender: createClaimEmailSender({
+        provider: env.EMAIL_PROVIDER,
+        nodeEnv: env.NODE_ENV,
+        gmailDev:
+          env.GMAIL_DEV_USER && env.GMAIL_DEV_APP_PASSWORD
+            ? { user: env.GMAIL_DEV_USER, appPassword: env.GMAIL_DEV_APP_PASSWORD }
+            : undefined,
+      }),
+      baseUrl: env.APP_BASE_URL,
+    },
+  };
+
   const shutdown = new AbortController();
   const onSignal = (): void => shutdown.abort();
   process.once('SIGTERM', onSignal);
@@ -187,6 +225,7 @@ async function main(): Promise<void> {
     await Promise.all([
       runSearchWorkerPollLoop(deps, shutdown.signal),
       runGateEvaluationPollLoop(gateEvaluationDeps, shutdown.signal),
+      runReconciliationPollLoop(reconciliationDeps, shutdown.signal),
     ]);
   } finally {
     process.removeListener('SIGTERM', onSignal);

@@ -69,6 +69,8 @@ export class UniqueConstraintViolationError extends Error {
 export interface OrderRepository {
   findByIdempotencyKey(key: string): Promise<PersistedOrder | null>;
   create(input: CreateOrderRecordInput): Promise<PersistedOrder>;
+  /** For the browser's post-checkout status poll and for reconciliation eligibility — read-only, never a grant path. */
+  findByRazorpayOrderId(razorpayOrderId: string): Promise<PersistedOrder | null>;
 }
 
 /**
@@ -102,7 +104,9 @@ export interface OrderRepository {
  */
 export interface MinimalPrismaOrderClient {
   order: {
-    findUnique(args: { where: { idempotencyKey: string } }): Promise<{
+    findUnique(args: {
+      where: { idempotencyKey: string } | { razorpayOrderId: string };
+    }): Promise<{
       id: string;
       razorpayOrderId: string;
       idempotencyKey: string | null;
@@ -165,6 +169,11 @@ export function createPrismaOrderRepository(db: MinimalPrismaOrderClient): Order
   return {
     async findByIdempotencyKey(key: string): Promise<PersistedOrder | null> {
       const row = await db.order.findUnique({ where: { idempotencyKey: key } });
+      return row ? toPersistedOrder(row) : null;
+    },
+
+    async findByRazorpayOrderId(razorpayOrderId: string): Promise<PersistedOrder | null> {
+      const row = await db.order.findUnique({ where: { razorpayOrderId } });
       return row ? toPersistedOrder(row) : null;
     },
 

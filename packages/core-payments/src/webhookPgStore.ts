@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { findPaymentByRazorpayPaymentId, insertRefundEvent } from './refundEvents';
+import type { OrderToReconcile } from './reconciliation';
 import type { WebhookRejection } from './webhook';
 import type { WebhookTx } from './webhookHandler';
 import type { RedactionStore } from './webhookRetention';
@@ -187,6 +188,51 @@ function makeTx(sql: SqlClient): WebhookTx {
       return insertRefundEvent(sql, input);
     },
   };
+}
+
+/**
+ * Orders the reconciliation loop should ask Razorpay about: still
+ * PENDING/ATTEMPTED (no captured payment recorded) and old enough that a
+ * webhook had every reasonable chance to arrive already.
+ *
+ * `FOR UPDATE SKIP LOCKED` is deliberately NOT used here — unlike the
+ * search worker's claim queue, nothing here is "claimed" by a worker
+ * instance; re-checking the same order on two overlapping ticks is a
+ * harmless duplicate read, made safe by reconcileOrder's own idempotent
+ * writes (see reconciliation.ts's own doc comment).
+ */
+export async function findEligibleOrdersForReconciliation(
+  sql: SqlClient,
+  cutoff: Date,
+  limit: number,
+): Promise<OrderToReconcile[]> {
+  const { rows } = await sql.query(
+    `SELECT id, razorpay_order_id, customer_email, product_slug, amount_paise, currency, status
+       FROM orders
+      WHERE status IN ('PENDING', 'ATTEMPTED') AND created_at <= $1
+      ORDER BY created_at
+      LIMIT $2`,
+    [cutoff, limit],
+  );
+  return (
+    rows as {
+      id: string;
+      razorpay_order_id: string;
+      customer_email: string;
+      product_slug: string;
+      amount_paise: number;
+      currency: string;
+      status: string;
+    }[]
+  ).map((row) => ({
+    id: row.id,
+    razorpayOrderId: row.razorpay_order_id,
+    customerEmail: row.customer_email,
+    productSlug: row.product_slug,
+    amountPaise: Number(row.amount_paise),
+    currency: row.currency,
+    status: row.status,
+  }));
 }
 
 /**

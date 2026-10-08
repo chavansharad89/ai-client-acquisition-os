@@ -22,6 +22,7 @@ const entitlement = (productSlug: string, over: Partial<Entitlement> = {}): Enti
   orderId: 'order_1',
   grantedAt: NOW,
   revokedAt: null,
+  userId: null,
   ...over,
 });
 

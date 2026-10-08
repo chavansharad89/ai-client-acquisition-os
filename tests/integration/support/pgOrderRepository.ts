@@ -42,6 +42,18 @@ export function createPgOrderRepository(pool: Pool): OrderRepository {
       return rows[0] ? mapRow(rows[0]) : null;
     },
 
+    async findByRazorpayOrderId(razorpayOrderId: string): Promise<PersistedOrder | null> {
+      const { rows } = await pool.query(
+        `SELECT id, razorpay_order_id, idempotency_key, customer_email, customer_phone,
+                product_slug, product_name, amount_paise, currency, status, created_at,
+                visitor_id
+         FROM orders
+         WHERE razorpay_order_id = $1`,
+        [razorpayOrderId],
+      );
+      return rows[0] ? mapRow(rows[0]) : null;
+    },
+
     async create(input: CreateOrderRecordInput): Promise<PersistedOrder> {
       try {
         const { rows } = await pool.query(

@@ -99,3 +99,56 @@ export const REISSUE_IP_POLICY: RateLimitPolicy = {
   limit: 10,
   windowMs: 15 * 60_000,
 };
+
+/**
+ * Login. Tight per-email — this is the brute-force guard, not a
+ * behavioural model of a forgetful genuine buyer, who gets locked out
+ * after ten wrong guesses in fifteen minutes just as readily as an
+ * attacker does. The per-IP ceiling is looser for the same NAT reason as
+ * checkout, but exists so one host cannot cycle through many emails.
+ */
+export const LOGIN_EMAIL_POLICY: RateLimitPolicy = {
+  name: 'login:email',
+  limit: 10,
+  windowMs: 15 * 60_000,
+};
+
+export const LOGIN_IP_POLICY: RateLimitPolicy = {
+  name: 'login:ip',
+  limit: 30,
+  windowMs: 15 * 60_000,
+};
+
+/**
+ * Claim-token issuance. Each call succeeds only against an order that
+ * already has a captured payment — so abuse here cannot forge access,
+ * only generate useless tokens — but it is still a database write per
+ * call, so a per-IP ceiling exists to stop a script from hammering it.
+ */
+export const CLAIM_TOKEN_IP_POLICY: RateLimitPolicy = {
+  name: 'claim-token:ip',
+  limit: 20,
+  windowMs: 15 * 60_000,
+};
+
+/**
+ * DEC-014 D3: resending a claim/setup link. ENGINEERING DEFAULT — D3
+ * requires rate limiting but does not specify exact numbers, so this
+ * follows the same reasoning REISSUE_EMAIL_POLICY/REISSUE_IP_POLICY
+ * above already apply to a different link-resend endpoint: the side
+ * effect is an email to an address the caller names, so the per-email
+ * ceiling is tight (three per fifteen minutes is generous for someone
+ * who lost their link and uncomfortable for a mail-bomb attempt), and
+ * the per-IP ceiling exists only to stop one host walking many orders.
+ */
+export const CLAIM_LINK_RESEND_EMAIL_POLICY: RateLimitPolicy = {
+  name: 'claim-link-resend:email',
+  limit: 3,
+  windowMs: 15 * 60_000,
+};
+
+export const CLAIM_LINK_RESEND_IP_POLICY: RateLimitPolicy = {
+  name: 'claim-link-resend:ip',
+  limit: 10,
+  windowMs: 15 * 60_000,
+};

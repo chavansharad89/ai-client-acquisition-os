@@ -29,8 +29,24 @@ export interface RazorpayOrder {
   status: string;
 }
 
+/** One payment Razorpay recorded against an order, narrowed to what reconciliation needs. */
+export interface RazorpayPaymentSummary {
+  razorpayPaymentId: string;
+  status: string;
+  amountPaise: number;
+  currency: string;
+}
+
 export interface RazorpayOrdersClient {
   createOrder(params: CreateRazorpayOrderParams): Promise<RazorpayOrder>;
+  /**
+   * For reconciliation only: asks Razorpay directly whether an order has
+   * a captured payment, for the case where our own webhook never
+   * arrived. Never used on the checkout-return path — that remains
+   * webhook-only per architecture §5/§14 item 12 (see
+   * apps/web/app/api/payments/verify/route.ts's own doc comment).
+   */
+  fetchPayments(razorpayOrderId: string): Promise<readonly RazorpayPaymentSummary[]>;
 }
 
 /**
@@ -87,6 +103,26 @@ export function createRazorpayOrdersClient(config: {
         receipt: response.receipt ?? params.receipt,
         status: response.status,
       };
+    },
+
+    async fetchPayments(razorpayOrderId: string): Promise<readonly RazorpayPaymentSummary[]> {
+      let response: { items: { id: string; status: string; amount: number | string; currency: string }[] };
+      try {
+        response = await instance.orders.fetchPayments(razorpayOrderId);
+      } catch (cause) {
+        const { RazorpayApiError } = await import('./errors');
+        const message =
+          cause instanceof Error
+            ? `Razorpay fetch-payments failed: ${cause.message}`
+            : 'Razorpay fetch-payments failed: unknown error';
+        throw new RazorpayApiError(message, cause);
+      }
+      return response.items.map((item) => ({
+        razorpayPaymentId: item.id,
+        status: item.status,
+        amountPaise: Number(item.amount),
+        currency: item.currency,
+      }));
     },
   };
 }

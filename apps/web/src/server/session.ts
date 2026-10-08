@@ -3,14 +3,15 @@ import type { NextRequest } from 'next/server';
 
 import { resolveSession, type IdentityRepository, type SessionResolution } from '@acos/core-identity';
 
-// Session cookie for the Client Finder MVP UI.
+// Session cookie — shared by the Client Finder MVP UI and the kit
+// library/claim flow (DEC-010 §5: the same core-identity session
+// mechanism, activated for a second purpose).
 // -----------------------------------------------------------------------
-// Distinct from apps/web/src/server/access.ts's ACCESS_COOKIE
-// ('acos_access'), which is an unrelated product-entitlement credential
-// (core-entitlements). This cookie carries a core-identity session
-// token, minted by POST /api/auth/session and resolved by
-// @acos/core-identity's resolveSession()/requireUser() — never verified
-// or decoded in this file, only carried.
+// This cookie carries a core-identity session token, minted by POST
+// /api/auth/session (Client Finder) or POST /api/auth/{signup,login}
+// (kit accounts) and resolved by @acos/core-identity's
+// resolveSession()/requireUser() — never verified or decoded in this
+// file, only carried.
 // -----------------------------------------------------------------------
 
 export const SESSION_COOKIE = 'acos_session';

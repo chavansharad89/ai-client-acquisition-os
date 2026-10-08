@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useId, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 
 import type { Product } from '@acos/catalog';
 
@@ -140,6 +140,66 @@ export function CheckoutPanel({ product }: { product: Product }) {
     instance.open();
   }, [email, phone, product.id, validate]);
 
+  // While Razorpay has told the browser it succeeded but the webhook
+  // (or reconciliation, if the webhook is late) has not yet landed, poll
+  // the server for its own truth. This never claims success itself — it
+  // only asks whether the server already has — so it does not weaken
+  // isPurchaseConfirmed()'s invariant that the browser's own belief is
+  // never trusted.
+  //
+  // DEC-014 D1: once the server confirms an entitlement exists, this no
+  // longer redirects to a claim page the browser can reach on its own —
+  // the webhook handler (or reconciliation) has already emailed a claim
+  // link to the purchase address, and that email is the only way to
+  // reach account setup. This stops polling and tells the buyer to
+  // check their inbox instead.
+  const [emailSent, setEmailSent] = useState(false);
+  useEffect(() => {
+    if (state.phase !== 'confirming') return;
+    const razorpayOrderId = state.order.razorpayOrderId;
+    let stopped = false;
+
+    const poll = async () => {
+      try {
+        const response = await fetch(
+          `/api/payments/status?razorpayOrderId=${encodeURIComponent(razorpayOrderId)}`,
+        );
+        if (!response.ok) return;
+        const body = (await response.json()) as { entitlementExists?: boolean };
+        if (!stopped && body.entitlementExists) {
+          setEmailSent(true);
+        }
+      } catch {
+        // Transient network error — the next tick tries again.
+      }
+    };
+
+    void poll();
+    const interval = window.setInterval(() => {
+      if (!emailSent) void poll();
+    }, 3000);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+    };
+  }, [state, emailSent]);
+
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const resendClaimEmail = useCallback(async () => {
+    if (!('order' in state) || !state.order) return;
+    setResendState('sending');
+    try {
+      const response = await fetch('/api/payments/claim-link/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ razorpayOrderId: state.order.razorpayOrderId }),
+      });
+      setResendState(response.ok ? 'sent' : 'error');
+    } catch {
+      setResendState('error');
+    }
+  }, [state]);
+
   const busy = isBusy(state);
   const submittable = canSubmit(state);
 
@@ -212,7 +272,13 @@ export function CheckoutPanel({ product }: { product: Product }) {
           </button>
         </form>
 
-        <CheckoutStatus state={state} onRetry={() => dispatch({ type: 'RETRY' })} />
+        <CheckoutStatus
+          state={state}
+          onRetry={() => dispatch({ type: 'RETRY' })}
+          emailSent={emailSent}
+          resendState={resendState}
+          onResend={() => void resendClaimEmail()}
+        />
       </section>
 
       <aside className="summary" aria-label="Order summary">
@@ -230,7 +296,7 @@ export function CheckoutPanel({ product }: { product: Product }) {
         <ul className="trust">
           <li>Secure payment by Razorpay</li>
           <li>UPI, cards, netbanking</li>
-          <li>Instant delivery by email</li>
+          <li>Account setup link emailed after payment</li>
         </ul>
       </aside>
     </div>
@@ -240,9 +306,15 @@ export function CheckoutPanel({ product }: { product: Product }) {
 function CheckoutStatus({
   state,
   onRetry,
+  emailSent,
+  resendState,
+  onResend,
 }: {
   state: ReturnType<typeof checkoutReducer>;
   onRetry: () => void;
+  emailSent: boolean;
+  resendState: 'idle' | 'sending' | 'sent' | 'error';
+  onResend: () => void;
 }) {
   switch (state.phase) {
     case 'creating':
@@ -253,12 +325,38 @@ function CheckoutStatus({
 
     case 'confirming':
       // Deliberately does NOT say "payment successful". Razorpay told the
-      // browser; only the signed webhook tells us.
+      // browser; only the signed webhook tells us — and even once it
+      // has, this still never claims the browser itself can finish
+      // account setup. DEC-014 D1: that only happens via the claim link
+      // we email to the purchase address.
+      if (emailSent) {
+        return (
+          <div className="stack">
+            <StatusMessage tone="good" title="Payment confirmed — check your email.">
+              {' '}
+              We&rsquo;ve emailed a secure link to set up your account and access your library.
+              It&rsquo;s valid for 24 hours.
+            </StatusMessage>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={onResend}
+              disabled={resendState === 'sending'}
+            >
+              {resendState === 'sending' ? 'Resending…' : 'Resend email'}
+            </button>
+            {resendState === 'sent' ? <p className="hint">Sent — check your inbox again shortly.</p> : null}
+            {resendState === 'error' ? (
+              <p className="field-error">Could not resend right now. Please try again.</p>
+            ) : null}
+          </div>
+        );
+      }
       return (
         <StatusMessage tone="pending" title="Payment received — confirming it now.">
           {' '}
-          We confirm every payment with our provider before releasing access. Your kit arrives by
-          email within a few minutes; you can close this page.
+          We confirm every payment with our provider before releasing access. We&rsquo;ll email
+          you a link to set up your account as soon as that&rsquo;s done — usually a few seconds.
         </StatusMessage>
       );
 

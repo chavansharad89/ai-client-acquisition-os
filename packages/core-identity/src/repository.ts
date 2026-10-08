@@ -14,10 +14,23 @@ export interface StoredSessionToken {
  * this interface (plus core-entitlements' own) touches `access_tokens`.
  */
 export interface IdentityRepository {
-  /** Out-of-band provisioning creates the row; there is no self-service signup (R-02, FUTURE). */
-  createUser(input: { email: string }, now: Date): Promise<StoredUser>;
+  /**
+   * Creates a user row. `passwordHash` is optional: out-of-band
+   * provisioning (R-02's existing, unrelated path) still calls this with
+   * only an email; self-service signup (the ₹99 claim flow, DEC-010
+   * item 2) supplies a hash from the start. Nothing here accepts a
+   * caller-asserted email for that flow — see @acos/core-entitlements'
+   * claim-token mechanism, which is what derives the email server-side.
+   */
+  createUser(input: { email: string; passwordHash?: string }, now: Date): Promise<StoredUser>;
 
   findUserByEmail(email: string): Promise<StoredUser | null>;
+
+  /** For the post-claim library path, which only has a session's userId to start from. */
+  findUserById(id: string): Promise<StoredUser | null>;
+
+  /** For login only — never returned from findUserByEmail, to keep the hash out of general-purpose user lookups. */
+  findCredentialsByEmail(email: string): Promise<StoredCredentials | null>;
 
   /** Looks a session up BY HASH. The plaintext token never reaches the database. */
   findSessionToken(tokenHash: string): Promise<StoredSessionToken | null>;
@@ -29,4 +42,14 @@ export interface IdentityRepository {
     expiresAt: Date;
     now: Date;
   }): Promise<void>;
+
+  /** Logout: revokes a session token. Returns false if already revoked/unknown. */
+  revokeSessionToken(tokenHash: string, now: Date): Promise<boolean>;
+}
+
+export interface StoredCredentials {
+  id: string;
+  email: string;
+  /** Null for an out-of-band-provisioned row that has never set a password. */
+  passwordHash: string | null;
 }

@@ -39,6 +39,7 @@ function makeFakeRazorpay(overrides?: Partial<RazorpayOrdersClient>): RazorpayOr
         status: 'created',
       };
     }),
+    fetchPayments: vi.fn(async () => []),
     ...overrides,
   };
 }
@@ -52,6 +53,9 @@ function makeFakeOrderRepository(
     rows,
     async findByIdempotencyKey(key: string) {
       return rows.find((r) => r.idempotencyKey === key) ?? null;
+    },
+    async findByRazorpayOrderId(razorpayOrderId: string) {
+      return rows.find((r) => r.razorpayOrderId === razorpayOrderId) ?? null;
     },
     async create(input: CreateOrderRecordInput) {
       if (input.idempotencyKey && rows.some((r) => r.idempotencyKey === input.idempotencyKey)) {

@@ -1,7 +1,7 @@
 import { normaliseEmail } from '@acos/core-entitlements';
 import type { SqlExecutor } from '@acos/core-entitlements';
 
-import type { IdentityRepository, StoredSessionToken } from './repository';
+import type { IdentityRepository, StoredCredentials, StoredSessionToken } from './repository';
 import type { StoredUser } from './types';
 
 // PostgreSQL implementation.
@@ -22,12 +22,12 @@ interface UserRow {
 
 export function createPgIdentityRepository(sql: SqlExecutor): IdentityRepository {
   return {
-    async createUser({ email }, now: Date): Promise<StoredUser> {
+    async createUser({ email, passwordHash }, now: Date): Promise<StoredUser> {
       const { rows } = await sql.query(
-        `INSERT INTO users (id, email, created_at)
-         VALUES (gen_random_uuid()::text, $1, $2)
+        `INSERT INTO users (id, email, password_hash, created_at)
+         VALUES (gen_random_uuid()::text, $1, $2, $3)
          RETURNING id, email, created_at`,
-        [normaliseEmail(email), now],
+        [normaliseEmail(email), passwordHash ?? null, now],
       );
       return mapUserRow(rows[0] as UserRow);
     },
@@ -38,6 +38,30 @@ export function createPgIdentityRepository(sql: SqlExecutor): IdentityRepository
       ]);
       const row = rows[0] as UserRow | undefined;
       return row ? mapUserRow(row) : null;
+    },
+
+    async findUserById(id: string): Promise<StoredUser | null> {
+      const { rows } = await sql.query(`SELECT id, email, created_at FROM users WHERE id = $1`, [id]);
+      const row = rows[0] as UserRow | undefined;
+      return row ? mapUserRow(row) : null;
+    },
+
+    async findCredentialsByEmail(email: string): Promise<StoredCredentials | null> {
+      const { rows } = await sql.query(
+        `SELECT id, email, password_hash FROM users WHERE email = $1`,
+        [normaliseEmail(email)],
+      );
+      const row = rows[0] as { id: string; email: string; password_hash: string | null } | undefined;
+      return row ? { id: row.id, email: row.email, passwordHash: row.password_hash } : null;
+    },
+
+    async revokeSessionToken(tokenHash: string, now: Date): Promise<boolean> {
+      const { rowCount } = await sql.query(
+        `UPDATE access_tokens SET revoked_at = $2
+          WHERE token_hash = $1 AND revoked_at IS NULL AND user_id IS NOT NULL`,
+        [tokenHash, now],
+      );
+      return (rowCount ?? 0) > 0;
     },
 
     async findSessionToken(tokenHash: string): Promise<StoredSessionToken | null> {

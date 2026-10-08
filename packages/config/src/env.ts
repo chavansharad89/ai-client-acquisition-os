@@ -115,6 +115,31 @@ const envSchema = z.object({
   WEBHOOK_PAYLOAD_RETENTION_DAYS: z.coerce.number().int().min(30).max(400).default(180),
 
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+
+  // Absolute origin this deployment is served from — needed to build an
+  // absolute claim-link URL (DEC-014) for an email, which has no request
+  // object to read a Host header from. Defaulted for local dev only;
+  // every real deployment must set its own.
+  APP_BASE_URL: z.string().url().default('http://localhost:3000'),
+
+  // DEC-014's claim/setup link is delivered by email. No transactional
+  // email provider is wired up yet (see @acos/core-entitlements'
+  // createClaimEmailSender) — this stays OPTIONAL and unenumerated on
+  // purpose: setting it to an unimplemented provider name fails
+  // deterministically only when createClaimEmailSender actually resolves
+  // it, the same "optional provider selector" shape RESEARCH_PROVIDER's
+  // sibling keys already use above.
+  EMAIL_PROVIDER: z.string().trim().min(1).optional(),
+
+  // Development-only Gmail SMTP sender, selected by EMAIL_PROVIDER=
+  // gmail-dev (see @acos/core-entitlements' createClaimEmailSender,
+  // which refuses this provider name outright in production regardless
+  // of whether these are set). Both stay optional here for the same
+  // reason EMAIL_PROVIDER does: an unset value is a normal, working
+  // non-production state (claim links just log to the console), not a
+  // validation failure.
+  GMAIL_DEV_USER: z.string().trim().email().optional(),
+  GMAIL_DEV_APP_PASSWORD: z.string().trim().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -138,6 +163,7 @@ export const SECRET_KEYS = [
   'GEMINI_API_KEY',
   'DOWNLOAD_GRANT_SECRET',
   'GOOGLE_PLACES_API_KEY',
+  'GMAIL_DEV_APP_PASSWORD',
 ] as const satisfies readonly EnvKey[];
 
 export type SecretKey = (typeof SECRET_KEYS)[number];

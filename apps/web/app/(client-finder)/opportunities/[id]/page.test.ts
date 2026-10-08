@@ -104,10 +104,19 @@ function fakeIdentity(sessions: Record<string, StoredSessionToken>): IdentityRep
     async findUserByEmail() {
       throw new Error('not used by these tests');
     },
+    async findUserById() {
+      throw new Error('not used by these tests');
+    },
+    async findCredentialsByEmail() {
+      throw new Error('not used by these tests');
+    },
     async findSessionToken(tokenHash: string) {
       return sessions[tokenHash] ?? null;
     },
     async saveSessionToken() {
+      throw new Error('not used by these tests');
+    },
+    async revokeSessionToken() {
       throw new Error('not used by these tests');
     },
   };

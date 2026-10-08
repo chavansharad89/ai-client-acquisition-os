@@ -13,8 +13,16 @@
 // -----------------------------------------------------------------------
 
 export { createPgIdentityRepository } from './pgRepository';
-export type { IdentityRepository, StoredSessionToken } from './repository';
+export type { IdentityRepository, StoredCredentials, StoredSessionToken } from './repository';
 export type { StoredUser } from './types';
+
+export {
+  hashPassword,
+  MIN_PASSWORD_LENGTH,
+  validatePassword,
+  verifyPassword,
+} from './password';
+export type { PasswordValidationError } from './password';
 
 export {
   evaluateSessionToken,

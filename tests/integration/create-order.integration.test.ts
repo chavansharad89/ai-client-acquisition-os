@@ -49,6 +49,9 @@ function makeFakeRazorpay(): RazorpayOrdersClient & { calls: unknown[] } {
         status: 'created',
       };
     },
+    async fetchPayments() {
+      return [];
+    },
   };
 }
 
@@ -228,6 +231,9 @@ describe('createOrder + real Postgres: Razorpay failure never leaves a partial r
       async createOrder() {
         const { RazorpayOrderCreationError } = await import('@acos/core-payments');
         throw new RazorpayOrderCreationError('simulated upstream failure');
+      },
+      async fetchPayments() {
+        return [];
       },
     };
 

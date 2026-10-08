@@ -29,6 +29,30 @@ export type {
   StoredAccessToken,
 } from './accessToken';
 
+export {
+  CLAIM_TOKEN_TTL_MS,
+  claimTokenHashesMatch,
+  evaluateClaimToken,
+  mintClaimToken,
+} from './claimToken';
+export type {
+  ClaimTokenRejection,
+  ClaimTokenVerdict,
+  MintedClaimToken,
+  StoredClaimToken,
+} from './claimToken';
+
+export {
+  buildClaimUrl,
+  ConsoleClaimEmailSender,
+  createClaimEmailSender,
+  EmailProviderNotConfiguredError,
+  GmailDevClaimEmailSender,
+  GmailDevNotConfiguredError,
+  issueClaimLink,
+} from './claimEmail';
+export type { ClaimEmailMessage, ClaimEmailSender, GmailDevConfig, SmtpTransport } from './claimEmail';
+
 export { authorizeDownload, denialResponse } from './delivery';
 export type { AuthorizeDownloadInput, DeliveryAuthorization, DeliveryDenial } from './delivery';
 export {

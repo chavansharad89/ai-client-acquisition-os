@@ -105,6 +105,23 @@ export class RazorpayOrderCreationError extends CreateOrderError {
 }
 
 /**
+ * Any other Razorpay API call failed (network error, 4xx/5xx response,
+ * timeout) — not order creation specifically. Used by reconciliation's
+ * fetch-payments call. Not part of the CreateOrderError hierarchy (it
+ * has no `code`/HTTP-mapping contract with apps/web's create-order route)
+ * since reconciliation runs in the worker, not behind that route.
+ */
+export class RazorpayApiError extends Error {
+  override readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.name = 'RazorpayApiError';
+    this.cause = cause;
+  }
+}
+
+/**
  * Persisting (or reading, for the idempotency check) the local Order
  * row failed for a reason other than the expected unique-constraint race
  * (which is handled internally by createOrder.ts, not surfaced as this
