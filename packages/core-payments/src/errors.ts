@@ -137,3 +137,68 @@ export class OrderPersistenceError extends CreateOrderError {
     this.cause = cause;
   }
 }
+
+// -----------------------------------------------------------------------
+// Typed error hierarchy for the ₹1,499 Client Finder SUBSCRIPTION
+// create-subscription flow (createSubscription.ts). A separate hierarchy
+// from CreateOrderError above -- the failure modes differ (no
+// idempotency-key-conflict concept: see createSubscription.ts's own
+// header for why there is no local persisted row to conflict against).
+// -----------------------------------------------------------------------
+
+export type CreateSubscriptionErrorCode =
+  | 'VALIDATION_ERROR'
+  | 'SUBSCRIPTION_NOT_CONFIGURED'
+  | 'RAZORPAY_ERROR';
+
+export abstract class CreateSubscriptionError extends Error {
+  abstract readonly code: CreateSubscriptionErrorCode;
+}
+
+/** Request body failed shape/format validation. Maps to HTTP 400. */
+export class CreateSubscriptionValidationError extends CreateSubscriptionError {
+  readonly code = 'VALIDATION_ERROR' as const;
+  readonly issues: { path: string; message: string }[];
+
+  constructor(zodError: ZodError) {
+    const issues = zodError.issues.map((issue) => ({
+      path: issue.path.join('.'),
+      message: issue.message,
+    }));
+    super(`Invalid create-subscription request: ${issues.map((i) => i.message).join('; ')}`);
+    this.name = 'CreateSubscriptionValidationError';
+    this.issues = issues;
+  }
+}
+
+/**
+ * `RAZORPAY_SUBSCRIPTION_PLAN_ID` is unset (plan §H.3 item 1's external,
+ * one-time Plan-creation dependency has not been completed for this
+ * deployment). Maps to HTTP 503 -- the request is well-formed, the
+ * feature is simply not yet operationally configured, which is an
+ * operator problem, not the caller's.
+ */
+export class SubscriptionNotConfiguredError extends CreateSubscriptionError {
+  readonly code = 'SUBSCRIPTION_NOT_CONFIGURED' as const;
+
+  constructor() {
+    super('Razorpay subscription plan is not configured (RAZORPAY_SUBSCRIPTION_PLAN_ID unset)');
+    this.name = 'SubscriptionNotConfiguredError';
+  }
+}
+
+/**
+ * Razorpay's subscription-creation API call failed (network error,
+ * 4xx/5xx response, timeout). Maps to HTTP 502, same convention as
+ * {@link RazorpayOrderCreationError}.
+ */
+export class RazorpaySubscriptionCreationError extends CreateSubscriptionError {
+  readonly code = 'RAZORPAY_ERROR' as const;
+  override readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.name = 'RazorpaySubscriptionCreationError';
+    this.cause = cause;
+  }
+}

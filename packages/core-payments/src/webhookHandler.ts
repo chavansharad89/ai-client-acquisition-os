@@ -36,6 +36,16 @@ const webhookEnvelopeSchema = z.object({
           amount: z.number().int().nonnegative(),
           currency: z.string().trim().min(1).max(8),
           status: z.string().trim().min(1).max(40),
+          // Razorpay sets this on every payment captured against a
+          // Subscription (its own order_id in that case is an
+          // internally-generated per-cycle order this system never
+          // created via create-order.ts, not a lookup miss) and leaves
+          // it null for a one-time order's payment. The standalone
+          // `payment.captured` delivery for a subscription cycle is
+          // otherwise indistinguishable from the one-time flow's —
+          // `subscription.charged` (handled separately, above) is this
+          // system's sole source of truth for subscription activation.
+          invoice_id: z.string().trim().min(1).max(120).nullable().optional(),
         }),
       })
       .optional(),
@@ -55,13 +65,47 @@ const webhookEnvelopeSchema = z.object({
         }),
       })
       .optional(),
+    // ₹1,499 Client Finder SUBSCRIPTION (`subscription.charged`,
+    // authorized under
+    // CLIENT-FINDER-1499-SUBSCRIPTION-ACCESS-MODEL-PO-DEC-002 and
+    // requirement/CLIENT_FINDER_1499_ENGINEERING_IMPLEMENTATION_PLAN.md
+    // Revision 5 §H.2a). Shape confirmed against Razorpay's own
+    // published sample payload for this event (razorpay.com/docs/
+    // webhooks/subscriptions) -- `notes` carries whatever
+    // createSubscription.ts set at subscription-creation time,
+    // specifically `userId`, the only field this handler reads from it.
+    subscription: z
+      .object({
+        entity: z.object({
+          id: z.string().trim().min(1).max(120),
+          status: z.string().trim().min(1).max(40),
+          notes: z.union([z.record(z.string()), z.array(z.unknown())]).optional(),
+        }),
+      })
+      .optional(),
   }),
 });
 
 export type WebhookEnvelope = z.infer<typeof webhookEnvelopeSchema>;
 
-/** Payment confirmation, plus refund processing (B-6) — refunds were not handled at all before this. */
-export const SUPPORTED_EVENTS = ['payment.captured', 'refund.created', 'refund.processed'] as const;
+/**
+ * Payment confirmation, refund processing (B-6), plus `subscription.charged`
+ * (₹1,499 Client Finder subscription, plan §H.2a) -- the ONE recurring
+ * event this system acts on. Every OTHER subscription.* event (paused,
+ * resumed, halted, completed, cancelled, authenticated, pending,
+ * activated, updated) is deliberately left out of this list: per IRL-O,
+ * access is computed from this system's own `subscription_periods` rows,
+ * never from Razorpay's live subscription status, so none of those
+ * provider-lifecycle events need a handler branch (plan §H.2b) -- they
+ * fall through to the existing generic "acknowledged, not acted on"
+ * path below, unchanged.
+ */
+export const SUPPORTED_EVENTS = [
+  'payment.captured',
+  'refund.created',
+  'refund.processed',
+  'subscription.charged',
+] as const;
 export type SupportedEvent = (typeof SUPPORTED_EVENTS)[number];
 
 export type WebhookOutcome =
@@ -78,7 +122,12 @@ export type WebhookOutcome =
     }
   | { status: 'duplicate'; eventId: string; event: string }
   /** Verified and well-formed, but not an event we act on. Still recorded. */
-  | { status: 'ignored'; eventId: string; event: string; reason: 'unsupported-event' }
+  | {
+      status: 'ignored';
+      eventId: string;
+      event: string;
+      reason: 'unsupported-event' | 'subscription-payment';
+    }
   /** Verified bytes that were not the JSON we expect. Recorded as a rejection. */
   | { status: 'rejected'; rejection: WebhookRejection };
 
@@ -152,6 +201,34 @@ export interface WebhookTx {
     status: string;
     occurredAt: Date;
   }): Promise<boolean>;
+
+  /**
+   * Creates one ₹1,499 Client Finder subscription_periods row (IRL-A:
+   * activation on the first captured charge; IRL-C: a later charge on
+   * the same razorpaySubscriptionId creates its own independent row).
+   * Returns false when `razorpayPaymentId` already has a row (migration
+   * 0040's unique index) -- the idempotency anchor for this whole branch.
+   */
+  insertSubscriptionPeriod(input: {
+    userId: string;
+    productSlug: string;
+    razorpaySubscriptionId: string;
+    razorpayPaymentId: string;
+    activationAt: Date;
+    durationDays: number;
+  }): Promise<boolean>;
+
+  /**
+   * Sets `refunded_at` (IRL-N) on the subscription_periods row whose
+   * `razorpay_payment_id` matches, if one exists -- idempotently: a
+   * second call (e.g. refund.created then refund.processed for the same
+   * refund) never overwrites the original timestamp. Returns false only
+   * when NO such row exists at all (the refunded payment belongs to the
+   * one-time-order flow instead) -- callers use that, not whether this
+   * was the first call, to decide whether to fall through to the
+   * existing one-time refund handling.
+   */
+  markSubscriptionPeriodRefundedByPaymentId(razorpayPaymentId: string, at: Date): Promise<boolean>;
 }
 
 export interface WebhookHandlerDeps {
@@ -161,6 +238,15 @@ export interface WebhookHandlerDeps {
   buildMetaEventId(paymentId: string): string;
   /** Razorpay's own event id, from the X-Razorpay-Event-Id header. */
   eventId: string;
+  /**
+   * `CLIENT_FINDER_SUBSCRIPTION_DURATION_DAYS` (default 30) — snapshotted
+   * onto each new subscription_periods row at activation (PO-D10/IRL-P).
+   * Injected rather than read from `process.env` here: this package
+   * never calls `loadEnv()` itself (apps/web/apps/worker own that), the
+   * same reason `buildMetaEventId` above is injected rather than
+   * imported directly.
+   */
+  clientFinderSubscriptionDurationDays: number;
 }
 
 /**
@@ -213,6 +299,7 @@ export async function handleRazorpayWebhook(
   const body = envelope.data;
   const entity = body.payload.payment?.entity ?? null;
   const refundEntity = body.payload.refund?.entity ?? null;
+  const subscriptionEntity = body.payload.subscription?.entity ?? null;
 
   return deps.transaction(async (tx) => {
     // The dedupe. A unique index on razorpay_event_id decides the winner;
@@ -229,7 +316,10 @@ export async function handleRazorpayWebhook(
       return { status: 'duplicate', eventId: deps.eventId, event: body.event };
     }
 
-    if (!isSupported(body.event) || (entity === null && refundEntity === null)) {
+    if (
+      !isSupported(body.event) ||
+      (entity === null && refundEntity === null && subscriptionEntity === null)
+    ) {
       // Recorded, acknowledged, not acted on. Razorpay sends events this
       // system has no opinion about; 200-ing them without processing is
       // correct, and storing them keeps the audit trail complete.
@@ -242,6 +332,49 @@ export async function handleRazorpayWebhook(
       };
     }
 
+    // ₹1,499 Client Finder SUBSCRIPTION activation/renewal (plan §H.2a)
+    // — a disjoint path from everything below, discriminated by event
+    // name (Razorpay's own sample payload for this event always carries
+    // BOTH `payload.subscription.entity` and `payload.payment.entity`
+    // together). IRL-A: the FIRST `subscription.charged` for a given
+    // razorpaySubscriptionId is activation; IRL-C: every later one is an
+    // independent renewal period. `razorpayPaymentId` (migration 0040's
+    // unique index) is the idempotency anchor — a retried delivery of
+    // the SAME charge event hits it and inserts nothing a second time,
+    // the identical self-heal idiom the rest of this file already uses.
+    if (body.event === 'subscription.charged') {
+      if (subscriptionEntity === null || entity === null) {
+        throw new WebhookPayloadError(
+          'subscription.charged webhook is missing its subscription or payment entity',
+        );
+      }
+      const notes = subscriptionEntity.notes;
+      const userId =
+        notes !== undefined && !Array.isArray(notes) && typeof notes.userId === 'string'
+          ? notes.userId
+          : null;
+      if (!userId) {
+        // createSubscription.ts always sets notes.userId (see its own
+        // header) — a webhook missing it did not originate from this
+        // application's own create-subscription call. Throwing rolls
+        // back the webhook row too, so it is not recorded as handled.
+        throw new WebhookPayloadError(
+          `subscription.charged webhook for razorpay subscription ${subscriptionEntity.id} carries no attributable userId in notes`,
+        );
+      }
+
+      await tx.insertSubscriptionPeriod({
+        userId,
+        productSlug: 'ai_client_acquisition_1499_subscription',
+        razorpaySubscriptionId: subscriptionEntity.id,
+        razorpayPaymentId: entity.id,
+        activationAt: verified.receivedAt,
+        durationDays: deps.clientFinderSubscriptionDurationDays,
+      });
+      await tx.markWebhookProcessed(deps.eventId, verified.receivedAt);
+      return { status: 'processed', eventId: deps.eventId, event: body.event };
+    }
+
     // Refund processing (B-6) — a disjoint path from payment.captured
     // below: the dedupe above already happened, so this only needs to
     // recover the order from the refunded payment and append the ledger
@@ -251,6 +384,27 @@ export async function handleRazorpayWebhook(
     // different webhook deliveries (e.g. refund.created AND
     // refund.processed for the same refund) both trying to record it.
     if (refundEntity !== null && (body.event === 'refund.created' || body.event === 'refund.processed')) {
+      // ₹1,499 Client Finder SUBSCRIPTION refund (plan §H.2a, IRL-N) —
+      // tried FIRST and independently of the one-time-order refund flow
+      // below: a given razorpay_payment_id belongs to at most one of
+      // `subscription_periods`/`payments`, by construction (only
+      // `subscription.charged` ever writes the former; only
+      // `payment.captured` the latter). Idempotent by construction too
+      // — `refunded_at IS NULL` in the underlying UPDATE's WHERE clause
+      // (subscriptionPeriodRepository's write side) means a second
+      // delivery (refund.created then refund.processed for the same
+      // refund) simply updates zero rows the second time; no separate
+      // ledger row is needed the way the one-time flow's refund_events
+      // table is.
+      const markedSubscriptionPeriod = await tx.markSubscriptionPeriodRefundedByPaymentId(
+        refundEntity.payment_id,
+        verified.receivedAt,
+      );
+      if (markedSubscriptionPeriod) {
+        await tx.markWebhookProcessed(deps.eventId, verified.receivedAt);
+        return { status: 'processed', eventId: deps.eventId, event: body.event };
+      }
+
       const payment = await tx.findPaymentByRazorpayPaymentId(refundEntity.payment_id);
       if (!payment) {
         throw new WebhookPayloadError(
@@ -282,6 +436,19 @@ export async function handleRazorpayWebhook(
         eventId: deps.eventId,
         event: body.event,
         reason: 'unsupported-event',
+      };
+    }
+
+    if (entity.invoice_id) {
+      // A standalone payment.captured for a Subscription charge — the
+      // SAME underlying payment subscription.charged already recorded
+      // via insertSubscriptionPeriod, above. Nothing to do here.
+      await tx.markWebhookProcessed(deps.eventId, verified.receivedAt);
+      return {
+        status: 'ignored',
+        eventId: deps.eventId,
+        event: body.event,
+        reason: 'subscription-payment',
       };
     }
 

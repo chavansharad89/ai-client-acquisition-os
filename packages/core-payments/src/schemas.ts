@@ -41,3 +41,28 @@ export const createOrderRequestSchema = z
   .strict();
 
 export type CreateOrderRequestBody = z.infer<typeof createOrderRequestSchema>;
+
+// -----------------------------------------------------------------------
+// Input contract for POST /api/payments/create-subscription. No
+// `productId` field: unlike create-order, there is exactly one
+// subscription product today (`ai_client_acquisition_1499_subscription`),
+// so there is nothing for a client to select or spoof. `.strict()` for
+// the same defense-in-depth reason as above.
+// -----------------------------------------------------------------------
+
+export const createSubscriptionRequestSchema = z
+  .object({
+    customerEmail: z
+      .string({ required_error: 'customerEmail is required' })
+      .trim()
+      .toLowerCase()
+      .email('customerEmail must be a valid email address'),
+    customerPhone: z
+      .string()
+      .trim()
+      .regex(phoneRegex, 'customerPhone must be a valid phone number (E.164-style, no spaces)')
+      .optional(),
+  })
+  .strict();
+
+export type CreateSubscriptionRequestBody = z.infer<typeof createSubscriptionRequestSchema>;

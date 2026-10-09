@@ -187,6 +187,56 @@ function makeTx(sql: SqlClient): WebhookTx {
     async insertRefundEvent(input) {
       return insertRefundEvent(sql, input);
     },
+
+    async insertSubscriptionPeriod({
+      userId,
+      productSlug,
+      razorpaySubscriptionId,
+      razorpayPaymentId,
+      activationAt,
+      durationDays,
+    }) {
+      // ON CONFLICT (razorpay_payment_id) DO NOTHING against migration
+      // 0040's unique index -- the idempotency anchor, same dedupe idiom
+      // as insertWebhookEvent above, not a SELECT-then-INSERT.
+      const { rowCount } = await sql.query(
+        `INSERT INTO subscription_periods
+           (id, user_id, product_slug, razorpay_subscription_id, razorpay_payment_id,
+            activation_at, duration_days, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+         ON CONFLICT (razorpay_payment_id) DO NOTHING`,
+        [
+          randomUUID(),
+          userId,
+          productSlug,
+          razorpaySubscriptionId,
+          razorpayPaymentId,
+          activationAt,
+          durationDays,
+        ],
+      );
+      return (rowCount ?? 0) > 0;
+    },
+
+    async markSubscriptionPeriodRefundedByPaymentId(razorpayPaymentId, at) {
+      // COALESCE, not `WHERE refunded_at IS NULL`: the caller needs to
+      // know "does a subscription period exist for this payment at
+      // all" (to decide whether to fall through to the one-time-order
+      // refund flow), which is a DIFFERENT question from "was this the
+      // first refund webhook for it". Filtering on `refunded_at IS
+      // NULL` would make a SECOND delivery (e.g. refund.created then
+      // refund.processed for the same refund) match zero rows and look
+      // identical to "no such subscription period" — exactly the bug
+      // this comment replaced. COALESCE keeps the original refund
+      // timestamp and still reports the row as found.
+      const { rowCount } = await sql.query(
+        `UPDATE subscription_periods
+            SET refunded_at = COALESCE(refunded_at, $2), updated_at = now()
+          WHERE razorpay_payment_id = $1`,
+        [razorpayPaymentId, at],
+      );
+      return (rowCount ?? 0) > 0;
+    },
   };
 }
 

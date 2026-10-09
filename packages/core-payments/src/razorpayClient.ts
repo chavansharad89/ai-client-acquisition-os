@@ -49,6 +49,84 @@ export interface RazorpayOrdersClient {
   fetchPayments(razorpayOrderId: string): Promise<readonly RazorpayPaymentSummary[]>;
 }
 
+// -----------------------------------------------------------------------
+// ₹1,499 Client Finder SUBSCRIPTION (plan §H.3 item 2) — a thin wrapper
+// around Razorpay's Subscriptions API, same narrow-interface-over-the-SDK
+// shape as RazorpayOrdersClient above, for the same reason (tests
+// substitute a fake rather than calling the real Razorpay API).
+//
+// `totalCount` and the exact `subscriptions.create` parameter shape are
+// flagged by requirement/CLIENT_FINDER_1499_ENGINEERING_IMPLEMENTATION_PLAN.md
+// §H.3 item 2/§Q.4 as RAZORPAY VERIFICATION REQUIRED — this wrapper
+// passes through exactly what the caller supplies rather than inventing
+// a business meaning for any field, but createSubscription.ts's own
+// choice of `totalCount` IS an implementation-only engineering
+// assumption (documented there) pending that verification.
+// -----------------------------------------------------------------------
+
+export interface CreateRazorpaySubscriptionParams {
+  /** The Razorpay Plan id representing the recurring ₹1,499 charge (external, operator-configured — RAZORPAY_SUBSCRIPTION_PLAN_ID). */
+  planId: string;
+  /** Whether Razorpay sends its own notification emails/SMS for this subscription's charges. */
+  customerNotify: boolean;
+  /** Number of billing cycles Razorpay will attempt before the mandate completes on its own. */
+  totalCount: number;
+  notes?: Record<string, string>;
+}
+
+export interface RazorpaySubscription {
+  razorpaySubscriptionId: string;
+  status: string;
+  /** Razorpay's hosted checkout page for this subscription, when provided. */
+  shortUrl: string | null;
+}
+
+export interface RazorpaySubscriptionsClient {
+  createSubscription(params: CreateRazorpaySubscriptionParams): Promise<RazorpaySubscription>;
+}
+
+/**
+ * Real implementation, backed by the same `razorpay` npm SDK instance
+ * shape as {@link createRazorpayOrdersClient}. Constructed once per
+ * process and passed in as a dependency, same convention.
+ */
+export function createRazorpaySubscriptionsClient(config: {
+  keyId: string;
+  keySecret: string;
+}): RazorpaySubscriptionsClient {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Razorpay = require('razorpay');
+  const instance = new Razorpay({ key_id: config.keyId, key_secret: config.keySecret });
+
+  return {
+    async createSubscription(params: CreateRazorpaySubscriptionParams): Promise<RazorpaySubscription> {
+      let response: { id: string; status: string; short_url?: string };
+
+      try {
+        response = await instance.subscriptions.create({
+          plan_id: params.planId,
+          customer_notify: params.customerNotify ? 1 : 0,
+          total_count: params.totalCount,
+          notes: params.notes,
+        });
+      } catch (cause) {
+        const { RazorpaySubscriptionCreationError } = await import('./errors');
+        const message =
+          cause instanceof Error
+            ? `Razorpay subscription creation failed: ${cause.message}`
+            : 'Razorpay subscription creation failed: unknown error';
+        throw new RazorpaySubscriptionCreationError(message, cause);
+      }
+
+      return {
+        razorpaySubscriptionId: response.id,
+        status: response.status,
+        shortUrl: response.short_url ?? null,
+      };
+    },
+  };
+}
+
 /**
  * Real implementation, backed by the official `razorpay` npm SDK.
  * Constructed once per process (apps/web wires this up at module scope

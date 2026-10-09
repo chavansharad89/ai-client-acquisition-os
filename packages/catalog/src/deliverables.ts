@@ -149,11 +149,22 @@ const MANIFEST = {
       bytes: 412_000_000,
     },
   ],
+  // The ONE deliberate exception to "empty is never correct" below: the
+  // ₹1,499 Client Finder SUBSCRIPTION is pure time-bounded feature
+  // access (@acos/core-subscriptions), not a downloadable kit — there is
+  // no file manifest for it to have, by product design, not by
+  // omission. See ladder.test.ts's matching carve-out.
+  ai_client_acquisition_1499_subscription: [],
 } as const satisfies Record<ProductId, readonly Deliverable[]>;
 
 export const DELIVERABLES: Record<ProductId, readonly Deliverable[]> = MANIFEST;
 
-/** Everything a product ships. Empty array is never correct — every kit has content. */
+/**
+ * Everything a product ships. Empty array is never correct for a
+ * one-time kit — every kit has content — EXCEPT for
+ * `ai_client_acquisition_1499_subscription`, whose product IS access,
+ * not a file bundle (see that entry above).
+ */
 export function deliverablesFor(productId: ProductId): readonly Deliverable[] {
   return DELIVERABLES[productId];
 }

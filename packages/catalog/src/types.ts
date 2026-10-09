@@ -19,7 +19,15 @@
 export type ProductId =
   | 'ai_income_99'
   | 'ai_freelancing_499'
-  | 'ai_client_acquisition_1499';
+  | 'ai_client_acquisition_1499'
+  // ₹1,499 Client Finder SUBSCRIPTION -- a distinct SKU from the
+  // existing one-time `ai_client_acquisition_1499` above (never
+  // repurposed; the two remain independently purchasable), per
+  // CLIENT_FINDER_1499_SUBSCRIPTION_NEW_SKU_PO_DECISION.md §5/§5A and
+  // CLIENT_FINDER_1499_SUBSCRIPTION_ACCESS_MODEL_PO_DECISION.md §13.
+  // Access is pure time-bounded Client Finder access (no credit/
+  // balance/quota) -- see @acos/core-subscriptions.
+  | 'ai_client_acquisition_1499_subscription';
 
 /**
  * Currently INR-only by design (see architecture §14 item 2 — multi-

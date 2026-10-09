@@ -35,6 +35,20 @@ const RAW_CATALOG = {
     currency: 'INR',
     metaValueInr: 1499,
   },
+  // Recurring: ₹1,499 per subscription period (default 30 days,
+  // @acos/core-subscriptions' CLIENT_FINDER_SUBSCRIPTION_DURATION_DAYS).
+  // `amountPaise` here is the per-charge amount Razorpay bills on each
+  // `subscription.charged` event, not a one-time total -- the catalog
+  // has no recurrence/interval field of its own (see types.ts), so the
+  // cadence itself lives in the Razorpay Plan (RAZORPAY_SUBSCRIPTION_PLAN_ID),
+  // external to this catalog entry.
+  ai_client_acquisition_1499_subscription: {
+    id: 'ai_client_acquisition_1499_subscription',
+    name: 'AI Client Finder Subscription',
+    amountPaise: 149900,
+    currency: 'INR',
+    metaValueInr: 1499,
+  },
 } as const satisfies Record<ProductId, Product>;
 // ^ `satisfies Record<ProductId, Product>` is what makes this a compile
 // error if a ProductId is missing, extra, or has a field of the wrong
@@ -62,6 +76,9 @@ export const PRODUCT_CATALOG: ProductCatalog = Object.freeze({
   ai_income_99: deepFreezeProduct(RAW_CATALOG.ai_income_99),
   ai_freelancing_499: deepFreezeProduct(RAW_CATALOG.ai_freelancing_499),
   ai_client_acquisition_1499: deepFreezeProduct(RAW_CATALOG.ai_client_acquisition_1499),
+  ai_client_acquisition_1499_subscription: deepFreezeProduct(
+    RAW_CATALOG.ai_client_acquisition_1499_subscription,
+  ),
 });
 
 /**

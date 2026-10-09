@@ -122,9 +122,12 @@ describe('the handler cannot be reached without verification', () => {
           markWebhookProcessed: async () => undefined,
           findPaymentByRazorpayPaymentId: async () => null,
           insertRefundEvent: async () => true,
+          insertSubscriptionPeriod: async () => true,
+          markSubscriptionPeriodRefundedByPaymentId: async () => false,
         }),
       buildMetaEventId: (id: string) => id,
       eventId: 'evt_1',
+      clientFinderSubscriptionDurationDays: 30,
     };
 
     // Each of these is what a "parse first, verify later" implementation
@@ -158,9 +161,12 @@ describe('the handler cannot be reached without verification', () => {
           markWebhookProcessed: async () => undefined,
           findPaymentByRazorpayPaymentId: async () => null,
           insertRefundEvent: async () => true,
+          insertSubscriptionPeriod: async () => true,
+          markSubscriptionPeriodRefundedByPaymentId: async () => false,
         }),
       buildMetaEventId: (id) => id,
       eventId: 'evt_1',
+      clientFinderSubscriptionDurationDays: 30,
     });
     // No payment entity in this body, so it is recorded and ignored.
     expect(outcome.status).toBe('ignored');

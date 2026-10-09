@@ -11,6 +11,15 @@ export {
 
 export { abortableSleep, Deadline } from './abortable';
 
+// ₹1,499 Client Finder subscription (Revision 5) -- deliberately exports
+// only this module's own narrow kind/value shape, never K1's own
+// ContactIdentifierKind or detectContactIdentifiers (REV-005 §4.1 stays
+// in force: those remain internal to this package). See
+// contactValueExtraction.ts's own header and
+// CLIENT_FINDER_1499_CONTACT_VALUE_CAPTURE_SPIKE.md §13.
+export { extractContactValues } from './contactValueExtraction';
+export type { ExtractedContactValue, QualifyingContactKind } from './contactValueExtraction';
+
 export { UnsupportedSchemaNodeError, zodToJsonSchema } from './jsonSchema';
 
 export { effectiveConfidence, storeResearch, toResearchRows, toRunRecord } from './persist';

@@ -27,6 +27,7 @@
     "@acos/core-research": "workspace:*",
     "@acos/core-search": "workspace:*",
     "@acos/core-service-profile": "workspace:*",
+    "@acos/core-subscriptions": "workspace:*",
     "@acos/core-reconciliation": "workspace:*",
     "@acos/db": "workspace:*",
     "@acos/db-index-deploy": "workspace:*",

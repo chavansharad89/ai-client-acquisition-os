@@ -97,6 +97,7 @@ export async function POST(request: Request) {
       transaction: webhookTransaction,
       buildMetaEventId: (paymentId) => buildPurchaseEventId({ paymentId }),
       eventId,
+      clientFinderSubscriptionDurationDays: config.CLIENT_FINDER_SUBSCRIPTION_DURATION_DAYS,
     });
 
     if (outcome.status === 'rejected') {

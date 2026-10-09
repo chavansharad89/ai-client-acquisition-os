@@ -39,6 +39,22 @@ const envSchema = z.object({
   RAZORPAY_KEY_SECRET: z.string().trim().min(1),
   RAZORPAY_WEBHOOK_SECRET: z.string().trim().min(1),
 
+  // ₹1,499 Client Finder SUBSCRIPTION (requirement/
+  // CLIENT_FINDER_1499_ENGINEERING_IMPLEMENTATION_PLAN.md Revision 5,
+  // §H.3 item 1). The Razorpay Plan representing the recurring charge is
+  // created externally (dashboard or a one-time API call), not by this
+  // application — this is that Plan's id. OPTIONAL, like
+  // RESEARCH_PROVIDER's sibling provider keys: a deployment that has not
+  // yet created the Plan still boots; POST /api/payments/create-subscription
+  // fails deterministically only when actually called without it.
+  RAZORPAY_SUBSCRIPTION_PLAN_ID: z.string().trim().min(1).optional(),
+
+  // Subscription period length (PO-D10/IRL-P: "configurable at the
+  // engineering/configuration level"). Snapshotted onto each
+  // subscription_periods row AT ACTIVATION (migration 0040) — changing
+  // this value never retroactively alters an already-granted period.
+  CLIENT_FINDER_SUBSCRIPTION_DURATION_DAYS: z.coerce.number().int().positive().default(30),
+
   META_PIXEL_ID: z.string().trim().min(1),
   META_CAPI_ACCESS_TOKEN: z.string().trim().min(1),
   // Graph API versions are part of the request path. Restrict this to

@@ -9,6 +9,7 @@ import { createPgQualificationRepository } from '@acos/core-qualification';
 import { createPgCategoryPlausibilityRepository, createPgResearchSignalRepository } from '@acos/core-research';
 import { createPgSearchRepository } from '@acos/core-search';
 import { createPgServiceProfileRepository } from '@acos/core-service-profile';
+import { createPgLeadUnlockRepository, createPgSubscriptionPeriodRepository } from '@acos/core-subscriptions';
 
 import { getPool } from './db';
 
@@ -35,6 +36,9 @@ export function clientFinderRepositories() {
     personalizations: createPgPersonalizationRepository(sql),
     outreachPreparations: createPgOutreachPreparationRepository(sql),
     followUpPreparations: createPgFollowUpPreparationRepository(sql),
+    // ₹1,499 Client Finder SUBSCRIPTION (@acos/core-subscriptions).
+    subscriptionPeriods: createPgSubscriptionPeriodRepository(sql),
+    leadUnlocks: createPgLeadUnlockRepository(sql),
   };
 }
 

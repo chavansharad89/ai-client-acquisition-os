@@ -10,10 +10,11 @@ const EXPECTED_PRODUCT_IDS: ProductId[] = [
   'ai_income_99',
   'ai_freelancing_499',
   'ai_client_acquisition_1499',
+  'ai_client_acquisition_1499_subscription',
 ];
 
 describe('catalog completeness', () => {
-  it('contains exactly the three specified products — no more, no fewer', () => {
+  it('contains exactly the four specified products — no more, no fewer', () => {
     expect(PRODUCT_IDS.slice().sort()).toEqual(EXPECTED_PRODUCT_IDS.slice().sort());
     expect(Object.keys(PRODUCT_CATALOG).sort()).toEqual(EXPECTED_PRODUCT_IDS.slice().sort());
   });
@@ -114,6 +115,11 @@ describe('correct amounts', () => {
       metaValueInr: 1499,
       name: 'AI Client Acquisition System',
     },
+    ai_client_acquisition_1499_subscription: {
+      amountPaise: 149900,
+      metaValueInr: 1499,
+      name: 'AI Client Finder Subscription',
+    },
   };
 
   it.each(Object.entries(expected))('%s has the exact expected amount and name', (id, exp) => {
@@ -166,12 +172,12 @@ describe('no floating-point monetary calculations', () => {
     }
   });
 
-  it('summing all three product prices in paise matches the hand-computed integer total exactly', () => {
+  it('summing all four product prices in paise matches the hand-computed integer total exactly', () => {
     // Demonstrates that repeated integer addition across the catalog
     // introduces no drift — the kind of check that WOULD catch a bug if
     // amounts were ever stored as floats (e.g. 99.00) instead of integers.
     const total = PRODUCT_IDS.reduce((sum, id) => sum + PRODUCT_CATALOG[id].amountPaise, 0);
-    expect(total).toBe(9900 + 49900 + 149900);
+    expect(total).toBe(9900 + 49900 + 149900 + 149900);
     expect(Number.isInteger(total)).toBe(true);
   });
 
@@ -231,7 +237,7 @@ describe('immutability (client/caller can never mutate authoritative pricing)', 
         metaValueInr: 1,
       };
     }).toThrow(TypeError);
-    expect(PRODUCT_IDS).toHaveLength(3);
+    expect(PRODUCT_IDS).toHaveLength(4);
   });
 
   it('mutating an object returned from listProducts() does not affect the catalog', () => {

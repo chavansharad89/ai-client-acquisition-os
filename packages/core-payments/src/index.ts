@@ -28,19 +28,34 @@ export {
   OrderPersistenceError,
   RazorpayApiError,
   RazorpayOrderCreationError,
+  CreateSubscriptionError,
+  CreateSubscriptionValidationError,
+  RazorpaySubscriptionCreationError,
+  SubscriptionNotConfiguredError,
 } from './errors';
-export type { CreateOrderErrorCode } from './errors';
+export type { CreateOrderErrorCode, CreateSubscriptionErrorCode } from './errors';
 
-export { createOrderRequestSchema } from './schemas';
-export type { CreateOrderRequestBody } from './schemas';
+export { createOrderRequestSchema, createSubscriptionRequestSchema } from './schemas';
+export type { CreateOrderRequestBody, CreateSubscriptionRequestBody } from './schemas';
 
-export { createRazorpayOrdersClient } from './razorpayClient';
+export { createRazorpayOrdersClient, createRazorpaySubscriptionsClient } from './razorpayClient';
 export type {
   CreateRazorpayOrderParams,
+  CreateRazorpaySubscriptionParams,
   RazorpayOrder,
   RazorpayOrdersClient,
   RazorpayPaymentSummary,
+  RazorpaySubscription,
+  RazorpaySubscriptionsClient,
 } from './razorpayClient';
+
+// ₹1,499 Client Finder SUBSCRIPTION checkout (plan §H.3 item 2).
+export { CLIENT_FINDER_SUBSCRIPTION_PRODUCT_ID, createSubscription } from './createSubscription';
+export type {
+  CreateSubscriptionDeps,
+  CreateSubscriptionOptions,
+  SafeSubscriptionCheckoutInfo,
+} from './createSubscription';
 
 export { reconcileOrder } from './reconciliation';
 export type { OrderToReconcile, ReconcileOrderDeps, ReconciliationOutcome } from './reconciliation';
