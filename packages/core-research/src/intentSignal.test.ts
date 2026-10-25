@@ -316,6 +316,7 @@ describe('scoring contract (D1/D2) — unchanged arithmetic, downstream eligibil
       MANUAL: 20,
       PUBLIC_INTENT: 0,
       FIRST_PARTY: 0,
+      GOOGLE_PLACES_STATUS: 0,
     });
   });
 

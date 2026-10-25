@@ -141,7 +141,7 @@ async function seedOpportunity(
   // unlock flow under test, so NO SUITABLE OFFER (AC-14) is used here.
   const opportunity = await env.deps.opportunities.create(
     user.id,
-    { prospectId: prospect.id, needDetected: false, offer: undefined },
+    { prospectId: prospect.id, needDetected: false, offer: undefined, relevantSubservices: [] },
     now,
   );
   return { userId: user.id, opportunityId: opportunity.id };

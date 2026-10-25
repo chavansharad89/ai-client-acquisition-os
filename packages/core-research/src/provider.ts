@@ -12,7 +12,14 @@ export interface ResearchProviderInput {
   prospectId: string;
   companyId: string;
   companyName: string;
-  normalizedDomain: string;
+  /**
+   * Global Entity Architecture (C-1; Q5_CLOSURE §4.3): null for a
+   * website-less candidate — there is no homepage to fetch. A concrete
+   * provider must never construct a URL from this when null; it skips
+   * source-document fetch entirely and proceeds with zero documents
+   * (see ./anthropicResearchProvider.ts / ./fallbackResearchProvider.ts).
+   */
+  normalizedDomain: string | null;
   /**
    * Path 2 category plausibility (D8, Option B): the participant's
    * target-customer, already deterministically parsed into segments by
@@ -39,6 +46,15 @@ export interface ResearchProviderInput {
    * attempt that produced the returned result.
    */
   onSourceDocumentsSupplied?: (supplied: SuppliedSourceDocuments) => void | Promise<void>;
+  /**
+   * PO-4 (Phase 5): the homepage document(s) already fetched during
+   * pre-admission (PO-1, ./preAdmissionFetch.ts). A provider that
+   * composes its own SourceDocumentProvider should use these instead of
+   * fetching again, to avoid double-fetching the same homepage. Optional
+   * and additive — a provider that ignores it (or predates this field)
+   * fetches exactly as before.
+   */
+  suppliedSourceDocuments?: SuppliedSourceDocuments;
 }
 
 /** The model-seen source documents for one research run, plus how and when they were obtained. */

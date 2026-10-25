@@ -20,6 +20,11 @@ export { abortableSleep, Deadline } from './abortable';
 export { extractContactValues } from './contactValueExtraction';
 export type { ExtractedContactValue, QualifyingContactKind } from './contactValueExtraction';
 
+// Evidence-rendering mask (same Revision 5 feature) -- see
+// contactValueMasking.ts's own header for why this is additive/read-only
+// and never a second detection rule.
+export { maskContactIdentifiersInText } from './contactValueMasking';
+
 export { UnsupportedSchemaNodeError, zodToJsonSchema } from './jsonSchema';
 
 export { effectiveConfidence, storeResearch, toResearchRows, toRunRecord } from './persist';
@@ -135,6 +140,43 @@ export type { SourceDocumentReviewDeps } from './sourceDocumentReview';
 
 export { toNewResearchSignals } from './mapping';
 
+// ---- Phase 2 deterministic Entity Reality elimination boundary
+// (requirement/CLIENT_FINDER_DETERMINISTIC_ARCHITECTURE_IMPLEMENTATION_PLAN.md) ----
+
+export { eliminateDeterministically } from './entityRealityElimination';
+export type { EliminationCandidate, EliminationResult } from './entityRealityElimination';
+
+export {
+  createWebDevelopmentSignalCatalogue,
+  detectPlacesEntityReality,
+  DETERMINISTIC_ABSENT_SSL_FIELD,
+  DETERMINISTIC_ABSENT_SSL_KEYWORD,
+  DETERMINISTIC_PLACES_CLOSED_PERMANENTLY_FIELD,
+  DETERMINISTIC_PLACES_CLOSED_TEMPORARILY_FIELD,
+  OBSERVED_FACT_CONFIDENCE,
+  UNIVERSAL_DIMENSIONS,
+} from './deterministicSignals';
+export type {
+  DeterministicSignal,
+  ServiceSignalCatalogue,
+  UniversalDimension,
+} from './deterministicSignals';
+
+// ---- Phase 5 AI-escalation admission gate (CLIENT_FINDER_PHASE5_
+// IMPLEMENTATION_READINESS_REPORT.md) ----
+
+export {
+  DEFAULT_ADMISSION_TOP_N,
+  evaluateAdmission,
+  hasStrongSignalBypass,
+  meetsAdmissionThreshold,
+} from './admission';
+export type { AdmissionCandidate, AdmissionDecision } from './admission';
+
+export { fetchPreAdmissionDocuments } from './preAdmissionFetch';
+
+export { saveDeterministicSignals, toNewResearchSignalInput } from './deterministicSignalPersistence';
+
 export type { ResearchProvider, ResearchProviderInput, SuppliedSourceDocuments } from './provider';
 
 export {
@@ -220,11 +262,45 @@ export type {
 } from './targetCustomerMatchRepository';
 
 export {
+  createPgFieldClassificationRepository,
+  createPgResearchSignalCacheRepository,
   createPgResearchSignalRepository,
   createPgResearchSignalTransactionRunner,
+  createPgSignalAuthorizationRepository,
+  createPgSignalLookupRepository,
 } from './pgRepository';
 export type { ResearchSignalSqlPool } from './pgRepository';
 export type { ResearchSignalRepository, ResearchSignalTransaction } from './repository';
+
+export { resolveFieldVisibility } from './fieldClassification';
+export type { FieldClassificationRepository, FieldVisibility } from './fieldClassification';
+
+export { evaluateQ5AFloor, passesOverlapCheck } from './q5aEvidenceFloor';
+export type { Q5AFloorFailureReason, Q5AFloorResult } from './q5aEvidenceFloor';
+
+export {
+  authorizeSignalForSharing,
+  isAuthorizationActive,
+  lookupEntityPublicSignals,
+  SignalAuthorizationRejectedError,
+} from './signalAuthorization';
+export type {
+  AuthorizeSignalForSharingDeps,
+  EntityPublicLookupProductionDeps,
+  SignalAuthorizationRejectionReason,
+  SignalAuthorizationRepository,
+  SignalLookupRepository,
+  StoredSignalAuthorization,
+} from './signalAuthorization';
+
+export { evaluateEntityPublicLookup, evaluateSignalFreshness, toSignalCacheLookupResult } from './signalCache';
+export type {
+  EntityPublicLookupDeps,
+  NewSignalCacheEntryInput,
+  ResearchSignalCacheRepository,
+  SignalCacheFreshness,
+  SignalCacheLookupResult,
+} from './signalCache';
 
 export { ResearchProspectNotFoundError, RunResearchValidationError } from './signalErrors';
 export type { RunResearchValidationReason } from './signalErrors';
@@ -339,8 +415,10 @@ export type {
 } from './providerAuthenticity';
 
 export {
+  applyCachedSignalsForOwner,
   getCategoryPlausibilityDetermination,
   listResearchSignals,
+  lookupCachedSignalForOwner,
   runResearch,
   runResearchForOwner,
   scoreResearchedProspect,

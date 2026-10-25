@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   type DiscoveryCandidate,
@@ -48,6 +49,7 @@ import {
   type ServiceProfileInput,
 } from '@acos/core-service-profile';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
 import { suiteDatabase } from './support/suiteDb';
 
@@ -64,10 +66,17 @@ import { suiteDatabase } from './support/suiteDb';
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('qualification');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 const CAREERS = { url: 'https://acme.test/careers', label: 'careers' };
 
@@ -112,6 +121,78 @@ function matchingResearch(): LeadResearch {
   };
 }
 
+/**
+ * K5-D1 (CF-NEED-OPPORTUNITY-SUFFICIENCY-PO-DEC-001): unlike
+ * matchingResearch() above (a single OBSERVED signal — no longer
+ * sufficient on its own for a NEW Service+Geography-only search, see
+ * @acos/core-opportunity's hasCredibleNeedEvidence()), this carries
+ * TWO independent OBSERVED, full-confidence signals from distinct
+ * fields, both matching sampleProfileInput()'s "AI & Automation"
+ * catalogue vocabulary — credible enough to establish NEED_DETECTED
+ * under the new, stronger bar. categoryPlausibility stays MATCH, as in
+ * matchingResearch() — categoryPlausibilityApplicable already treats
+ * a NEW search's category-plausibility as not-applicable regardless
+ * (CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001), so this
+ * fixture's QUALIFIED outcome depends only on NEED_DETECTED now being
+ * genuinely credible.
+ */
+function credibleNeedResearch(): LeadResearch {
+  const unknownField = { classification: 'UNKNOWN' as const, value: null, evidence: [], basis: null, confidence: 0 };
+  return {
+    companySummary: unknownField,
+    businessModel: unknownField,
+    targetCustomers: unknownField,
+    categoryPlausibility: [
+      {
+        fit: 'MATCH',
+        rationale: 'the homepage says they serve restaurants',
+        evidence: [
+          { quote: 'we cater to restaurants across the city', sourceUrl: CAREERS.url, sourceLabel: CAREERS.label },
+        ],
+        confidence: 90,
+      },
+    ],
+    visibleProblems: [
+      {
+        classification: 'OBSERVED',
+        value:
+          'the support team manually processes every order — workflow automation would eliminate this bottleneck',
+        evidence: [
+          {
+            quote: 'the support team manually processes every order',
+            sourceUrl: CAREERS.url,
+            sourceLabel: CAREERS.label,
+          },
+        ],
+        basis: null,
+        confidence: 100,
+      },
+    ],
+    growthOpportunities: [],
+    aiOpportunities: [],
+    websiteIssues: [],
+    contentOpportunities: [],
+    automationOpportunities: [
+      {
+        classification: 'OBSERVED',
+        value: 'manual data entry across spreadsheets is error-prone and could use business process automation',
+        evidence: [
+          {
+            quote: 'manual data entry across spreadsheets is error-prone',
+            sourceUrl: CAREERS.url,
+            sourceLabel: CAREERS.label,
+          },
+        ],
+        basis: null,
+        confidence: 100,
+      },
+    ],
+    recommendedService: { service: 'NONE', rationale: 'insufficient evidence', basedOn: [] },
+    confidence: 90,
+    gaps: [],
+  };
+}
+
 function unmatchedResearch(): LeadResearch {
   return {
     companySummary: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
@@ -141,7 +222,7 @@ function testProvider(result: LeadResearch): ResearchProvider {
 function discoveryProvider(candidates: readonly DiscoveryCandidate[]): DiscoveryProvider {
   return {
     async discover() {
-      return candidates;
+      return { candidates, actualQuery: 'test query', provider: 'TEST_PROVIDER' };
     },
   };
 }
@@ -154,6 +235,7 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     signals: createPgResearchSignalRepository(db.client),
     categoryPlausibility: createPgCategoryPlausibilityRepository(db.client),
     opportunities: createPgOpportunityRepository(db.client),
@@ -196,7 +278,7 @@ async function createUserAndSession(label: string): Promise<{ userId: string; to
 
 function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'AI content system',
+    service: 'AI & Automation',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 15_000_000,
@@ -252,7 +334,10 @@ describe('evaluateOpportunityQualification', () => {
     const a = await createUserAndSession('a');
     const base = repos();
     const { prospectId } = await createProspect(base, a.token);
-    const rd = researchDeps(base, matchingResearch());
+    // K5-D1: a NEW search requires credible, corroborated evidence —
+    // matchingResearch()'s single weak signal no longer establishes
+    // NEED_DETECTED.
+    const rd = researchDeps(base, credibleNeedResearch());
     await runResearch(rd, a.token, { prospectId });
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
     const now = new Date('2026-07-01T09:00:00.000Z');
@@ -333,7 +418,10 @@ describe('evaluateOpportunityQualification', () => {
     const a = await createUserAndSession('a');
     const base = repos();
     const { prospectId } = await createProspect(base, a.token);
-    const rd = researchDeps(base, matchingResearch());
+    // K5-D1: a NEW search requires credible, corroborated evidence —
+    // matchingResearch()'s single weak signal no longer establishes
+    // NEED_DETECTED.
+    const rd = researchDeps(base, credibleNeedResearch());
     await runResearch(rd, a.token, { prospectId });
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
 

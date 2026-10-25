@@ -82,10 +82,19 @@ export async function evaluateQualificationForOwner(
     userId,
     opportunity.prospectId,
   );
+  // CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001: resolved
+  // from the same, already-depended-on categoryPlausibility repository —
+  // no new QualificationDeps dependency needed.
+  const categoryPlausibilityApplicable =
+    await deps.categoryPlausibility.isCategoryPlausibilityApplicableForProspectId(
+      userId,
+      opportunity.prospectId,
+    );
   const evaluation = evaluateQualification({
     needDetected: opportunity.needDetected,
     signals,
     categoryPlausibility,
+    categoryPlausibilityApplicable,
   });
 
   return deps.qualifications.upsert(

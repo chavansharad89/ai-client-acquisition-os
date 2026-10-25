@@ -27,6 +27,8 @@ const CHILD_TABLES: Record<string, { column: string }> = {
   // from CLEANUP_ORDER, which is why this fake happily reported a clean
   // teardown while the real database was rejecting it.
   entitlements: { column: 'order_id' },
+  // migration 0034, B-6 — same ON DELETE RESTRICT shape as entitlements.
+  refund_events: { column: 'order_id' },
 };
 
 export function createFakeDb(): FakeDb {
@@ -36,6 +38,10 @@ export function createFakeDb(): FakeDb {
     webhook_events: [],
     meta_events: [],
     entitlements: [],
+    refund_events: [],
+    // migration 0014 — unrelated to the payments domain above; see
+    // CLEANUP_ORDER in test-run-context.ts.
+    searches: [],
   };
   const statements: { sql: string; params: readonly unknown[] }[] = [];
   const deleteOrder: string[] = [];

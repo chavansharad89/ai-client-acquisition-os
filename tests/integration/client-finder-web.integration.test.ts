@@ -2,13 +2,14 @@ import { randomUUID } from 'node:crypto';
 
 import {
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   type DiscoveryCandidate,
   type DiscoveryDeps,
   type DiscoveryProvider,
 } from '@acos/core-discovery';
-import { createPgIdentityRepository, mintUserSession } from '@acos/core-identity';
+import { createPgIdentityRepository, hashPassword, mintUserSession } from '@acos/core-identity';
 import {
   createOpportunity,
   createPgFeedbackRepository,
@@ -40,6 +41,7 @@ import {
 import { claimAndProcessNextSearch, type SearchWorkerDeps } from '@acos/worker/searchWorker';
 import { NextRequest } from 'next/server';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { Pool } from 'pg';
 
 import { ADMIN_URL } from './support/pgIndexHarness';
 import { suiteDatabase } from './support/suiteDb';
@@ -65,10 +67,17 @@ import { suiteDatabase } from './support/suiteDb';
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('client_finder_web');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 function baseEnv(dbUrl: string): void {
   process.env.NODE_ENV = 'test';
@@ -87,7 +96,7 @@ function baseEnv(dbUrl: string): void {
 }
 
 interface RouteModules {
-  authSession: { POST: (r: NextRequest) => Promise<Response>; GET: (r: NextRequest) => Promise<Response> };
+  authLogin: { POST: (r: NextRequest) => Promise<Response> };
   serviceProfiles: { POST: (r: NextRequest) => Promise<Response>; GET: (r: NextRequest) => Promise<Response> };
   searches: { POST: (r: NextRequest) => Promise<Response>; GET: (r: NextRequest) => Promise<Response> };
   feedback: {
@@ -99,13 +108,13 @@ interface RouteModules {
 async function freshRoutes(dbUrl: string): Promise<RouteModules> {
   baseEnv(dbUrl);
   vi.resetModules();
-  const authSession = await import('../../apps/web/app/api/auth/session/route');
+  const authLogin = await import('../../apps/web/app/api/auth/login/route');
   const serviceProfiles = await import('../../apps/web/app/api/service-profiles/route');
   const searches = await import('../../apps/web/app/api/searches/route');
   const feedback = await import('../../apps/web/app/api/opportunities/[id]/feedback/route');
   const db = await import('../../apps/web/src/server/db');
   current = db.closeClientFinderPool;
-  return { authSession, serviceProfiles, searches, feedback } as unknown as RouteModules;
+  return { authLogin, serviceProfiles, searches, feedback } as unknown as RouteModules;
 }
 
 let current: (() => Promise<void>) | null = null;
@@ -148,6 +157,7 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     signals: createPgResearchSignalRepository(db.client),
     opportunities: createPgOpportunityRepository(db.client),
     scores: createPgOpportunityScoreRepository(db.client),
@@ -157,7 +167,7 @@ function repos() {
 
 function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'Website redesign',
+    service: 'Web & Software Development',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 3_000_000,
@@ -171,7 +181,7 @@ function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): Servi
 function discoveryProvider(candidates: readonly DiscoveryCandidate[]): DiscoveryProvider {
   return {
     async discover() {
-      return candidates;
+      return { candidates, actualQuery: 'test query', provider: 'TEST_PROVIDER' };
     },
   };
 }
@@ -192,45 +202,78 @@ async function createOpportunityFor(token: string) {
   return createOpportunity(opportunityDeps, token, { prospectId });
 }
 
-describe('POST/GET /api/auth/session', () => {
-  it('mints a session cookie for an existing user (happy path)', async () => {
+// POST /api/auth/session was retired under AUTH-PO-11 (email-only session
+// minting with no proof of ownership) and now permanently returns 410 —
+// see apps/web/app/api/auth/session/route.ts and its own route.test.ts for
+// that contract. The route-handler-level coverage this file exists to
+// provide (real Postgres, a real NextRequest through the actual exported
+// handler) now belongs to the approved replacement, POST /api/auth/login,
+// which proves out the same things the old block did — a real session
+// cookie gets minted, and an unauthenticated/invalid attempt is rejected —
+// against the password-authenticated flow instead of the retired one.
+// GET /api/auth/session is untouched by AUTH-PO-11 (still the live
+// cookie/session-resolution endpoint) and keeps its own coverage elsewhere.
+describe('POST /api/auth/login', () => {
+  it('mints a session cookie for an existing user with a verified password (happy path)', async () => {
     if (!suite.reachable()) {
       console.warn(`Skipped: PostgreSQL not reachable at ${ADMIN_URL}`);
       return;
     }
     const { db } = suite.require();
     const email = `cf-web.login.${randomUUID().replace(/-/g, '')}@example.com`;
-    await db.client.query(`INSERT INTO users (id, email, created_at) VALUES ($1, $2, now())`, [
-      `user_login_${randomUUID().replace(/-/g, '')}`,
-      email,
-    ]);
+    const password = 'correct-horse-battery-staple';
+    const passwordHash = await hashPassword(password);
+    await db.client.query(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ($1, $2, $3, now())`,
+      [`user_login_${randomUUID().replace(/-/g, '')}`, email, passwordHash],
+    );
 
     const routes = await freshRoutes(db.url);
-    const response = await routes.authSession.POST(
-      jsonRequest('http://localhost/api/auth/session', 'POST', { email }),
+    const response = await routes.authLogin.POST(
+      jsonRequest('http://localhost/api/auth/login', 'POST', { email, password }),
     );
     expect(response.status).toBe(200);
     expect(response.headers.get('set-cookie')).toMatch(/acos_session=/);
   });
 
-  it('rejects an email with no provisioned account (404) — MVP never self-service-signs-up a caller', async () => {
+  it('rejects an email with no provisioned account with the same generic shape as a wrong password (401) — enumeration-safe', async () => {
     if (!suite.reachable()) return;
     const { db } = suite.require();
     const routes = await freshRoutes(db.url);
-    const response = await routes.authSession.POST(
-      jsonRequest('http://localhost/api/auth/session', 'POST', {
+    const response = await routes.authLogin.POST(
+      jsonRequest('http://localhost/api/auth/login', 'POST', {
         email: `no-such-user.${randomUUID()}@example.com`,
+        password: 'anything-at-all',
       }),
     );
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(401);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('rejects the wrong password for an existing account (401)', async () => {
+    if (!suite.reachable()) return;
+    const { db } = suite.require();
+    const email = `cf-web.login.${randomUUID().replace(/-/g, '')}@example.com`;
+    const passwordHash = await hashPassword('correct-horse-battery-staple');
+    await db.client.query(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ($1, $2, $3, now())`,
+      [`user_login_${randomUUID().replace(/-/g, '')}`, email, passwordHash],
+    );
+
+    const routes = await freshRoutes(db.url);
+    const response = await routes.authLogin.POST(
+      jsonRequest('http://localhost/api/auth/login', 'POST', { email, password: 'wrong-password' }),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get('set-cookie')).toBeNull();
   });
 
   it('rejects an invalid body (400)', async () => {
     if (!suite.reachable()) return;
     const { db } = suite.require();
     const routes = await freshRoutes(db.url);
-    const response = await routes.authSession.POST(
-      jsonRequest('http://localhost/api/auth/session', 'POST', { email: 'not-an-email' }),
+    const response = await routes.authLogin.POST(
+      jsonRequest('http://localhost/api/auth/login', 'POST', { email: 'not-an-email' }),
     );
     expect(response.status).toBe(400);
   });
@@ -550,7 +593,7 @@ describe('user-facing engineering path (ENGINEERING VERIFICATION ONLY — not re
 
 function compositeProfileInput(): ServiceProfileInput {
   return {
-    service: 'AI content system',
+    service: 'AI & Automation',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 15_000_000,
@@ -640,6 +683,7 @@ describe(
           searches: base.searches,
           companies: base.companies,
           prospects: base.prospects,
+          entities: base.entities,
           discoveryProvider: discoveryProvider([]),
           signals: base.signals,
           researchProvider: () => compositeResearchProvider(compositeMatchingResearch()),
@@ -698,6 +742,7 @@ describe(
           searches: base.searches,
           companies: base.companies,
           prospects: base.prospects,
+          entities: base.entities,
           discoveryProvider: discoveryProvider([
             { name: 'Composite Co', website: `https://${domain}` },
           ]),
@@ -747,37 +792,28 @@ describe(
         expect(qualification).not.toBeNull();
         expect(qualification!.state).toBe('QUALIFIED');
 
-        // 7. SCORING: proven inside the real worker invocation itself —
-        // `workerDeps.scores` above (not a standalone scoreOpportunity()
-        // call) is what scored and persisted this row, via worker.ts's
+        // 7. RANKING (Phase 3 — qualitative, supersedes the legacy
+        // numeric score): proven inside the real worker invocation itself
+        // — `workerDeps.scores` above (not a standalone scoreOpportunity()
+        // call) is what ranked and persisted this row, via worker.ts's
         // existing production `if (deps.scores)` wiring. Inspect the
-        // persisted row rather than recomputing an expected score.
+        // persisted row rather than recomputing an expected ranking.
         const persistedScore = await base.scores.getByOpportunityId(
           user.userId,
           opportunity!.id,
         );
         expect(persistedScore).not.toBeNull();
         expect(persistedScore!.opportunityId).toBe(opportunity!.id);
-        expect(typeof persistedScore!.total).toBe('number');
-        expect(persistedScore!.factors.length).toBeGreaterThan(0);
-        expect(typeof persistedScore!.observedShare).toBe('number');
-        // D's deferral (see requirement/CLIENT_FINDER_MVP_SCORING_AUTHORIZATION_DECISION.md)
-        // remains UNKNOWN/neutral in the persisted row: icpFit, abilityToPay
-        // and urgency carry basis UNKNOWN (neutralScoringInputs() in
-        // core-opportunity's service.ts); contactability's basis is always
-        // 'OBSERVED' by prospectScore.ts's own unmodified algorithm — "0 of
-        // 3 contact channels available" is itself an observed fact — so its
-        // neutrality is a zero raw contribution instead.
-        for (const deferredFactor of ['icpFit', 'abilityToPay', 'urgency'] as const) {
-          const factor = persistedScore!.factors.find((f) => f.factor === deferredFactor);
-          expect(factor).toBeDefined();
-          expect(factor!.basis).toBe('UNKNOWN');
-        }
-        const contactability = persistedScore!.factors.find((f) => f.factor === 'contactability');
-        expect(contactability).toBeDefined();
-        expect(contactability!.raw).toBe(0);
+        expect(persistedScore!.reasons.length).toBeGreaterThan(0);
+        // Dimensions with no deterministic producer wired into this call
+        // site yet remain UNKNOWN in the persisted row — never a
+        // fabricated tier (see core-opportunity's service.ts buildRankingProfile()).
+        expect(persistedScore!.ranking!.needOpportunity).toBe('UNKNOWN');
+        expect(persistedScore!.ranking!.contactability).toBe('UNKNOWN');
+        expect(persistedScore!.ranking!.currentActivity).toBe('UNKNOWN');
+        expect(persistedScore!.ranking!.commercialReadiness).toBe('UNKNOWN');
 
-        // 8. RANKING: the existing rankOpportunities().
+        // 8. ORDERING: the existing rankOpportunities().
         const ranked = await rankOpportunities(base, user.token);
         expect(ranked.some((entry) => entry.opportunityId === opportunity!.id)).toBe(true);
 

@@ -4,6 +4,7 @@ import type { StoredResearchSignal } from '@acos/core-research';
 import type { ResearchSignalRepository } from '@acos/core-research';
 import { describe, expect, it, vi } from 'vitest';
 
+import { CLIENT_FINDER_SUBSCRIPTION_PRODUCT_SLUG, getClientFinderSubscriptionStatus, hasClientFinderAccess } from './access';
 import {
   LeadUnlockOpportunityNotFoundError,
   NoActiveClientFinderSubscriptionError,
@@ -12,6 +13,7 @@ import {
 import type { LeadUnlockRepository } from './leadUnlockRepository';
 import { unlockOpportunityForOwner, type LeadUnlockDeps } from './leadUnlockService';
 import type { SubscriptionPeriodRepository } from './subscriptionPeriodRepository';
+import { fakeSubscriptionPeriodRepository } from './testing/fakeSubscriptionPeriodRepository';
 import type { LeadUnlock, SubscriptionPeriod } from './types';
 
 const NOW = new Date('2026-02-01T00:00:00Z');
@@ -26,6 +28,8 @@ function opportunity() {
     offer: undefined,
     staleness: 'FRESH' as const,
     stalenessComputedAt: null,
+    aiEnrichment: 'DETERMINISTIC_ONLY' as const,
+    aiEnrichmentReason: null,
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -56,7 +60,7 @@ function activePeriod(overrides: Partial<SubscriptionPeriod> = {}): Subscription
   return {
     id: 'period-1',
     userId: 'user-1',
-    productSlug: 'ai_client_acquisition_1499_subscription',
+    productSlug: CLIENT_FINDER_SUBSCRIPTION_PRODUCT_SLUG,
     razorpaySubscriptionId: 'sub_123',
     razorpayPaymentId: 'pay_123',
     activationAt: NOW,
@@ -94,6 +98,8 @@ function makeDeps(overrides: {
   opportunity?: ReturnType<typeof opportunity> | null;
   existingUnlock?: LeadUnlock | null;
   activePeriod?: SubscriptionPeriod | null;
+  /** Full control over seeded periods, for multi-row scenarios (e.g. a different-product period alongside the real one). Takes precedence over `activePeriod` when given. */
+  periods?: readonly SubscriptionPeriod[];
   signals?: StoredResearchSignal[];
   companyRow?: ReturnType<typeof company> | null;
 } = {}): Fakes {
@@ -103,6 +109,7 @@ function makeDeps(overrides: {
     findByProspectId: vi.fn(),
     list: vi.fn(),
     updateStaleness: vi.fn(),
+    updateAiEnrichment: vi.fn(),
   };
 
   const prospects: ProspectRepository = {
@@ -122,12 +129,24 @@ function makeDeps(overrides: {
     listByProspect: vi.fn(async () => overrides.signals ?? []),
   };
 
-  const findActiveForUser = vi.fn(async () =>
-    overrides.activePeriod === undefined ? activePeriod() : overrides.activePeriod,
-  );
+  // Phase 0 regression-safety hardening: seeded through the same fake that
+  // mirrors the real repository's active/expired/wrong-product formula
+  // (see fakeSubscriptionPeriodRepository.ts), not a mock that ignores its
+  // own productSlug/now arguments -- wrapped in vi.fn so existing call
+  // assertions (e.g. the IRL-I idempotency test below) still work.
+  const seedPeriods =
+    overrides.periods !== undefined
+      ? overrides.periods
+      : overrides.activePeriod === undefined
+        ? [activePeriod()]
+        : overrides.activePeriod === null
+          ? []
+          : [overrides.activePeriod];
+  const fakeRepo = fakeSubscriptionPeriodRepository(seedPeriods);
+  const findActiveForUser = vi.fn(fakeRepo.findActiveForUser);
   const subscriptionPeriods: SubscriptionPeriodRepository = {
     findActiveForUser,
-    getById: vi.fn(),
+    getById: vi.fn(fakeRepo.getById),
   };
 
   const revealAtomically = vi.fn(async (input: Parameters<LeadUnlockRepository['revealAtomically']>[0]) => ({
@@ -189,6 +208,20 @@ describe('unlockOpportunityForOwner', () => {
     );
   });
 
+  it('throws NoActiveClientFinderSubscriptionError for an expired period, same as no period at all', async () => {
+    const { deps } = makeDeps({ activePeriod: activePeriod({ activationAt: new Date('2025-12-01T00:00:00Z'), durationDays: 30 }) });
+    await expect(unlockOpportunityForOwner(deps, 'user-1', 'opp-1', NOW)).rejects.toThrow(
+      NoActiveClientFinderSubscriptionError,
+    );
+  });
+
+  it('throws NoActiveClientFinderSubscriptionError when the user only holds a subscription for a DIFFERENT product', async () => {
+    const { deps } = makeDeps({ periods: [activePeriod({ productSlug: 'ai_freelancing_499' })] });
+    await expect(unlockOpportunityForOwner(deps, 'user-1', 'opp-1', NOW)).rejects.toThrow(
+      NoActiveClientFinderSubscriptionError,
+    );
+  });
+
   it('throws NoQualifyingContactError when no K1-qualifying contact channel is extractable, and never calls revealAtomically', async () => {
     const { deps, revealAtomically } = makeDeps({ signals: [signalWithContact('A quiet storefront, nothing more.')] });
     await expect(unlockOpportunityForOwner(deps, 'user-1', 'opp-1', NOW)).rejects.toThrow(
@@ -233,5 +266,38 @@ describe('unlockOpportunityForOwner', () => {
       }),
       NOW,
     );
+  });
+});
+
+describe('access-decision consistency (Phase 0 regression-safety)', () => {
+  // Proves the write path (unlockOpportunityForOwner, reached via
+  // POST /api/opportunities/:id/unlock) and the read path
+  // (hasClientFinderAccess/getClientFinderSubscriptionStatus, reached via
+  // page gating and the status badge) agree on the SAME seeded periods --
+  // both now resolve through the one shared
+  // findActiveClientFinderSubscriptionPeriod function
+  // (AUTH_COMMERCIAL_IMPLEMENTATION_IMPACT_AUDIT.md §15 item 1), so there
+  // is no longer a code path where the UI could show "active" while the
+  // unlock POST throws, or vice versa.
+  it.each([
+    ['no subscription', [] as SubscriptionPeriod[]],
+    ['expired subscription', [activePeriod({ activationAt: new Date('2025-12-01T00:00:00Z'), durationDays: 30 })]],
+    ['subscription for a different product', [activePeriod({ productSlug: 'ai_freelancing_499' })]],
+    ['active Client Finder subscription', [activePeriod()]],
+  ] as const)('unlock write path and access read path agree for: %s', async (_label, periods) => {
+    const { deps } = makeDeps({ periods, signals: [signalWithContact('Email owner@acme.com for bookings.')] });
+
+    const readPathActive = await hasClientFinderAccess(deps, 'user-1', null, NOW);
+    const statusActive = (await getClientFinderSubscriptionStatus(deps, 'user-1', NOW)).active;
+    expect(readPathActive).toBe(statusActive);
+
+    const writePathSucceeds = await unlockOpportunityForOwner(deps, 'user-1', 'opp-1', NOW)
+      .then(() => true)
+      .catch((err) => {
+        if (err instanceof NoActiveClientFinderSubscriptionError) return false;
+        throw err;
+      });
+
+    expect(writePathSucceeds).toBe(readPathActive);
   });
 });

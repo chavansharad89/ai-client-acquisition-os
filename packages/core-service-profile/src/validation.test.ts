@@ -8,7 +8,7 @@ import { RULE_FIELD_MAX_ITEMS, validateServiceProfileInput } from './validation'
 
 function validInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'Content writing',
+    service: 'Content & Copywriting',
     targetCustomer: 'D2C restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 3_000_000,
@@ -21,8 +21,10 @@ function validInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfil
 
 describe('valid input', () => {
   it('passes through trimmed fields unchanged', () => {
-    const result = validateServiceProfileInput(validInput({ service: '  Content writing  ' }));
-    expect(result.service).toBe('Content writing');
+    const result = validateServiceProfileInput(
+      validInput({ service: '  Content & Copywriting  ' }),
+    );
+    expect(result.service).toBe('Content & Copywriting');
     expect(result.minProjectValuePaise).toBe(3_000_000);
   });
 
@@ -52,6 +54,69 @@ describe('required fields', () => {
       );
     },
   );
+});
+
+describe('service vocabulary (D6, CF-SERVICE-CATALOG-PO-DEC-001)', () => {
+  const CANONICAL_SERVICE_FAMILIES = [
+    'Web & Software Development',
+    'AI & Automation',
+    'Video & Reels',
+    'Graphic & Visual Design',
+    'Branding',
+    'Digital Marketing',
+    'Content & Copywriting',
+    'Photography',
+    'Audio',
+    'E-commerce Services',
+    'Business & Operations',
+    'Sales & Lead Generation',
+    'Translation & Language',
+    'Architecture / Engineering / 3D',
+    'Finance / Professional Services',
+    'Education & Expertise',
+    'Specialized Professional Services',
+  ] as const;
+
+  it.each(CANONICAL_SERVICE_FAMILIES)('accepts the canonical family "%s"', (family) => {
+    const result = validateServiceProfileInput(validInput({ service: family }));
+    expect(result.service).toBe(family);
+  });
+
+  it('rejects a subservice name (not a top-level family)', () => {
+    expect(() => validateServiceProfileInput(validInput({ service: 'Website development' }))).toThrow(
+      ServiceProfileValidationError,
+    );
+  });
+
+  it('rejects free text outside the vocabulary', () => {
+    let thrown: unknown;
+    try {
+      validateServiceProfileInput(validInput({ service: 'something I made up' }));
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ServiceProfileValidationError);
+    expect((thrown as ServiceProfileValidationError).field).toBe('service');
+    expect((thrown as ServiceProfileValidationError).reason).toBe('not-in-vocabulary');
+  });
+
+  it('is case-sensitive: a differently-cased canonical name is rejected', () => {
+    expect(() => validateServiceProfileInput(validInput({ service: 'branding' }))).toThrow(
+      ServiceProfileValidationError,
+    );
+  });
+
+  it('rejects a service value over 200 characters', () => {
+    let thrown: unknown;
+    try {
+      validateServiceProfileInput(validInput({ service: 'x'.repeat(201) }));
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ServiceProfileValidationError);
+    expect((thrown as ServiceProfileValidationError).field).toBe('service');
+    expect((thrown as ServiceProfileValidationError).reason).toBe('too-long');
+  });
 });
 
 describe('minProjectValuePaise', () => {

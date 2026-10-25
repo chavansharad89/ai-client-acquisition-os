@@ -23,7 +23,12 @@ export type ResearchSourceKind =
   // Intent intake (INTENT-INTAKE-PO-DEC-001, migration 0029): captured
   // intent events, never produced by Research.
   | 'PUBLIC_INTENT'
-  | 'FIRST_PARTY';
+  | 'FIRST_PARTY'
+  // Phase 8 (CF-PHASE8-ENTITY-REALITY-ACTIVATION-PO-DEC-001, D16):
+  // Google Places operational-status evidence (businessStatus),
+  // produced only by core-research's deterministic Entity-Reality
+  // producer — never by Research/the AI prompt.
+  | 'GOOGLE_PLACES_STATUS';
 
 export interface ResearchSignal {
   kind: ResearchSourceKind;
@@ -56,6 +61,11 @@ export const SOURCE_WEIGHT: Record<ResearchSourceKind, number> = {
   // triggers (D3); scoreProspect() never reads these values.
   PUBLIC_INTENT: 0,
   FIRST_PARTY: 0,
+  // CF-PHASE8-ENTITY-REALITY-ACTIVATION-PO-DEC-001 D16: zero weight,
+  // same precedent as PUBLIC_INTENT/FIRST_PARTY above — this kind feeds
+  // deterministic elimination (entityRealityElimination.ts), not the
+  // superseded legacy scoreLead()/scoreProspect() ranking formula.
+  GOOGLE_PLACES_STATUS: 0,
 };
 
 /** A signal older than this contributes nothing. */

@@ -2,10 +2,11 @@ import { createHash } from 'node:crypto';
 
 import type { SqlExecutor } from '@acos/core-entitlements';
 
-import type {
-  NewCategoryPlausibilityDeterminationInput,
-  StoredSegmentDetermination,
-  StoredCategoryPlausibilityDetermination,
+import {
+  parseTargetSegments,
+  type NewCategoryPlausibilityDeterminationInput,
+  type StoredSegmentDetermination,
+  type StoredCategoryPlausibilityDetermination,
 } from './categoryPlausibility';
 import {
   MODEL_SEEN_SOURCE,
@@ -172,6 +173,25 @@ export function createPgCategoryPlausibilityRepository(
       );
       const row = rows[0] as DeterminationRow | undefined;
       return row ? mapRow(row) : null;
+    },
+
+    async isCategoryPlausibilityApplicableForProspectId(
+      userId: string,
+      prospectId: string,
+    ): Promise<boolean> {
+      const { rows } = await sql.query(
+        `SELECT s.target_customer
+           FROM prospects p
+           JOIN searches s ON s.id = p.search_id
+          WHERE p.id = $2 AND p.user_id = $1`,
+        [userId, prospectId],
+      );
+      const row = rows[0] as { target_customer: string } | undefined;
+      // No resolvable Prospect/Search: default to `true` (the pre-existing
+      // "applicable" assumption) rather than granting an N/A exemption for
+      // a row this method could not actually inspect.
+      if (!row) return true;
+      return parseTargetSegments(row.target_customer).length > 0;
     },
 
     async listSourceDocumentsByDeterminationId(

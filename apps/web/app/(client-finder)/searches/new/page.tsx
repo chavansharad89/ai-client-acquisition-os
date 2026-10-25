@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 
+import { ClientFinderNav } from '../../../../src/components/client-finder/ClientFinderNav';
 import { NewSearchForm } from '../../../../src/components/client-finder/NewSearchForm';
 import { hasSessionCookie } from '../../../../src/server/session';
 
@@ -13,6 +14,7 @@ export default function NewSearchPage() {
     <main id="main" className="shell">
       <header>
         <p className="eyebrow">Client Finder</p>
+        <ClientFinderNav />
         <h1 className="page-title">Define what you sell</h1>
         <p className="lede">
           This is what personalises every downstream step — discovery, research, and which

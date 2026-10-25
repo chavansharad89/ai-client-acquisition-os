@@ -52,7 +52,9 @@ reopened or altered.
 ## 5. Inherited policy (DECIDED elsewhere — not reopened, not altered by this record)
 
 - **PDEF-2:** Client Finder in both ₹499 and ₹1,499; ₹499 = Basic, ₹1,499 = Advanced; independent purchase in
-  both directions; ₹499 = 50, ₹1,499 = 300 monthly lead-unlock credits.
+  both directions; ₹499 = 50, ₹1,499 = 300 monthly lead-unlock credits. **The ₹1,499 credit figure is superseded**
+  by `CLIENT_FINDER_1499_SUBSCRIPTION_ACCESS_MODEL_PO_DECISION.md` (no credits; time-bounded access instead); the
+  ₹499 figure and the Basic/Advanced tiering are unaffected.
 - **PDEF-3:** PCG-1 = 500 qualified visitors; PCG-2 = ≥50 buyers; PCG-3A = ≥10% (₹99→₹499); PCG-3B = ≥5%
   (independent ₹1,499 conversion); PCG-4 = ≥60% useful outcome; PCG-5 = ≤8% refund rate; PCG-6 = ≥70% completion.
   Measurement population is Client-Finder-specific; default window is rolling 30 days (PCG-5: from purchase;
@@ -275,3 +277,15 @@ to this record, stating the human Product Owner's review and either confirmation
 and only after any such ratification: instrumentation design/build (§6.10, §8), the independent-validation method,
 and deployment/release authorization (K1-10) each require their own distinct, explicit authorization — none is
 performed or granted here.
+
+---
+
+## Cross-reference / reconciliation notice (2026-10-12, additive only)
+
+`CF-DISCOVERY-QUALITY-LAUNCH-GATE-PO-DEC-001`
+(`CLIENT_FINDER_DISCOVERY_QUALITY_LAUNCH_GATE_PO_DECISION.md`) records a separate, additional pre-production
+release gate — discovery-quality validation against the universal five-dimension framework and the Minimum Useful
+Lead Result fields — that this record does not cover. PCG-1..6 (§6.1–§6.9 above) remain commercial-funnel gates
+only; they do not evaluate the content/evidence quality of individual discovered opportunities. The two gate sets
+are complementary, not overlapping, and neither record alters the other's thresholds, populations, windows, or
+severity classifications.

@@ -162,6 +162,9 @@ describe('R-68: runtime no-send proof', () => {
       async updateStaleness() {
         throw new Error('not used by this test');
       },
+      async updateAiEnrichment() {
+        throw new Error('not used by this test');
+      },
     };
   }
 
@@ -197,6 +200,9 @@ describe('R-68: runtime no-send proof', () => {
       },
       staleness: 'FRESH',
       stalenessComputedAt: null,
+      aiEnrichment: 'DETERMINISTIC_ONLY',
+      aiEnrichmentReason: null,
+      relevantSubservices: [],
       createdAt: NOW,
       updatedAt: NOW,
     };

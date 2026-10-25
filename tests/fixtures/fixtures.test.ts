@@ -179,9 +179,11 @@ describe('cleanup', () => {
     expect(await countRunRows(db, ctx)).toEqual({
       meta_events: 0,
       webhook_events: 0,
+      refund_events: 0,
       payments: 0,
       entitlements: 0,
       orders: 0,
+      searches: 0,
     });
   });
 
@@ -192,7 +194,10 @@ describe('cleanup', () => {
 
     await assertCleanupSucceeded(db, ctx);
 
-    expect(db.deleteOrder).toEqual([...CLEANUP_ORDER]);
+    // seedDuplicates('all') seeds the payments domain only, not `searches`,
+    // so that delete is skipped (no tracked search ids) and never appears
+    // in deleteOrder — hence CLEANUP_ORDER minus 'searches' here.
+    expect(db.deleteOrder).toEqual(CLEANUP_ORDER.filter((table) => table !== 'searches'));
     expect(db.deleteOrder.indexOf('orders')).toBe(db.deleteOrder.length - 1);
   });
 
@@ -221,10 +226,13 @@ describe('cleanup', () => {
       meta_events: theirs.metaEventIds.length,
       webhook_events: theirs.webhookEventIds.length,
       payments: theirs.paymentIds.length,
-      // Entitlements are counted by order_id, so the other run's orders
-      // are the key — and none of them carry an entitlement here.
+      // Entitlements and refund_events are counted by order_id, so the
+      // other run's orders are the key — and none of them carry either
+      // here.
       entitlements: 0,
+      refund_events: 0,
       orders: theirs.orderIds.length,
+      searches: 0,
     });
   });
 
@@ -241,9 +249,11 @@ describe('cleanup', () => {
     expect(report.leftover).toEqual({
       meta_events: [],
       webhook_events: [],
+      refund_events: [],
       payments: [],
       entitlements: [],
       orders: [],
+      searches: [],
     });
   });
 

@@ -152,3 +152,35 @@ export const CLAIM_LINK_RESEND_IP_POLICY: RateLimitPolicy = {
   limit: 10,
   windowMs: 15 * 60_000,
 };
+
+/**
+ * AUTH Phase 2: requesting/resending a ₹1,499 activation link. Same
+ * shape as CLAIM_LINK_RESEND_EMAIL_POLICY/..._IP_POLICY and the same
+ * reasoning — the side effect is an email to an address the caller
+ * names, so the per-email ceiling is tight; the per-IP ceiling only
+ * stops one host walking many emails.
+ */
+export const ACTIVATION_REQUEST_EMAIL_POLICY: RateLimitPolicy = {
+  name: 'activation-request:email',
+  limit: 3,
+  windowMs: 15 * 60_000,
+};
+
+export const ACTIVATION_REQUEST_IP_POLICY: RateLimitPolicy = {
+  name: 'activation-request:ip',
+  limit: 10,
+  windowMs: 15 * 60_000,
+};
+
+/**
+ * AUTH Phase 2: consuming an activation token. Tighter than request —
+ * this is a token-guessing surface (the token itself is the only proof
+ * of eligibility), not just a resend-spam surface, so only a per-IP
+ * ceiling is applied (there is no caller-supplied email to key a second
+ * policy on).
+ */
+export const ACTIVATION_CONSUME_IP_POLICY: RateLimitPolicy = {
+  name: 'activation-consume:ip',
+  limit: 20,
+  windowMs: 15 * 60_000,
+};

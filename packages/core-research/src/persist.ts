@@ -24,7 +24,12 @@ export type ResearchSourceKind =
   | 'MANUAL'
   // Intent intake only (./intentSignal.ts) — never produced by FIELD_KIND.
   | 'PUBLIC_INTENT'
-  | 'FIRST_PARTY';
+  | 'FIRST_PARTY'
+  // Phase 8 (CF-PHASE8-ENTITY-REALITY-ACTIVATION-PO-DEC-001, D16):
+  // Google Places operational-status evidence — produced only by
+  // ./deterministicSignals.ts's detectPlacesEntityReality(), never by
+  // FIELD_KIND/Research.
+  | 'GOOGLE_PLACES_STATUS';
 
 export interface LeadResearchRow {
   leadId: string;

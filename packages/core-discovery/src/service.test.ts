@@ -13,6 +13,7 @@ import { runDiscovery } from './service';
 import {
   fakeCompanyRepository,
   fakeDiscoveryProvider,
+  fakeEntityRepository,
   fakeProspectRepository,
 } from './testSupport';
 
@@ -133,6 +134,7 @@ function deps(searchSeed: StoredSearch[], candidates: Parameters<typeof fakeDisc
     searches: fakeSearchRepository(searchSeed),
     companies: fakeCompanyRepository(),
     prospects: fakeProspectRepository(),
+    entities: fakeEntityRepository(),
     provider: fakeDiscoveryProvider(candidates),
   };
 }
@@ -169,8 +171,8 @@ describe('discovery execution', () => {
     await expect(runDiscovery(d, null, { searchId: search.id })).rejects.toBeInstanceOf(
       UnauthenticatedError,
     );
-    expect(d.companies.rows).toHaveLength(0);
-    expect(d.prospects.rows).toHaveLength(0);
+    expect(d.entities.companies).toHaveLength(0);
+    expect(d.entities.prospects).toHaveLength(0);
   });
 
   it('an entitlement-only token (user_id IS NULL) is rejected, not authenticated as a session', async () => {
@@ -240,7 +242,7 @@ describe('discovery execution', () => {
     expect(result.candidatesReceived).toBe(2);
     expect(result.companies).toHaveLength(2);
     expect(new Set(result.companies.map((c) => c.id)).size).toBe(1);
-    expect(d.companies.rows).toHaveLength(1);
+    expect(d.entities.companies).toHaveLength(1);
     expect(result.skipped).toBe(0);
     // The invariant the observability contract promises: raw === accepted-as-prospects + skipped.
     expect(result.candidatesReceived).toBe(result.prospects.length + result.skipped);
@@ -260,8 +262,8 @@ describe('discovery execution', () => {
 
     expect(result.companies).toHaveLength(2);
     expect(new Set(result.companies.map((c) => c.id)).size).toBe(1);
-    expect(d.companies.rows).toHaveLength(1);
-    expect(d.prospects.rows).toHaveLength(1);
+    expect(d.entities.companies).toHaveLength(1);
+    expect(d.entities.prospects).toHaveLength(1);
   });
 
   it('re-running discovery for the same Search is idempotent', async () => {
@@ -271,8 +273,47 @@ describe('discovery execution', () => {
     await runDiscovery(d, 'token-a', { searchId: search.id });
     await runDiscovery(d, 'token-a', { searchId: search.id });
 
-    expect(d.companies.rows).toHaveLength(1);
-    expect(d.prospects.rows).toHaveLength(1);
+    expect(d.entities.companies).toHaveLength(1);
+    expect(d.entities.prospects).toHaveLength(1);
+  });
+
+  // Phase 8 (CF-PHASE8-ENTITY-REALITY-ACTIVATION-PO-DEC-001, D14): purely
+  // in-memory businessStatus -> Prospect plumbing, never persisted on
+  // Company/Prospect itself.
+  it('businessStatusByProspectId carries each accepted candidate\'s raw businessStatus, keyed by its Prospect id', async () => {
+    const search = seedSearch();
+    const d = deps(
+      [search],
+      [
+        { name: 'Acme Co', website: 'https://acme.example.com', businessStatus: 'CLOSED_PERMANENTLY' },
+        { name: 'Beta LLC', website: 'https://beta.example.com' },
+      ],
+    );
+
+    const result = await runDiscovery(d, 'token-a', { searchId: search.id });
+
+    expect(result.prospects).toHaveLength(2);
+    const [acme, beta] = result.prospects;
+    expect(result.businessStatusByProspectId.get(acme!.id)).toBe('CLOSED_PERMANENTLY');
+    expect(result.businessStatusByProspectId.get(beta!.id)).toBeNull();
+  });
+
+  // Global Entity Architecture (C-1): a website-less candidate is no
+  // longer skipped by runDiscoveryForOwner's open-discovery path — it is
+  // persisted with a null normalizedDomain, and its businessStatus still
+  // flows through to businessStatusByProspectId exactly like any other
+  // accepted candidate (D14/N1 unchanged: absence of a website is never
+  // Entity Reality evidence by itself).
+  it('a website-less candidate is accepted (not skipped), with a null normalizedDomain, and still appears in businessStatusByProspectId', async () => {
+    const search = seedSearch();
+    const d = deps([search], [{ name: 'No Website Co', website: null, businessStatus: 'CLOSED_PERMANENTLY' }]);
+
+    const result = await runDiscovery(d, 'token-a', { searchId: search.id });
+
+    expect(result.skipped).toBe(0);
+    expect(result.prospects).toHaveLength(1);
+    expect(result.companies[0]?.normalizedDomain).toBeNull();
+    expect(result.businessStatusByProspectId.get(result.prospects[0]!.id)).toBe('CLOSED_PERMANENTLY');
   });
 
   it('invalid or incomplete provider candidates are skipped, not persisted or thrown', async () => {
@@ -282,6 +323,8 @@ describe('discovery execution', () => {
       [
         { name: 'Acme Co', website: 'https://acme.example.com' },
         { name: '', website: 'https://noname.example.com' },
+        // No website at all is no longer a skip reason (C-1) — this
+        // candidate is now ACCEPTED, website-less.
         { name: 'No Website Co', website: null },
         { name: 'Bad URL Co', website: 'not a url and no dots' },
         {},
@@ -290,9 +333,9 @@ describe('discovery execution', () => {
 
     const result = await runDiscovery(d, 'token-a', { searchId: search.id });
 
-    expect(result.companies).toHaveLength(1);
-    expect(result.skipped).toBe(4);
-    // Observability contract: 5 raw candidates in, 1 accepted + 4 skipped.
+    expect(result.companies).toHaveLength(2);
+    expect(result.skipped).toBe(3);
+    // Observability contract: 5 raw candidates in, 2 accepted + 3 skipped.
     expect(result.candidatesReceived).toBe(5);
     expect(result.candidatesReceived).toBe(result.prospects.length + result.skipped);
   });

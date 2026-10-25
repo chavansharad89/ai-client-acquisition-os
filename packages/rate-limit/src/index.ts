@@ -10,6 +10,9 @@ export { createPgRateLimiter } from './pgLimiter';
 export type { SqlExecutor } from './pgLimiter';
 
 export {
+  ACTIVATION_CONSUME_IP_POLICY,
+  ACTIVATION_REQUEST_EMAIL_POLICY,
+  ACTIVATION_REQUEST_IP_POLICY,
   assertPolicy,
   CLAIM_LINK_RESEND_EMAIL_POLICY,
   CLAIM_LINK_RESEND_IP_POLICY,

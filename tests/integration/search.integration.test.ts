@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
+import { Pool } from 'pg';
+
 import {
   createPgIdentityRepository,
   mintUserSession,
   UnauthenticatedError,
 } from '@acos/core-identity';
 import {
+  AI_ESCALATION_BUDGET,
   createPgSearchRepository,
   createSearch,
   getSearch,
@@ -17,6 +20,7 @@ import {
   type SearchDeps,
 } from '@acos/core-search';
 import {
+  applySystemServiceProfileDefaults,
   createPgServiceProfileRepository,
   createServiceProfile,
   type ServiceProfileInput,
@@ -65,7 +69,7 @@ async function createUserAndSession(label: string): Promise<{ userId: string; to
 
 function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'Website development',
+    service: 'Web & Software Development',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 3_000_000,
@@ -84,32 +88,49 @@ async function createOwnedProfile(
   return createServiceProfile(d, token, sampleProfileInput(overrides));
 }
 
+// claimNextPending() claims the globally oldest PENDING row, by design
+// (R-34 — a worker has no session to scope by). Tracking every Search
+// this suite creates lets afterEach(() => suite.cleanup()) remove them,
+// so a PENDING row left behind by an earlier test can never be the one
+// a later test's claimNextPending() picks up.
+async function createTrackedSearch(
+  d: SearchDeps,
+  token: string | null,
+  input: Parameters<typeof createSearch>[2],
+) {
+  const created = await createSearch(d, token, input);
+  suite.require().context.trackSearch(created.id);
+  return created;
+}
+
 describe('Search creation + snapshot', () => {
   it('an authenticated user starts a PENDING Search snapshotting their profile', async () => {
     const a = await createUserAndSession('a');
     const d = deps();
     const profile = await createOwnedProfile(d, a.token);
 
-    const created = await createSearch(d, a.token, { serviceProfileId: profile.id });
+    const created = await createTrackedSearch(d, a.token, { serviceProfileId: profile.id });
     expect(created.userId).toBe(a.userId);
     expect(created.serviceProfileId).toBe(profile.id);
     expect(created.status).toBe('PENDING');
-    expect(created.parameters).toEqual({
-      service: 'Website development',
-      targetCustomer: 'Restaurants',
-      geography: 'Mumbai',
-      minProjectValuePaise: 3_000_000,
-      triggers: ['JOB_POST'],
-      keywords: ['website', 'redesign'],
-      rationale: 'They lack a working website.',
-    });
+    // CF-SEARCH-INPUT-SERVICE-GEOGRAPHY-ONLY-PO-DEC-001/002: a NEW search's
+    // profile is created from service+geography alone — createServiceProfile()
+    // discards every other field sampleProfileInput() sets (targetCustomer
+    // included) in favor of applySystemServiceProfileDefaults(), so the
+    // Search snapshot must match that system-owned shape, not the fixture.
+    expect(created.parameters).toEqual(
+      applySystemServiceProfileDefaults({
+        service: 'Web & Software Development',
+        geography: 'Mumbai',
+      }),
+    );
   });
 
   it('editing the ServiceProfile after creating a Search does not change the Search snapshot', async () => {
     const a = await createUserAndSession('a');
     const d = deps();
     const profile = await createOwnedProfile(d, a.token);
-    const created = await createSearch(d, a.token, { serviceProfileId: profile.id });
+    const created = await createTrackedSearch(d, a.token, { serviceProfileId: profile.id });
 
     await d.profiles.update(
       a.userId,
@@ -119,7 +140,7 @@ describe('Search creation + snapshot', () => {
     );
 
     const reread = await getSearch(d, a.token, created.id);
-    expect(reread?.parameters.service).toBe('Website development');
+    expect(reread?.parameters.service).toBe('Web & Software Development');
   });
 
   it('a serviceProfileId owned by another user is treated as not found', async () => {
@@ -140,11 +161,11 @@ describe('Search idempotency', () => {
     const d = deps();
     const profile = await createOwnedProfile(d, a.token);
 
-    const first = await createSearch(d, a.token, {
+    const first = await createTrackedSearch(d, a.token, {
       serviceProfileId: profile.id,
       idempotencyKey: 'attempt-1',
     });
-    const second = await createSearch(d, a.token, {
+    const second = await createTrackedSearch(d, a.token, {
       serviceProfileId: profile.id,
       idempotencyKey: 'attempt-1',
     });
@@ -158,9 +179,9 @@ describe('Search idempotency', () => {
     const a = await createUserAndSession('a');
     const d = deps();
     const profile = await createOwnedProfile(d, a.token);
-    const otherProfile = await createOwnedProfile(d, a.token, { service: 'SEO audits' });
+    const otherProfile = await createOwnedProfile(d, a.token, { service: 'Digital Marketing' });
 
-    await createSearch(d, a.token, {
+    await createTrackedSearch(d, a.token, {
       serviceProfileId: profile.id,
       idempotencyKey: 'attempt-1',
     });
@@ -178,13 +199,13 @@ describe('Search idempotency', () => {
     const b = await createUserAndSession('b');
     const d = deps();
     const profileA = await createOwnedProfile(d, a.token);
-    const profileB = await createOwnedProfile(d, b.token, { service: 'SEO audits' });
+    const profileB = await createOwnedProfile(d, b.token, { service: 'Digital Marketing' });
 
-    const searchA = await createSearch(d, a.token, {
+    const searchA = await createTrackedSearch(d, a.token, {
       serviceProfileId: profileA.id,
       idempotencyKey: 'shared-key',
     });
-    const searchB = await createSearch(d, b.token, {
+    const searchB = await createTrackedSearch(d, b.token, {
       serviceProfileId: profileB.id,
       idempotencyKey: 'shared-key',
     });
@@ -201,7 +222,7 @@ describe('Search ownership', () => {
     const b = await createUserAndSession('b');
     const d = deps();
     const profile = await createOwnedProfile(d, a.token);
-    const created = await createSearch(d, a.token, { serviceProfileId: profile.id });
+    const created = await createTrackedSearch(d, a.token, { serviceProfileId: profile.id });
 
     const asB = await getSearch(d, b.token, created.id);
     expect(asB).toBeNull();
@@ -212,7 +233,7 @@ describe('Search ownership', () => {
     const b = await createUserAndSession('b');
     const d = deps();
     const profile = await createOwnedProfile(d, a.token);
-    const created = await createSearch(d, a.token, { serviceProfileId: profile.id });
+    const created = await createTrackedSearch(d, a.token, { serviceProfileId: profile.id });
 
     const result = await transitionSearch(d, b.token, created.id, { status: 'RUNNING' });
     expect(result).toBeNull();
@@ -226,10 +247,10 @@ describe('Search ownership', () => {
     const b = await createUserAndSession('b');
     const d = deps();
     const profileA = await createOwnedProfile(d, a.token);
-    const profileB = await createOwnedProfile(d, b.token, { service: 'SEO audits' });
+    const profileB = await createOwnedProfile(d, b.token, { service: 'Digital Marketing' });
 
-    const mine = await createSearch(d, a.token, { serviceProfileId: profileA.id });
-    await createSearch(d, b.token, { serviceProfileId: profileB.id });
+    const mine = await createTrackedSearch(d, a.token, { serviceProfileId: profileA.id });
+    await createTrackedSearch(d, b.token, { serviceProfileId: profileB.id });
 
     const aList = await listSearches(d, a.token);
     expect(aList.map((s) => s.id)).toEqual([mine.id]);
@@ -241,7 +262,7 @@ describe('Search lifecycle', () => {
     const a = await createUserAndSession('a');
     const d = deps();
     const profile = await createOwnedProfile(d, a.token);
-    const created = await createSearch(d, a.token, { serviceProfileId: profile.id });
+    const created = await createTrackedSearch(d, a.token, { serviceProfileId: profile.id });
 
     const running = await transitionSearch(d, a.token, created.id, { status: 'RUNNING' });
     expect(running?.status).toBe('RUNNING');
@@ -255,7 +276,7 @@ describe('Search lifecycle', () => {
     const a = await createUserAndSession('a');
     const d = deps();
     const profile = await createOwnedProfile(d, a.token);
-    const created = await createSearch(d, a.token, { serviceProfileId: profile.id });
+    const created = await createTrackedSearch(d, a.token, { serviceProfileId: profile.id });
 
     await expect(
       transitionSearch(d, a.token, created.id, { status: 'COMPLETE' }),
@@ -269,7 +290,7 @@ describe('Search lifecycle', () => {
     const a = await createUserAndSession('a');
     const d = deps();
     const profile = await createOwnedProfile(d, a.token);
-    const created = await createSearch(d, a.token, { serviceProfileId: profile.id });
+    const created = await createTrackedSearch(d, a.token, { serviceProfileId: profile.id });
     await transitionSearch(d, a.token, created.id, { status: 'CANCELLED' });
 
     await expect(
@@ -289,5 +310,212 @@ describe('identity boundary', () => {
   it('a revoked/unknown token cannot list another user’s searches', async () => {
     const d = deps();
     await expect(listSearches(d, 'not-a-real-token')).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+});
+
+describe('AI escalation budget (Phase 5, migration 0046, real Postgres)', () => {
+  async function createClaimedSearch(d: SearchDeps, token: string, workerId: string) {
+    const profile = await createOwnedProfile(d, token);
+    const created = await createTrackedSearch(d, token, { serviceProfileId: profile.id });
+    const claimed = await d.searches.claimNextPending({
+      workerId,
+      now: new Date(),
+      leaseExpiresAt: new Date(Date.now() + 60_000),
+    });
+    return claimed!.id;
+  }
+
+  it('0 -> 1: a fresh claimed Search admits its first unit', async () => {
+    const a = await createUserAndSession('budget_a');
+    const d = deps();
+    const id = await createClaimedSearch(d, a.token, 'worker_1');
+
+    const result = await d.searches.consumeAiEscalationUnit({
+      id,
+      workerId: 'worker_1',
+      now: new Date(),
+      budget: AI_ESCALATION_BUDGET,
+    });
+    expect(result).toEqual({ outcome: 'admitted', consumed: 1 });
+
+    const reread = await getSearch(d, a.token, id);
+    expect(reread?.aiEscalationUnitsConsumed).toBe(1);
+  });
+
+  it('9 -> 10: the last unit is still admitted', async () => {
+    const a = await createUserAndSession('budget_b');
+    const d = deps();
+    const id = await createClaimedSearch(d, a.token, 'worker_1');
+
+    for (let i = 0; i < 9; i += 1) {
+      await d.searches.consumeAiEscalationUnit({
+        id,
+        workerId: 'worker_1',
+        now: new Date(),
+        budget: AI_ESCALATION_BUDGET,
+      });
+    }
+
+    const tenth = await d.searches.consumeAiEscalationUnit({
+      id,
+      workerId: 'worker_1',
+      now: new Date(),
+      budget: AI_ESCALATION_BUDGET,
+    });
+    expect(tenth).toEqual({ outcome: 'admitted', consumed: 10 });
+  });
+
+  it('10 -> rejection: a Search already at budget is exhausted, and the row is left unchanged', async () => {
+    const a = await createUserAndSession('budget_c');
+    const d = deps();
+    const id = await createClaimedSearch(d, a.token, 'worker_1');
+
+    for (let i = 0; i < 10; i += 1) {
+      await d.searches.consumeAiEscalationUnit({
+        id,
+        workerId: 'worker_1',
+        now: new Date(),
+        budget: AI_ESCALATION_BUDGET,
+      });
+    }
+
+    const eleventh = await d.searches.consumeAiEscalationUnit({
+      id,
+      workerId: 'worker_1',
+      now: new Date(),
+      budget: AI_ESCALATION_BUDGET,
+    });
+    expect(eleventh).toEqual({ outcome: 'exhausted', consumed: 10 });
+
+    const reread = await getSearch(d, a.token, id);
+    expect(reread?.aiEscalationUnitsConsumed).toBe(10);
+  });
+
+  it('a worker that has lost its lease cannot consume a unit (fenced, nothing written)', async () => {
+    const a = await createUserAndSession('budget_d');
+    const d = deps();
+    const id = await createClaimedSearch(d, a.token, 'worker_1');
+
+    const result = await d.searches.consumeAiEscalationUnit({
+      id,
+      workerId: 'worker_2', // not the lease holder
+      now: new Date(),
+      budget: AI_ESCALATION_BUDGET,
+    });
+    expect(result).toEqual({ outcome: 'fenced' });
+
+    const reread = await getSearch(d, a.token, id);
+    expect(reread?.aiEscalationUnitsConsumed).toBe(0);
+  });
+
+  it('a candidate-level AI failure keeps its already-admitted unit (no refund operation exists)', async () => {
+    const a = await createUserAndSession('budget_e');
+    const d = deps();
+    const id = await createClaimedSearch(d, a.token, 'worker_1');
+
+    const admitted = await d.searches.consumeAiEscalationUnit({
+      id,
+      workerId: 'worker_1',
+      now: new Date(),
+      budget: AI_ESCALATION_BUDGET,
+    });
+    expect(admitted).toEqual({ outcome: 'admitted', consumed: 1 });
+
+    // Simulate the candidate's AI call throwing after admission: the
+    // repository has no decrement/refund method, so the counter simply
+    // stays at 1 — nothing further to call here proves the invariant.
+    const reread = await getSearch(d, a.token, id);
+    expect(reread?.aiEscalationUnitsConsumed).toBe(1);
+  });
+
+  it('a retry (re-claim) preserves the consumed count — it is never reset', async () => {
+    const a = await createUserAndSession('budget_f');
+    const d = deps();
+    const id = await createClaimedSearch(d, a.token, 'worker_1');
+
+    await d.searches.consumeAiEscalationUnit({
+      id,
+      workerId: 'worker_1',
+      now: new Date(),
+      budget: AI_ESCALATION_BUDGET,
+    });
+
+    // Attempt 1 fails and is returned to PENDING; attempt 2 re-claims it.
+    await d.searches.recordAttemptFailure({
+      id,
+      workerId: 'worker_1',
+      now: new Date(),
+      error: 'simulated crash',
+      maxAttempts: 3,
+    });
+    const reclaimed = await d.searches.claimNextPending({
+      workerId: 'worker_2',
+      now: new Date(),
+      leaseExpiresAt: new Date(Date.now() + 60_000),
+    });
+    expect(reclaimed?.id).toBe(id);
+    expect(reclaimed?.aiEscalationUnitsConsumed).toBe(1);
+
+    const second = await d.searches.consumeAiEscalationUnit({
+      id,
+      workerId: 'worker_2',
+      now: new Date(),
+      budget: AI_ESCALATION_BUDGET,
+    });
+    expect(second).toEqual({ outcome: 'admitted', consumed: 2 });
+  });
+
+  it('CHECK constraint rejects a direct write past the budget, independent of application logic', async () => {
+    const { db } = suite.require();
+    const a = await createUserAndSession('budget_g');
+    const d = deps();
+    const id = await createClaimedSearch(d, a.token, 'worker_1');
+
+    await expect(
+      db.client.query(`UPDATE searches SET ai_escalation_units_consumed = 11 WHERE id = $1`, [id]),
+    ).rejects.toThrow();
+  });
+
+  describe('concurrency (real Postgres)', () => {
+    it('N connections racing at the boundary can never push consumed above the budget', async () => {
+      const { db } = suite.require();
+      const a = await createUserAndSession('budget_race');
+      const d = deps();
+      const id = await createClaimedSearch(d, a.token, 'worker_1');
+
+      // Pre-consume 9, leaving exactly one unit of headroom.
+      for (let i = 0; i < 9; i += 1) {
+        await d.searches.consumeAiEscalationUnit({
+          id,
+          workerId: 'worker_1',
+          now: new Date(),
+          budget: AI_ESCALATION_BUDGET,
+        });
+      }
+
+      const RACERS = 5;
+      const pool = new Pool({ connectionString: db.url, max: RACERS + 2 });
+      try {
+        const racers = Array.from({ length: RACERS }, () =>
+          createPgSearchRepository(pool).consumeAiEscalationUnit({
+            id,
+            workerId: 'worker_1',
+            now: new Date(),
+            budget: AI_ESCALATION_BUDGET,
+          }),
+        );
+        const results = await Promise.all(racers);
+
+        const admittedCount = results.filter((r) => r.outcome === 'admitted').length;
+        const exhaustedCount = results.filter((r) => r.outcome === 'exhausted').length;
+        expect(admittedCount).toBe(1);
+        expect(exhaustedCount).toBe(RACERS - 1);
+
+        const reread = await getSearch(d, a.token, id);
+        expect(reread?.aiEscalationUnitsConsumed).toBe(10);
+      } finally {
+        await pool.end();
+      }
+    }, 30_000);
   });
 });

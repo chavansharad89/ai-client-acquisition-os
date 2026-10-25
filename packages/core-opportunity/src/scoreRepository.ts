@@ -1,4 +1,4 @@
-import type { ProspectScore } from '@acos/core-acquisition';
+import type { UniversalRankingProfile } from '@acos/core-acquisition';
 
 import type { StoredOpportunityScore } from './types';
 
@@ -15,14 +15,15 @@ import type { StoredOpportunityScore } from './types';
  */
 export interface OpportunityScoreRepository {
   /**
-   * Writes this Opportunity's current score, replacing whatever was
+   * Writes this Opportunity's current ranking, replacing whatever was
    * there before (migration 0018's `UNIQUE(opportunity_id)` — one
-   * current score per Opportunity, not an append-only history).
+   * current row per Opportunity, not an append-only history).
    */
   upsert(
     opportunityId: string,
-    score: ProspectScore,
-    scorerVersion: string,
+    ranking: UniversalRankingProfile,
+    reasons: readonly string[],
+    rankerVersion: string,
     scoredAt: Date,
   ): Promise<StoredOpportunityScore>;
 
@@ -34,7 +35,7 @@ export interface OpportunityScoreRepository {
    * (Phase 11, R-15/AC-17) — reached the same way as
    * getByOpportunityId, through Opportunity ownership, never a global
    * list. Unordered: ./service's rankOpportunities() orders the result
-   * via @acos/core-acquisition's rankProspects(), unmodified.
+   * via @acos/core-acquisition's rankByUniversalProfile().
    */
   listByUserId(userId: string): Promise<readonly StoredOpportunityScore[]>;
 }

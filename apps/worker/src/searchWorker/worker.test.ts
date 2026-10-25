@@ -4,6 +4,7 @@ import type {
   CompanyRepository,
   DiscoveryCandidate,
   DiscoveryProvider,
+  EntityRepository,
   ProspectRepository,
   StoredCompany,
   StoredProspect,
@@ -26,6 +27,8 @@ import type { PersonalizationRepository, StoredPersonalization } from '@acos/cor
 import type { QualificationRepository, StoredQualification } from '@acos/core-qualification';
 import {
   createProviderPublicKeyRegistry,
+  createWebDevelopmentSignalCatalogue,
+  DETERMINISTIC_ABSENT_SSL_FIELD,
   isIntentSignalKind,
   IntentSignalValidationError,
   normalizeProviderBatch,
@@ -36,6 +39,7 @@ import {
 import type {
   AuthorizationEvidence,
   CategoryPlausibilityRepository,
+  DeterministicSignal,
   LeadResearch,
   ModelResult,
   NewCategoryPlausibilityDeterminationInput,
@@ -45,13 +49,17 @@ import type {
   ResearchModel,
   ResearchProvider,
   ResearchProviderInput,
+  ResearchSignalCacheRepository,
   ResearchSignalRepository,
   ResearchSignalTransaction,
+  ServiceSignalCatalogue,
+  SourceDocumentProvider,
   StoredCategoryPlausibilityDetermination,
   StoredResearchSignal,
   StoredTargetCustomerMatchDetermination,
   TargetCustomerMatchRepository,
 } from '@acos/core-research';
+import { AI_ESCALATION_BUDGET } from '@acos/core-search';
 import type { SearchRepository, SearchStatus, StoredSearch } from '@acos/core-search';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -169,6 +177,19 @@ function fakeSearchRepository(
       };
       return status;
     },
+    async consumeAiEscalationUnit({ id, workerId, now, budget }) {
+      const index = rows.findIndex(
+        (row) => row.id === id && row.status === 'RUNNING' && row.leaseOwner === workerId,
+      );
+      if (index === -1) return { outcome: 'fenced' } as const;
+      const existing = rows[index]!;
+      if (existing.aiEscalationUnitsConsumed >= budget) {
+        return { outcome: 'exhausted', consumed: existing.aiEscalationUnitsConsumed } as const;
+      }
+      const consumed = existing.aiEscalationUnitsConsumed + 1;
+      rows[index] = { ...existing, aiEscalationUnitsConsumed: consumed, updatedAt: now };
+      return { outcome: 'admitted', consumed } as const;
+    },
   };
 }
 
@@ -187,6 +208,7 @@ function fakeCompanyRepository(seed: StoredCompany[] = []): CompanyRepository {
         userId,
         name: input.name,
         normalizedDomain: input.normalizedDomain,
+        entityId: null,
         createdAt: now,
       };
       rows.push(created);
@@ -228,10 +250,52 @@ function fakeProspectRepository(seed: StoredProspect[] = []): ProspectRepository
   };
 }
 
+/**
+ * Global Entity Architecture — a minimal fake delegating Company/Prospect
+ * persistence to the SAME CompanyRepository/ProspectRepository instance
+ * `buildDeps` wires elsewhere, so `deps.companies.getById(...)` (called
+ * directly by runCanonicalPipeline's Pass 1, below) sees exactly what
+ * Discovery just created through this fake. None of this file's existing
+ * candidates are website-less, so the null-domain branch here is a
+ * defensive fallback, not exercised by current tests.
+ */
+function fakeEntityRepository(companies: CompanyRepository, prospects: ProspectRepository): EntityRepository {
+  let counter = 0;
+  return {
+    async recordFailedAttempt() {
+      // not asserted by any test in this file today
+    },
+    async recordStatusObservation() {
+      // not asserted by any test in this file today
+    },
+    async getStatusObservations() {
+      return [];
+    },
+    async getDiscoveryEvent() {
+      // not asserted by any test in this file today
+      return null;
+    },
+    async resolveAndPersistCandidate(input, now) {
+      counter += 1;
+      const company = await companies.findOrCreateByDomain(
+        input.userId,
+        { name: input.name, normalizedDomain: input.normalizedDomain ?? `no-domain-${counter}.invalid` },
+        now,
+      );
+      const prospect = await prospects.findOrCreate(
+        input.userId,
+        { searchId: input.searchId, companyId: company.id },
+        now,
+      );
+      return { company, prospect, entityId: `entity_${counter}`, resolution: 'NO_MATCH_NEW_ENTITY' };
+    },
+  };
+}
+
 function fakeDiscoveryProvider(candidates: readonly DiscoveryCandidate[]): DiscoveryProvider {
   return {
     async discover() {
-      return candidates;
+      return { candidates, actualQuery: 'fake query', provider: 'FAKE_PROVIDER' };
     },
   };
 }
@@ -287,6 +351,49 @@ function fakeResearchSignalRepository(): ResearchSignalRepository & {
 }
 
 /**
+ * Minimal in-memory ResearchSignalCacheRepository (Phase 4/5 — used here
+ * only to drive Phase 6's cache-hit provenance test), mirroring
+ * @acos/core-research's own testSupport.ts fake: `record()` stores a
+ * pointer, `findByKey()` re-resolves it through the same
+ * fakeResearchSignalRepository rows the test already holds.
+ */
+function fakeResearchSignalCacheRepository(
+  resolveSignal: (signalId: string) => StoredResearchSignal | undefined,
+): ResearchSignalCacheRepository {
+  const entries: {
+    userId: string;
+    normalizedDomain: string;
+    signalKind: string;
+    signalId: string;
+    entityId?: string | null;
+  }[] = [];
+  return {
+    async record(entry) {
+      entries.push(entry);
+    },
+    async findByKey(userId, normalizedDomain, signalKind) {
+      return entries
+        .filter(
+          (entry) =>
+            entry.userId === userId &&
+            entry.normalizedDomain === normalizedDomain &&
+            entry.signalKind === signalKind,
+        )
+        .map((entry) => resolveSignal(entry.signalId))
+        .filter((signal): signal is StoredResearchSignal => signal !== undefined && signal.supersededAt === null);
+    },
+    // Phase G — not exercised by this file's Phase 6 cache-hit-provenance
+    // test, but required by the ResearchSignalCacheRepository contract.
+    async findByEntity(entityId, signalKind) {
+      return entries
+        .filter((entry) => entry.entityId === entityId && entry.signalKind === signalKind)
+        .map((entry) => resolveSignal(entry.signalId))
+        .filter((signal): signal is StoredResearchSignal => signal !== undefined && signal.supersededAt === null);
+    },
+  };
+}
+
+/**
  * Mirrors createPgResearchSignalTransactionRunner: `fn` gets the repository;
  * a throw removes every row / input written inside it, then rethrows (OD-8).
  */
@@ -336,8 +443,11 @@ function fakeOpportunityRepository(
         state: 'NEW',
         needDetected: input.needDetected,
         offer: input.offer,
+        relevantSubservices: input.relevantSubservices,
         staleness: 'FRESH',
         stalenessComputedAt: null,
+        aiEnrichment: 'DETERMINISTIC_ONLY',
+        aiEnrichmentReason: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -356,6 +466,13 @@ function fakeOpportunityRepository(
     async updateStaleness() {
       throw new Error('not used by these tests');
     },
+    async updateAiEnrichment(userId, id, aiEnrichment, aiEnrichmentReason) {
+      const index = rows.findIndex((r) => r.id === id && r.userId === userId);
+      if (index === -1) return null;
+      const updated: StoredOpportunity = { ...rows[index]!, aiEnrichment, aiEnrichmentReason };
+      rows[index] = updated;
+      return updated;
+    },
   };
 }
 
@@ -366,19 +483,15 @@ function fakeOpportunityScoreRepository(): OpportunityScoreRepository & {
   let counter = 0;
   return {
     rows,
-    async upsert(opportunityId, score, scorerVersion, scoredAt) {
+    async upsert(opportunityId, ranking, reasons, rankerVersion, scoredAt) {
       const index = rows.findIndex((r) => r.opportunityId === opportunityId);
       const existing = index === -1 ? undefined : rows[index];
       const stored: StoredOpportunityScore = {
         id: existing?.id ?? `score_${(counter += 1)}`,
         opportunityId,
-        total: score.score,
-        band: score.band,
-        factors: score.factors,
-        reasons: score.reasons,
-        observedShare: score.observedShare,
-        cap: score.cap,
-        scorerVersion,
+        ranking,
+        reasons,
+        rankerVersion,
         scoredAt,
         createdAt: existing?.createdAt ?? scoredAt,
       };
@@ -442,10 +555,15 @@ function fakeQualificationRepository(): QualificationRepository & { rows: Stored
 // (supersedePrevious/save/getCurrentByProspectId, mirroring
 // @acos/core-research's own testSupport.ts fakeCategoryPlausibilityRepository
 // without importing it).
+// `notApplicableProspectIds` (CF-QUALIFICATION-WITHOUT-CATEGORY-
+// PLAUSIBILITY-PO-DEC-001): defaults to none, so every existing call site
+// below that omits it keeps the pre-existing "always applicable" behavior.
 function fakeCategoryPlausibilityRepository(
   seed: StoredCategoryPlausibilityDetermination[] = [],
+  notApplicableProspectIds: readonly string[] = [],
 ): CategoryPlausibilityRepository & { rows: StoredCategoryPlausibilityDetermination[] } {
   const rows = [...seed];
+  const notApplicable = new Set(notApplicableProspectIds);
   let counter = rows.length;
   return {
     rows,
@@ -475,6 +593,9 @@ function fakeCategoryPlausibilityRepository(
     },
     async getCurrentByProspectId(_userId: string, prospectId: string) {
       return rows.find((row) => row.prospectId === prospectId && row.supersededAt === null) ?? null;
+    },
+    async isCategoryPlausibilityApplicableForProspectId(_userId: string, prospectId: string) {
+      return !notApplicable.has(prospectId);
     },
   };
 }
@@ -678,6 +799,7 @@ function seedSearch(overrides: Partial<StoredSearch> = {}): StoredSearch {
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     completedAt: null,
+    aiEscalationUnitsConsumed: 0,
     ...overrides,
   };
 }
@@ -790,6 +912,35 @@ function qualifyingSearchOverrides(): Partial<StoredSearch> {
   };
 }
 
+/**
+ * Phase 5: a deterministic signal catalogue that always reports one
+ * qualifying, top-reliability, Primary-dimension signal — exactly what
+ * the admission gate's normal threshold (needOpportunity>=MODERATE)
+ * needs to admit a single-candidate test's Prospect to AI escalation.
+ * Every test below that relies on Research genuinely running (and
+ * therefore needs admission to succeed) wires this in; tests asserting
+ * a deterministic-only/NOT_QUALIFIED outcome deliberately omit it.
+ */
+function qualifyingSignalCatalogue(): ServiceSignalCatalogue {
+  return {
+    service: 'test',
+    evaluate(): readonly DeterministicSignal[] {
+      return [
+        {
+          signal: {
+            kind: 'WEBSITE',
+            signal: 'qualifying deterministic signal (test fixture)',
+            confidence: 100,
+            observedAt: NOW,
+          },
+          dimension: 'NEED_OPPORTUNITY_GAP',
+          field: 'test.qualifyingSignal',
+        },
+      ];
+    },
+  };
+}
+
 function buildDeps(
   overrides: Partial<SearchWorkerDeps & { signalTransaction: ResearchSignalTransaction }> = {},
 ): SearchWorkerDeps & {
@@ -798,10 +949,18 @@ function buildDeps(
   qualifications: ReturnType<typeof fakeQualificationRepository>;
   signalTransaction: ResearchSignalTransaction;
 } {
+  const companies = overrides.companies ?? fakeCompanyRepository();
+  const prospects = overrides.prospects ?? fakeProspectRepository();
   const deps = {
     searches: fakeSearchRepository(),
-    companies: fakeCompanyRepository(),
-    prospects: fakeProspectRepository(),
+    companies,
+    prospects,
+    // Built from the SAME companies/prospects instances `overrides` may
+    // have supplied — never the pre-override defaults — so Discovery's
+    // writes and Pass 1's `deps.companies.getById(...)` read share one
+    // store, exactly like the real EntityRepository + CompanyRepository
+    // share one Postgres transaction in production.
+    entities: overrides.entities ?? fakeEntityRepository(companies, prospects),
     discoveryProvider: fakeDiscoveryProvider([
       { name: 'Acme Co', website: 'https://acme.example.com' },
     ]),
@@ -1121,7 +1280,11 @@ describe('canonical pipeline', () => {
     const discoveryProvider: DiscoveryProvider = {
       async discover() {
         calls.push('discovery');
-        return [{ name: 'Acme Co', website: 'https://acme.example.com' }];
+        return {
+          candidates: [{ name: 'Acme Co', website: 'https://acme.example.com' }],
+          actualQuery: 'fake query',
+          provider: 'FAKE_PROVIDER',
+        };
       },
     };
     const researchProvider: ResearchProvider = {
@@ -1151,6 +1314,11 @@ describe('canonical pipeline', () => {
         researchProvider: () => researchProvider,
         opportunities,
         qualifications,
+        // Phase 5: this test proves Research genuinely runs as the second
+        // pipeline stage, which now requires the candidate to be admitted
+        // (evaluateAdmission) — without a qualifying deterministic signal,
+        // admission denies by default and Research never runs at all.
+        signalCatalogue: qualifyingSignalCatalogue(),
       }),
     );
 
@@ -1160,6 +1328,94 @@ describe('canonical pipeline', () => {
     expect(opportunities.rows).toHaveLength(1);
     expect(qualifications.rows).toHaveLength(1);
     expect(qualifications.rows[0]!.opportunityId).toBe(opportunities.rows[0]!.id);
+  });
+
+  // ---- Phase 8 (CF-PHASE8-ENTITY-REALITY-ACTIVATION-PO-DEC-001) ----
+
+  describe('Google Places Entity-Reality activation', () => {
+    it('CLOSED_PERMANENTLY eliminates the candidate at Pass 1 — it never reaches Research or Opportunity creation', async () => {
+      const calls: string[] = [];
+      const discoveryProvider: DiscoveryProvider = {
+        async discover() {
+          calls.push('discovery');
+          return {
+            candidates: [
+              { name: 'Closed Co', website: 'https://closed.example.com', businessStatus: 'CLOSED_PERMANENTLY' },
+            ],
+            actualQuery: 'fake query',
+            provider: 'FAKE_PROVIDER',
+          };
+        },
+      };
+      const researchProvider: ResearchProvider = {
+        async research() {
+          calls.push('research');
+          return sampleResearch();
+        },
+      };
+      const opportunities = fakeOpportunityRepository();
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({ searches, discoveryProvider, researchProvider: () => researchProvider, opportunities }),
+      );
+
+      expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: 1 });
+      expect(calls).toEqual(['discovery']); // Research never ran — eliminated before Pass 2
+      expect(opportunities.rows).toHaveLength(0);
+      expect(searches.rows[0]!.status).toBe('COMPLETE'); // elimination is not a Search failure
+    });
+
+    it('CLOSED_TEMPORARILY does NOT eliminate — an Opportunity is created and the temporary-closure evidence is persisted', async () => {
+      const discoveryProvider: DiscoveryProvider = {
+        async discover() {
+          return {
+            candidates: [
+              { name: 'Paused Co', website: 'https://paused.example.com', businessStatus: 'CLOSED_TEMPORARILY' },
+            ],
+            actualQuery: 'fake query',
+            provider: 'FAKE_PROVIDER',
+          };
+        },
+      };
+      const opportunities = fakeOpportunityRepository();
+      const signals = fakeResearchSignalRepository();
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({ searches, discoveryProvider, opportunities, signals }),
+      );
+
+      expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: 1 });
+      expect(opportunities.rows).toHaveLength(1); // not eliminated
+      const placesSignal = signals.rows.find((row) => row.kind === 'GOOGLE_PLACES_STATUS');
+      expect(placesSignal).toBeDefined();
+      expect(placesSignal!.signal).toContain('CLOSED_TEMPORARILY');
+      expect(placesSignal!.supersededAt).toBeNull(); // currently-active evidence, shown to the freelancer
+    });
+
+    it('a missing businessStatus (no-result) does not eliminate and produces no GOOGLE_PLACES_STATUS signal', async () => {
+      const discoveryProvider: DiscoveryProvider = {
+        async discover() {
+          return {
+            candidates: [{ name: 'Acme Co', website: 'https://acme.example.com' }], // no businessStatus at all
+            actualQuery: 'fake query',
+            provider: 'FAKE_PROVIDER',
+          };
+        },
+      };
+      const opportunities = fakeOpportunityRepository();
+      const signals = fakeResearchSignalRepository();
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({ searches, discoveryProvider, opportunities, signals }),
+      );
+
+      expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: 1 });
+      expect(opportunities.rows).toHaveLength(1);
+      expect(signals.rows.some((row) => row.kind === 'GOOGLE_PLACES_STATUS')).toBe(false);
+    });
   });
 
   describe('R-14/R-15/R-17: production scoring wiring', () => {
@@ -1194,15 +1450,13 @@ describe('canonical pipeline', () => {
       expect(scores.rows).toHaveLength(1);
       expect(scores.rows[0]!.opportunityId).toBe(opportunities.rows[0]!.id);
       // The row this fake persisted is exactly the shape rankOpportunities()
-      // (unmodified, not exercised by this unit test) reads via
-      // deps.scores.listByUserId — proving the worker writes a
+      // reads via deps.scores.listByUserId — proving the worker writes a
       // ranking-consumable row, without re-testing ranking's own,
       // pre-existing, untouched behavior here.
       expect(scores.rows[0]).toMatchObject({
-        total: expect.any(Number),
-        band: expect.any(String),
-        factors: expect.any(Array),
-        observedShare: expect.any(Number),
+        ranking: expect.any(Object),
+        reasons: expect.any(Array),
+        rankerVersion: expect.any(String),
       });
     });
 
@@ -1252,20 +1506,17 @@ describe('canonical pipeline', () => {
       expect(searches.rows[0]!.status).toBe('PENDING');
     });
 
-    it('leaves the four neutral scoring factors at zero weighted points — this wiring changes no scoring input', async () => {
+    it('leaves Need/Opportunity, Contactability, Current Activity and Commercial Readiness at UNKNOWN — this wiring changes no ranking input for dimensions it has no deterministic producer for', async () => {
       const scores = fakeOpportunityScoreRepository();
       const searches = fakeSearchRepository([seedSearch()]);
 
       await claimAndProcessNextSearch(buildDeps({ searches, scores }));
 
-      const neutralFactors = ['icpFit', 'abilityToPay', 'urgency'] as const;
-      for (const factorName of neutralFactors) {
-        const factor = scores.rows[0]!.factors.find((f) => f.factor === factorName);
-        expect(factor?.basis).toBe('UNKNOWN');
-        expect(factor?.points).toBe(0);
-      }
-      const contactability = scores.rows[0]!.factors.find((f) => f.factor === 'contactability');
-      expect(contactability?.points).toBe(0);
+      const ranking = scores.rows[0]!.ranking!;
+      expect(ranking.needOpportunity).toBe('UNKNOWN');
+      expect(ranking.contactability).toBe('UNKNOWN');
+      expect(ranking.currentActivity).toBe('UNKNOWN');
+      expect(ranking.commercialReadiness).toBe('UNKNOWN');
     });
 
     it('coexists with Qualification without changing Qualification’s own evaluation (R-70/R-71/Scenario E unaffected)', async () => {
@@ -1279,7 +1530,13 @@ describe('canonical pipeline', () => {
       };
 
       await claimAndProcessNextSearch(
-        buildDeps({ searches, researchProvider: () => researchProvider, scores, qualifications }),
+        buildDeps({
+          searches,
+          researchProvider: () => researchProvider,
+          signalCatalogue: qualifyingSignalCatalogue(),
+          scores,
+          qualifications,
+        }),
       );
 
       expect(scores.rows).toHaveLength(1);
@@ -1289,13 +1546,17 @@ describe('canonical pipeline', () => {
   });
 
   it('logs discovery.completed with raw/accepted/skipped counts (Discovery-Query Audit — observability only)', async () => {
-    // 3 raw candidates: 2 valid (distinct domains), 1 unusable (no website) —
+    // 3 raw candidates: 2 with a distinct domain, 1 unusable (empty name) —
     // proves candidatesReceived, accepted and skipped are all reported
     // correctly, not just the all-valid default fixture's 1/1/0 case.
+    // Global Entity Architecture (C-1): a candidate with NO website is no
+    // longer "unusable" — it is now accepted, website-less — so the
+    // third candidate here is deliberately unusable for a DIFFERENT
+    // reason (empty name) to keep this test's 2-accepted/1-skipped shape.
     const discoveryProvider = fakeDiscoveryProvider([
       { name: 'Acme Co', website: 'https://acme.example.com' },
       { name: 'Beta Co', website: 'https://beta.example.com' },
-      { name: 'No Website Co', website: null },
+      { name: '', website: 'https://noname.example.com' },
     ]);
     const searches = fakeSearchRepository([seedSearch()]);
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -1328,6 +1589,41 @@ describe('canonical pipeline', () => {
     expect(logged.candidatesReceived).toBe(logged.accepted + logged.skipped);
   });
 
+  it(
+    'Phase 2 Entity Reality boundary: wiring eliminateDeterministically between Discovery and Research does ' +
+      'not block eligible, explicitly-admitted candidates — with a qualifying deterministic signal present, ' +
+      'both discovered prospects clear the Phase 5 admission gate and reach Research',
+    async () => {
+      const researchCalls: string[] = [];
+      const discoveryProvider = fakeDiscoveryProvider([
+        { name: 'Acme Co', website: 'https://acme.example.com' },
+        { name: 'Beta Co', website: 'https://beta.example.com' },
+      ]);
+      const searches = fakeSearchRepository([seedSearch()]);
+
+      const outcome = await claimAndProcessNextSearch(
+        buildDeps({
+          searches,
+          discoveryProvider,
+          researchProvider: () => ({
+            async research(input) {
+              researchCalls.push(input.prospectId);
+              return sampleResearch();
+            },
+          }),
+          // Phase 5: both candidates must be explicitly admitted
+          // (evaluateAdmission) to reach Research — neither is eliminated
+          // by eliminateDeterministically, and both clear the admission
+          // threshold via this qualifying signal.
+          signalCatalogue: qualifyingSignalCatalogue(),
+        }),
+      );
+
+      expect(outcome.outcome).toBe('completed');
+      expect(researchCalls).toHaveLength(2); // neither discovered prospect was eliminated or denied admission
+    },
+  );
+
   it('R-41: Qualification also runs for an already-existing Opportunity (retry path), not only a newly-created one', async () => {
     const opportunities = fakeOpportunityRepository();
     const qualifications = fakeQualificationRepository();
@@ -1349,6 +1645,34 @@ describe('canonical pipeline', () => {
     expect(qualifications.rows[0]!.id).toBe(firstQualificationId);
   });
 
+  it('Phase 6: a Search retry reclassifies the existing Opportunity\'s AI enrichment provenance in place, never a duplicate record', async () => {
+    const opportunities = fakeOpportunityRepository();
+    const searches = fakeSearchRepository([seedSearch()]);
+
+    // Attempt 1: no qualifying deterministic signal — denied admission,
+    // recorded DETERMINISTIC_ONLY/NOT_ESCALATED.
+    await claimAndProcessNextSearch(buildDeps({ searches, opportunities }));
+    expect(opportunities.rows).toHaveLength(1);
+    const opportunityId = opportunities.rows[0]!.id;
+    expect(opportunities.rows[0]!.aiEnrichment).toBe('DETERMINISTIC_ONLY');
+    expect(opportunities.rows[0]!.aiEnrichmentReason).toBe('NOT_ESCALATED');
+
+    // Attempt 2, re-claimed against the same already-populated
+    // repositories, now with a qualifying signal and a succeeding
+    // provider — admitted, Research succeeds.
+    searches.rows[0] = { ...searches.rows[0]!, status: 'PENDING' };
+    await claimAndProcessNextSearch(
+      buildDeps({ searches, opportunities, signalCatalogue: qualifyingSignalCatalogue() }),
+    );
+
+    // Still exactly one Opportunity row — reclassified in place, not a
+    // second provenance record.
+    expect(opportunities.rows).toHaveLength(1);
+    expect(opportunities.rows[0]!.id).toBe(opportunityId);
+    expect(opportunities.rows[0]!.aiEnrichment).toBe('AI_ENRICHED');
+    expect(opportunities.rows[0]!.aiEnrichmentReason).toBeNull();
+  });
+
   it('a Qualification-stage failure surfaces as a failed attempt, same as an Opportunity-stage failure', async () => {
     const qualifications = fakeQualificationRepository();
     qualifications.upsert = vi.fn().mockRejectedValue(new Error('qualification write failed'));
@@ -1360,21 +1684,55 @@ describe('canonical pipeline', () => {
     expect(searches.rows[0]!.status).toBe('PENDING');
   });
 
-  it('a Research failure stops downstream execution — no Opportunity is created', async () => {
+  it('a candidate-level Research/AI failure does not fail the Search — the candidate falls back to deterministic-only evidence and still reaches Opportunity/Qualification', async () => {
+    // Phase 5 candidate-level AI failure semantics (worker.ts's
+    // processOneCandidate catch block): a research provider failure is
+    // caught per-candidate, never propagated as a Search-level retry. The
+    // admitted-but-failed candidate falls back to persisting only its
+    // Phase-1 deterministic signal(s) (persistDeterministicOnly), then the
+    // unchanged post-Research pipeline still runs for it. This supersedes
+    // the pre-Phase-5 "Research failure stops downstream execution"
+    // behavior, which no longer exists.
     const researchProvider: ResearchProvider = {
       async research() {
         throw new Error('research provider failed');
       },
     };
     const opportunities = fakeOpportunityRepository();
+    const signals = fakeResearchSignalRepository();
     const searches = fakeSearchRepository([seedSearch()]);
 
     const outcome = await claimAndProcessNextSearch(
-      buildDeps({ searches, researchProvider: () => researchProvider, opportunities }),
+      buildDeps({
+        searches,
+        researchProvider: () => researchProvider,
+        signalCatalogue: qualifyingSignalCatalogue(),
+        opportunities,
+        signals,
+      }),
     );
 
-    expect(outcome.outcome).toBe('retry');
-    expect(opportunities.rows).toHaveLength(0);
+    // The Search itself completes — a candidate-level AI failure is never a
+    // Search-level failure/retry.
+    expect(outcome.outcome).toBe('completed');
+
+    // The candidate is never dropped: Opportunity/Qualification still run,
+    // from the deterministic-only evidence alone.
+    expect(opportunities.rows).toHaveLength(1);
+
+    // The only evidence persisted is the Phase-1 deterministic signal from
+    // qualifyingSignalCatalogue() (field: 'test.qualifyingSignal', per its
+    // own fixture) — Research threw before writing anything of its own.
+    // Each signal is persisted under its OWN field marker (Phase 8's
+    // generalization of toNewResearchSignalInput), not a hardcoded one.
+    expect(signals.rows.length).toBeGreaterThan(0);
+    expect(signals.rows.every((row) => row.field === 'test.qualifyingSignal')).toBe(true);
+
+    // Phase 6: the candidate-level AI failure is recorded as
+    // DETERMINISTIC_ONLY/ESCALATION_FAILED — the deterministic evidence
+    // above remains the Opportunity's current evidence either way.
+    expect(opportunities.rows[0]!.aiEnrichment).toBe('DETERMINISTIC_ONLY');
+    expect(opportunities.rows[0]!.aiEnrichmentReason).toBe('ESCALATION_FAILED');
   });
 
   it('an Opportunity-stage failure still leaves already-persisted Discovery/Research data intact', async () => {
@@ -1384,7 +1742,7 @@ describe('canonical pipeline', () => {
     const searches = fakeSearchRepository([seedSearch()]);
 
     const outcome = await claimAndProcessNextSearch(
-      buildDeps({ searches, opportunities, signals }),
+      buildDeps({ searches, opportunities, signals, signalCatalogue: qualifyingSignalCatalogue() }),
     );
 
     expect(outcome.outcome).toBe('retry');
@@ -1403,6 +1761,126 @@ describe('canonical pipeline', () => {
   });
 });
 
+// ---- CF-ZERO-AI-MVP-PO-DEC-001 regression suite. The current Client
+// Finder MVP must make zero AI/LLM provider calls, independent of
+// whether a provider credential is configured — see
+// requirement/CLIENT_FINDER_ZERO_AI_MVP_PO_DECISION.md. These tests wire
+// a `researchProvider` that would reject (simulating exactly the real
+// incident's "invalid x-api-key" HTTP 401) if it were ever invoked, to
+// prove `processOneCandidate`'s AI_ESCALATION_ENABLED gate (worker.ts)
+// keeps it from being invoked at all — never a credential check.
+describe('CF-ZERO-AI-MVP-PO-DEC-001: zero-AI MVP gate', () => {
+  it('an admission-eligible candidate makes zero provider calls — no provider is even constructed', async () => {
+    const providerResearch = vi.fn().mockRejectedValue(new Error('a provider call must never happen in the current MVP'));
+    const researchProviderFactory = vi.fn(() => ({ research: providerResearch }));
+    const opportunities = fakeOpportunityRepository();
+    const signals = fakeResearchSignalRepository();
+    const searches = fakeSearchRepository([seedSearch()]);
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        researchProvider: researchProviderFactory,
+        signalCatalogue: qualifyingSignalCatalogue(),
+        opportunities,
+        signals,
+      }),
+    );
+
+    // The gate never throws and never fails the candidate or the Search.
+    expect(outcome.outcome).toBe('completed');
+
+    // Not just "the call failed" — the provider factory itself
+    // (deps.researchProvider(userId), the one place provider identity is
+    // ever resolved) is never invoked, so no provider — Anthropic,
+    // OpenAI, or Gemini — is even constructed for this candidate.
+    expect(researchProviderFactory).not.toHaveBeenCalled();
+    expect(providerResearch).not.toHaveBeenCalled();
+
+    // No AI escalation unit consumed for this admitted candidate.
+    expect(searches.rows[0]!.aiEscalationUnitsConsumed).toBe(0);
+
+    // The candidate is never dropped: Phase-1 deterministic evidence and
+    // the Opportunity it supports still persist.
+    expect(opportunities.rows).toHaveLength(1);
+    expect(signals.rows.length).toBeGreaterThan(0);
+    expect(signals.rows.every((row) => row.field === 'test.qualifyingSignal')).toBe(true);
+
+    // Existing deterministic-only provenance pair — no new
+    // aiEnrichmentReason value introduced for this gate.
+    expect(opportunities.rows[0]!.aiEnrichment).toBe('DETERMINISTIC_ONLY');
+    expect(opportunities.rows[0]!.aiEnrichmentReason).toBe('NOT_ESCALATED');
+  });
+
+  it('a configured credential does not, by itself, cause a provider call — the gate is not a credential check', async () => {
+    // Mirrors the real incident exactly: a provider that would fail with
+    // "invalid x-api-key" if ever reached. The Search must still
+    // complete cleanly, proving the gate fires independent of whether a
+    // (valid or invalid) credential exists.
+    const providerResearch = vi.fn().mockRejectedValue(
+      new Error('ResearchProviderError: lead research model call failed (HTTP 401): invalid x-api-key'),
+    );
+    const opportunities = fakeOpportunityRepository();
+    const searches = fakeSearchRepository([seedSearch()]);
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        researchProvider: () => ({ research: providerResearch }),
+        signalCatalogue: qualifyingSignalCatalogue(),
+        opportunities,
+      }),
+    );
+
+    expect(outcome.outcome).toBe('completed');
+    expect(providerResearch).not.toHaveBeenCalled();
+    expect(searches.rows[0]!.status).toBe('COMPLETE');
+    expect(searches.rows[0]!.lastError).toBeNull();
+  });
+
+  it('this holds for whichever provider would have been selected — the gate sits above provider-identity resolution', async () => {
+    // worker.ts's escalation branch is already provider-neutral (it only
+    // ever calls deps.researchProvider(userId), never branching on
+    // 'anthropic' | 'openai' | 'gemini'), so one gate above it covers all
+    // three uniformly. Simulated here with a second, differently-shaped
+    // failure (an OpenAI/Gemini-style HTTP error) to show the gate does
+    // not depend on the specific provider's error shape either.
+    const providerResearch = vi.fn().mockRejectedValue(new Error('429 rate_limit_exceeded'));
+    const opportunities = fakeOpportunityRepository();
+    const searches = fakeSearchRepository([seedSearch()]);
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        researchProvider: () => ({ research: providerResearch }),
+        signalCatalogue: qualifyingSignalCatalogue(),
+        opportunities,
+      }),
+    );
+
+    expect(outcome.outcome).toBe('completed');
+    expect(providerResearch).not.toHaveBeenCalled();
+    expect(opportunities.rows[0]!.aiEnrichment).toBe('DETERMINISTIC_ONLY');
+  });
+
+  it('a non-admitted candidate is unaffected by the gate — same deterministic-only outcome as before', async () => {
+    const opportunities = fakeOpportunityRepository();
+    const searches = fakeSearchRepository([seedSearch()]);
+
+    // No qualifying deterministic signal catalogue supplied — the
+    // default discovery candidate has no matching trigger, so
+    // decision.admitted is already false before the gate is ever
+    // reached. This proves the new gate doesn't change non-admitted
+    // behavior at all.
+    const outcome = await claimAndProcessNextSearch(buildDeps({ searches, opportunities }));
+
+    expect(outcome.outcome).toBe('completed');
+    expect(opportunities.rows[0]!.aiEnrichment).toBe('DETERMINISTIC_ONLY');
+    expect(opportunities.rows[0]!.aiEnrichmentReason).toBe('NOT_ESCALATED');
+    expect(searches.rows[0]!.aiEscalationUnitsConsumed).toBe(0);
+  });
+});
+
 // ---- Phase 24 regression suite (see
 // requirement/MVP_EVIDENCE_RELEVANCE_REQUIREMENT.md and
 // requirement/PHASE_24_EVIDENCE_RELEVANCE_SCOPE_LOCK.md, Scenarios B/D/E).
@@ -1412,10 +1890,16 @@ describe('canonical pipeline', () => {
 // REQUIRED (requirement/PHASE_24_SCENARIO_E_OPTION_C_SCOPE_LOCK.md):
 // INFERRED-only evidence can still produce needDetected=true (R-70/R-71's
 // need-detection layer is classification-blind beyond excluding UNKNOWN,
-// unchanged by this decision), but no longer satisfies the qualification
+// unchanged by this decision), but never satisfies the qualification
 // layer's EVIDENCE_PRESENT criterion
-// (packages/core-qualification/src/rules.ts's isEvidentiary()), so the
-// Opportunity now reaches INSUFFICIENT_EVIDENCE rather than QUALIFIED.
+// (packages/core-qualification/src/rules.ts's isEvidentiary()) on its own.
+// E1's fixture (CLIENT_FINDER_SCENARIO_E_PHASE5_PHASE24_ENGINEERING_
+// RECONCILIATION.md, Option D) admits its candidate through the real,
+// governed Web Development deterministic catalogue (the same one
+// production wires), not the synthetic qualifyingSignalCatalogue() helper
+// used elsewhere in this suite — so EVIDENCE_PRESENT is satisfied by that
+// one real OBSERVED deterministic signal, never by the INFERRED research
+// findings sitting alongside it (proved below via evidenceSignalIds).
 describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all settled)', () => {
   /**
    * Wraps the real, unmodified researchLead()/verifyProvenance() path
@@ -1522,6 +2006,7 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
           researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
           opportunities,
           qualifications,
+          signalCatalogue: qualifyingSignalCatalogue(),
         }),
       );
 
@@ -1578,6 +2063,7 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
           signals,
           opportunities,
           qualifications,
+          signalCatalogue: qualifyingSignalCatalogue(),
         }),
       );
 
@@ -1631,6 +2117,11 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
           researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
           opportunities,
           qualifications,
+          // Genuinely admit this candidate so Research actually runs —
+          // without this, the Phase 5 admission gate denies by default and
+          // this test would pass merely because Research never ran, not
+          // because R-70 itself rejected the evidence.
+          signalCatalogue: qualifyingSignalCatalogue(),
         }),
       );
 
@@ -1681,6 +2172,7 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
           signals,
           opportunities,
           qualifications,
+          signalCatalogue: qualifyingSignalCatalogue(),
         }),
       );
 
@@ -1736,6 +2228,7 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
           signals,
           opportunities,
           qualifications,
+          signalCatalogue: qualifyingSignalCatalogue(),
         }),
       );
 
@@ -1782,6 +2275,11 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
           researchProvider: () => realProvenanceResearchProvider(model, sourceDocuments),
           opportunities,
           qualifications,
+          // Genuinely admit this candidate so Research actually runs —
+          // without this, the Phase 5 admission gate denies by default and
+          // this test would pass merely because Research never ran, not
+          // because the keyword/trigger mismatch itself rejected the need.
+          signalCatalogue: qualifyingSignalCatalogue(),
         }),
       );
 
@@ -1791,13 +2289,31 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
     });
   });
 
-  it('E1: phase24 Scenario E (Option C) — inferred-only evidence produces needDetected but is INSUFFICIENT_EVIDENCE, not QUALIFIED', async () => {
+  it('E1: phase24 Scenario E (Option C) — the real deterministic admission signal satisfies EVIDENCE_PRESENT; INFERRED-only research findings never do, on their own', async () => {
     // INFERRED claims carry no evidence/sources by schema (schema.ts's
     // superRefine forbids it), so verifyProvenance() never inspects them —
     // there is no provenance path to exercise here, unlike B/D above. A
     // fixed-LeadResearch fake ResearchProvider (the same convention this
     // file already uses elsewhere, e.g. sampleResearch()/
     // qualifyingResearch()) is the correct, sufficient boundary.
+    //
+    // requirement/CLIENT_FINDER_SCENARIO_E_PHASE5_PHASE24_ENGINEERING_
+    // RECONCILIATION.md (Option D): this fixture reaches Phase 5 admission
+    // through the REAL, governed Web Development deterministic catalogue
+    // (createWebDevelopmentSignalCatalogue()) — the same one
+    // apps/worker/src/index.ts wires in production — fed a genuinely
+    // insecure (http://) homepage, exactly as the "production signal
+    // catalogue composition" tests below already do. This is deliberately
+    // NOT the synthetic qualifyingSignalCatalogue() helper used elsewhere
+    // in this file: that helper's signal would also be persisted as an
+    // OBSERVED research_signals row (deterministicSignalPersistence.ts
+    // always classifies a deterministic signal OBSERVED), but it
+    // represents nothing real — using it here would let an artificial
+    // signal, rather than genuine research, satisfy EVIDENCE_PRESENT. The
+    // real absent-SSL catalogue is legitimate: it is C-3B's own,
+    // already-approved zero-AI-capable evidentiary producer, and it is
+    // honestly what gets this specific candidate past
+    // meetsAdmissionThreshold.
     const inferred = (value: string) => ({
       classification: 'INFERRED' as const,
       value,
@@ -1823,6 +2339,13 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
       recommendedService: { service: 'NONE', rationale: 'n/a', basedOn: [] },
       confidence: 55,
       gaps: [],
+      // Path 2: qualifyingSearchOverrides()'s target segment ('Restaurants')
+      // needs a MATCH determination to reach QUALIFIED once EVIDENCE_PRESENT
+      // passes — the same fixture technique B1 above already uses (see its
+      // own `categoryPlausibility` entry), entirely orthogonal to the
+      // OBSERVED-vs-INFERRED research-evidence question this test exists
+      // to prove.
+      categoryPlausibility: [{ fit: 'MATCH', rationale: 'fixture', evidence: [], confidence: 90 }],
     } as unknown as LeadResearch;
 
     // Reuses the existing qualifyingSearchOverrides() fixture (triggers:
@@ -1833,12 +2356,24 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
     const opportunities = fakeOpportunityRepository();
     const qualifications = fakeQualificationRepository();
 
+    /** Mirrors the "production signal catalogue composition" describe block's own fake below — serves one http:// (no-TLS) homepage, exactly what detectAbsentSsl() needs to produce its one real, approved deterministic signal. */
+    const insecureHomepageSourceDocuments: SourceDocumentProvider = {
+      extractionMethod: 'test-fixture-insecure-homepage',
+      async fetchSourceDocuments(target) {
+        return [
+          { label: 'Homepage', url: `http://${target.normalizedDomain}/`, text: 'placeholder homepage text' },
+        ];
+      },
+    };
+
     const outcome = await claimAndProcessNextSearch(
       buildDeps({
         searches,
         discoveryProvider: fakeDiscoveryProvider([
           { name: 'Business A', website: 'https://business-a.example' },
         ]),
+        sourceDocuments: insecureHomepageSourceDocuments,
+        signalCatalogue: createWebDevelopmentSignalCatalogue(),
         researchProvider: () => fakeResearchProvider(research),
         signals,
         opportunities,
@@ -1849,7 +2384,12 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
     expect(outcome.outcome).toBe('completed');
 
     const byClassification = (c: string) => signals.rows.filter((r) => r.classification === c);
-    expect(byClassification('OBSERVED')).toHaveLength(0);
+    // Exactly one OBSERVED row: the real deterministic absent-SSL signal
+    // that admitted this candidate to Research — never an artificial
+    // stand-in, and never one of Research's own findings (every one of
+    // which is INFERRED here).
+    expect(byClassification('OBSERVED')).toHaveLength(1);
+    expect(byClassification('OBSERVED')[0]!.field).toBe(DETERMINISTIC_ABSENT_SSL_FIELD);
     expect(byClassification('UNKNOWN')).toHaveLength(0);
     expect(byClassification('INFERRED').length).toBeGreaterThanOrEqual(1);
 
@@ -1864,18 +2404,31 @@ describe('phase24: B/D/E — evidence relevance & qualification (R-70/R-71/E all
 
     // Scenario E (Option C — OBSERVED REQUIRED,
     // requirement/PHASE_24_SCENARIO_E_OPTION_C_SCOPE_LOCK.md):
-    // evaluateEvidencePresent() (core-qualification/rules.ts) now requires
-    // at least one live OBSERVED signal. This Prospect has only INFERRED
-    // evidence, so EVIDENCE_PRESENT fails and the Opportunity reaches
-    // INSUFFICIENT_EVIDENCE rather than QUALIFIED, even though a need was
-    // detected.
+    // evaluateEvidencePresent() (core-qualification/rules.ts) requires at
+    // least one live OBSERVED signal. Here that signal is the real
+    // deterministic admission fact, not any INFERRED research finding —
+    // EVIDENCE_PRESENT passes BECAUSE of it, and the Opportunity reaches
+    // QUALIFIED.
     expect(qualifications.rows).toHaveLength(1);
-    expect(qualifications.rows[0]!.state).toBe('INSUFFICIENT_EVIDENCE');
+    expect(qualifications.rows[0]!.state).toBe('QUALIFIED');
     const evidencePresent = qualifications.rows[0]!.criteria.find(
       (c) => c.criterion === 'EVIDENCE_PRESENT',
     )!;
-    expect(evidencePresent.satisfied).toBe(false);
-    expect(evidencePresent.evidenceSignalIds).toEqual([]);
+    expect(evidencePresent.satisfied).toBe(true);
+
+    // The decisive proof of the original Scenario E distinction: the
+    // qualifying evidence is the deterministic OBSERVED signal ONLY —
+    // none of the (at least four) INFERRED research signals is ever
+    // counted as evidence, even though they exist, are live, and are what
+    // actually triggered needDetected via suggestOffers()'s own
+    // "redesign" keyword match. INFERRED-only evidence still does not
+    // qualify on its own.
+    const deterministicSignalId = byClassification('OBSERVED')[0]!.id;
+    const inferredSignalIds = byClassification('INFERRED').map((row) => row.id);
+    expect(evidencePresent.evidenceSignalIds).toEqual([deterministicSignalId]);
+    for (const inferredId of inferredSignalIds) {
+      expect(evidencePresent.evidenceSignalIds).not.toContain(inferredId);
+    }
   });
 });
 
@@ -1906,6 +2459,7 @@ describe('personalization (Phase 21, R-51/R-52)', () => {
       buildDeps({
         searches,
         researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        signalCatalogue: qualifyingSignalCatalogue(),
         opportunities,
         qualifications,
         personalizations,
@@ -1942,13 +2496,17 @@ describe('personalization (Phase 21, R-51/R-52)', () => {
     // to `undefined`) so the field is genuinely absent, matching
     // `exactOptionalPropertyTypes` — the same "omit, don't set undefined"
     // shape a pre-Phase-20 caller's own SearchWorkerDeps object has.
+    const entitiesCompanies = fakeCompanyRepository();
+    const entitiesProspects = fakeProspectRepository();
     const deps: SearchWorkerDeps = {
       searches,
-      companies: fakeCompanyRepository(),
-      prospects: fakeProspectRepository(),
+      companies: entitiesCompanies,
+      prospects: entitiesProspects,
+      entities: fakeEntityRepository(entitiesCompanies, entitiesProspects),
       discoveryProvider: fakeDiscoveryProvider([{ name: 'Acme Co', website: 'https://acme.example.com' }]),
       signals: fakeResearchSignalRepository(),
       researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+      signalCatalogue: qualifyingSignalCatalogue(),
       opportunities: fakeOpportunityRepository(),
       categoryPlausibility: fakeCategoryPlausibilityRepository(),
       personalizations,
@@ -1974,6 +2532,7 @@ describe('personalization (Phase 21, R-51/R-52)', () => {
       buildDeps({
         searches,
         researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        signalCatalogue: qualifyingSignalCatalogue(),
         opportunities,
         qualifications,
         signals,
@@ -1999,14 +2558,28 @@ describe('personalization (Phase 21, R-51/R-52)', () => {
     const researchProvider = () => fakeResearchProvider(qualifyingResearch());
 
     await claimAndProcessNextSearch(
-      buildDeps({ searches, researchProvider, opportunities, qualifications, personalizations }),
+      buildDeps({
+        searches,
+        researchProvider,
+        signalCatalogue: qualifyingSignalCatalogue(),
+        opportunities,
+        qualifications,
+        personalizations,
+      }),
     );
     expect(personalizations.rows).toHaveLength(1);
     const firstId = personalizations.rows[0]!.id;
 
     searches.rows[0] = { ...searches.rows[0]!, status: 'PENDING' };
     await claimAndProcessNextSearch(
-      buildDeps({ searches, researchProvider, opportunities, qualifications, personalizations }),
+      buildDeps({
+        searches,
+        researchProvider,
+        signalCatalogue: qualifyingSignalCatalogue(),
+        opportunities,
+        qualifications,
+        personalizations,
+      }),
     );
 
     expect(opportunities.rows).toHaveLength(1);
@@ -2083,7 +2656,15 @@ describe('target customer match (PCG-4 production wiring, PDEF4-PCG4-TCMATCH-PRO
     };
     const searches = fakeSearchRepository([seedSearch()]);
 
-    const outcome = await claimAndProcessNextSearch(buildDeps({ searches, targetCustomerMatch }));
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        targetCustomerMatch,
+        // Phase 5: Research (and therefore runResearchForOwner's
+        // targetCustomerMatch wiring) only runs for an admitted candidate.
+        signalCatalogue: qualifyingSignalCatalogue(),
+      }),
+    );
 
     expect(outcome).toMatchObject({ outcome: 'completed' });
     expect(targetCustomerMatch.repository.rows).toHaveLength(1);
@@ -2097,10 +2678,13 @@ describe('target customer match (PCG-4 production wiring, PDEF4-PCG4-TCMATCH-PRO
     // so the field is genuinely absent, matching `exactOptionalPropertyTypes`
     // — mirrors the equivalent tests for `qualifications`/`personalizations`/
     // `outreachPreparations` above.
+    const entitiesCompanies = fakeCompanyRepository();
+    const entitiesProspects = fakeProspectRepository();
     const deps: SearchWorkerDeps = {
       searches: fakeSearchRepository([seedSearch()]),
-      companies: fakeCompanyRepository(),
-      prospects: fakeProspectRepository(),
+      companies: entitiesCompanies,
+      prospects: entitiesProspects,
+      entities: fakeEntityRepository(entitiesCompanies, entitiesProspects),
       discoveryProvider: fakeDiscoveryProvider([{ name: 'Acme Co', website: 'https://acme.example.com' }]),
       signals: fakeResearchSignalRepository(),
       researchProvider: () => fakeResearchProvider(sampleResearch()),
@@ -2138,6 +2722,7 @@ describe('outreach preparation (Phase 22, R-59)', () => {
       buildDeps({
         searches,
         researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        signalCatalogue: qualifyingSignalCatalogue(),
         qualifications,
         personalizations,
         outreachPreparations,
@@ -2174,13 +2759,17 @@ describe('outreach preparation (Phase 22, R-59)', () => {
     // to `undefined`) so the field is genuinely absent, matching
     // `exactOptionalPropertyTypes` — mirrors the equivalent Phase 21 test
     // for `qualifications` above.
+    const entitiesCompanies = fakeCompanyRepository();
+    const entitiesProspects = fakeProspectRepository();
     const deps: SearchWorkerDeps = {
       searches,
-      companies: fakeCompanyRepository(),
-      prospects: fakeProspectRepository(),
+      companies: entitiesCompanies,
+      prospects: entitiesProspects,
+      entities: fakeEntityRepository(entitiesCompanies, entitiesProspects),
       discoveryProvider: fakeDiscoveryProvider([{ name: 'Acme Co', website: 'https://acme.example.com' }]),
       signals: fakeResearchSignalRepository(),
       researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+      signalCatalogue: qualifyingSignalCatalogue(),
       opportunities: fakeOpportunityRepository(),
       qualifications: fakeQualificationRepository(),
       categoryPlausibility: fakeCategoryPlausibilityRepository(),
@@ -2208,6 +2797,7 @@ describe('outreach preparation (Phase 22, R-59)', () => {
       buildDeps({
         searches,
         researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        signalCatalogue: qualifyingSignalCatalogue(),
         opportunities,
         qualifications,
         signals,
@@ -2239,6 +2829,7 @@ describe('outreach preparation (Phase 22, R-59)', () => {
       buildDeps({
         searches,
         researchProvider,
+        signalCatalogue: qualifyingSignalCatalogue(),
         opportunities,
         qualifications,
         personalizations,
@@ -2253,6 +2844,7 @@ describe('outreach preparation (Phase 22, R-59)', () => {
       buildDeps({
         searches,
         researchProvider,
+        signalCatalogue: qualifyingSignalCatalogue(),
         opportunities,
         qualifications,
         personalizations,
@@ -2263,6 +2855,127 @@ describe('outreach preparation (Phase 22, R-59)', () => {
     expect(personalizations.rows).toHaveLength(1);
     expect(outreachPreparations.rows).toHaveLength(1); // still no duplicate row
     expect(outreachPreparations.rows[0]!.id).toBe(firstId);
+  });
+});
+
+// CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001: end-to-end
+// proof that a NEW (Service+Geography-only, CF-SEARCH-INPUT-SERVICE-
+// GEOGRAPHY-ONLY-PO-DEC-002 D2) search's Opportunity can flow all the way
+// through needDetected -> Qualification -> QUALIFIED -> Personalization ->
+// Outreach Preparation despite never producing a categoryPlausibility
+// determination — and that a historical-style search (a real target
+// customer, but no/UNKNOWN determination) is NOT affected by this change.
+describe('qualification without category plausibility (CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001)', () => {
+  /** D2's deliberate target-customer sentinel: parses to zero segments. */
+  function newSearchOverrides(): Partial<StoredSearch> {
+    return {
+      parameters: {
+        service: 'Website development',
+        targetCustomer: ';',
+        geography: 'Mumbai',
+        minProjectValuePaise: 0,
+        triggers: ['WEBSITE'],
+        keywords: ['redesign'],
+        rationale: 'They need a website refresh ({signal}).',
+      },
+    };
+  }
+
+  /**
+   * K5-D1 (CF-NEED-OPPORTUNITY-SUFFICIENCY-PO-DEC-001): unlike
+   * qualifyingResearch() (a single OBSERVED signal — no longer
+   * sufficient on its own for a NEW search, see
+   * @acos/core-opportunity's hasCredibleNeedEvidence()), this adds a
+   * second independent OBSERVED, full-confidence signal from a
+   * distinct field, also matching newSearchOverrides()'s 'redesign'
+   * keyword — credible enough to establish NEED_DETECTED under the
+   * new, stronger bar. Used only by this NEW-search test; every other
+   * caller of qualifyingResearch() in this file is historical-style
+   * (a real targetCustomer) and is unaffected by K5-D1.
+   */
+  function credibleNewSearchResearch(): LeadResearch {
+    return {
+      ...qualifyingResearch(),
+      visibleProblems: [
+        {
+          classification: 'OBSERVED',
+          value: 'the homepage layout looks dated and the whole site needs a redesign',
+          evidence: [
+            {
+              quote: 'the homepage layout looks dated',
+              sourceUrl: 'https://acme.test/about',
+              sourceLabel: 'homepage',
+            },
+          ],
+          basis: null,
+          confidence: 100,
+        },
+      ],
+    } as unknown as LeadResearch;
+  }
+
+  it('NEW search: needDetected -> QUALIFIED (no categoryPlausibility determination ever produced) -> Personalization -> Outreach Preparation', async () => {
+    const qualifications = fakeQualificationRepository();
+    const personalizations = fakePersonalizationRepository();
+    const outreachPreparations = fakeOutreachPreparationRepository();
+    // 'prospect_1' is this single-candidate test's deterministic first
+    // Prospect id (fakeProspectRepository()'s own counter, fresh here).
+    const categoryPlausibility = fakeCategoryPlausibilityRepository([], ['prospect_1']);
+    const searches = fakeSearchRepository([seedSearch(newSearchOverrides())]);
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        // K5-D1: this is a NEW search (newSearchOverrides()'s sentinel
+        // targetCustomer) — qualifyingResearch()'s single weak signal
+        // no longer establishes NEED_DETECTED on its own.
+        researchProvider: () => fakeResearchProvider(credibleNewSearchResearch()),
+        signalCatalogue: qualifyingSignalCatalogue(),
+        qualifications,
+        categoryPlausibility,
+        personalizations,
+        outreachPreparations,
+      }),
+    );
+
+    expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: 1 });
+    // D2: Research never writes a determination for this Search at all.
+    expect(categoryPlausibility.rows).toHaveLength(0);
+    expect(qualifications.rows[0]!.state).toBe('QUALIFIED');
+    expect(personalizations.rows).toHaveLength(1);
+    expect(outreachPreparations.rows).toHaveLength(1);
+  });
+
+  it('historical-style search: a real target customer with an UNKNOWN categoryPlausibility determination stays at INSUFFICIENT_EVIDENCE, unchanged', async () => {
+    const qualifications = fakeQualificationRepository();
+    const personalizations = fakePersonalizationRepository();
+    // Not flagged not-applicable — this Search's real target customer
+    // ('Restaurants', from qualifyingSearchOverrides()) parses to one
+    // segment, so Research DOES attempt Path 2 and persists a
+    // determination; this fixture's fit is UNKNOWN rather than MATCH.
+    const categoryPlausibility = fakeCategoryPlausibilityRepository();
+    const searches = fakeSearchRepository([seedSearch(qualifyingSearchOverrides())]);
+    const unknownCategoryPlausibilityResearch = {
+      ...qualifyingResearch(),
+      categoryPlausibility: [{ fit: 'UNKNOWN', rationale: null, evidence: [] }],
+    } as unknown as LeadResearch;
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        researchProvider: () => fakeResearchProvider(unknownCategoryPlausibilityResearch),
+        signalCatalogue: qualifyingSignalCatalogue(),
+        qualifications,
+        categoryPlausibility,
+        personalizations,
+      }),
+    );
+
+    expect(outcome).toMatchObject({ outcome: 'completed' });
+    expect(categoryPlausibility.rows).toHaveLength(1);
+    expect(categoryPlausibility.rows[0]!.aggregateResult).toBe('UNKNOWN');
+    expect(qualifications.rows[0]!.state).toBe('INSUFFICIENT_EVIDENCE');
+    expect(personalizations.rows).toHaveLength(0);
   });
 });
 
@@ -2289,6 +3002,7 @@ describe('follow-up preparation (Phase 23, R-66)', () => {
       buildDeps({
         searches,
         researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        signalCatalogue: qualifyingSignalCatalogue(),
         qualifications,
         personalizations,
         outreachPreparations,
@@ -2327,13 +3041,17 @@ describe('follow-up preparation (Phase 23, R-66)', () => {
     // `outreachPreparations` to `undefined`) so the field is genuinely
     // absent, matching `exactOptionalPropertyTypes` — mirrors the
     // equivalent Phase 22 test for `personalizations` above.
+    const entitiesCompanies = fakeCompanyRepository();
+    const entitiesProspects = fakeProspectRepository();
     const deps: SearchWorkerDeps = {
       searches,
-      companies: fakeCompanyRepository(),
-      prospects: fakeProspectRepository(),
+      companies: entitiesCompanies,
+      prospects: entitiesProspects,
+      entities: fakeEntityRepository(entitiesCompanies, entitiesProspects),
       discoveryProvider: fakeDiscoveryProvider([{ name: 'Acme Co', website: 'https://acme.example.com' }]),
       signals: fakeResearchSignalRepository(),
       researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+      signalCatalogue: qualifyingSignalCatalogue(),
       opportunities: fakeOpportunityRepository(),
       qualifications: fakeQualificationRepository(),
       categoryPlausibility: fakeCategoryPlausibilityRepository(),
@@ -2363,6 +3081,7 @@ describe('follow-up preparation (Phase 23, R-66)', () => {
       buildDeps({
         searches,
         researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        signalCatalogue: qualifyingSignalCatalogue(),
         opportunities,
         qualifications,
         signals,
@@ -2397,6 +3116,7 @@ describe('follow-up preparation (Phase 23, R-66)', () => {
       buildDeps({
         searches,
         researchProvider,
+        signalCatalogue: qualifyingSignalCatalogue(),
         opportunities,
         qualifications,
         personalizations,
@@ -2412,6 +3132,7 @@ describe('follow-up preparation (Phase 23, R-66)', () => {
       buildDeps({
         searches,
         researchProvider,
+        signalCatalogue: qualifyingSignalCatalogue(),
         opportunities,
         qualifications,
         personalizations,
@@ -2434,6 +3155,7 @@ describe('follow-up preparation (Phase 23, R-66)', () => {
       buildDeps({
         searches,
         researchProvider: () => fakeResearchProvider(qualifyingResearch()),
+        signalCatalogue: qualifyingSignalCatalogue(),
         personalizations: fakePersonalizationRepository(),
         qualifications: fakeQualificationRepository(),
         outreachPreparations,
@@ -3296,5 +4018,212 @@ describe('intent intake (INTENT-INTAKE-PO-DEC-001)', () => {
     const result = await recordIntentSignalForOwner(deps, 'user_a', intakeInput(), NOW);
     expect(result.researched).toBe(true);
     expect(deps.qualifications.rows).toHaveLength(0);
+  });
+});
+
+/**
+ * Production-blocker fix: ../index.ts's SearchWorkerDeps composition did
+ * not supply `signalCatalogue`, so `deps.signalCatalogue?.evaluate(supplied)`
+ * (./worker.ts) always returned `[]` and every production candidate's
+ * needOpportunity/serviceFit stayed UNKNOWN forever — meetsAdmissionThreshold
+ * and hasStrongSignalBypass (@acos/core-research's ./admission.ts) both
+ * always fail on UNKNOWN, so no candidate could ever reach Research in
+ * production, regardless of real-world evidence. Every other test in this
+ * file uses the synthetic `qualifyingSignalCatalogue()` fixture above, which
+ * proves the admission *mechanism* but never proves the real production
+ * catalogue (`createWebDevelopmentSignalCatalogue`, now wired in
+ * ../index.ts) is the one actually supplied. These tests use that real
+ * catalogue plus a fake SourceDocumentProvider serving an http:// (no-TLS)
+ * homepage — the one production-approved deterministic signal
+ * (DETERMINISTIC_ABSENT_SSL_FIELD) — through the real admission pipeline.
+ */
+describe('production signal catalogue composition (PRODUCTION-BLOCKER-FIX)', () => {
+  /** Mirrors createHttpSourceDocumentProvider's shape without any network I/O — serves one http:// (no-TLS) homepage per candidate, which is exactly what createWebDevelopmentSignalCatalogue's detectAbsentSsl() needs to produce its one approved deterministic signal. */
+  function fakeInsecureHomepageSourceDocumentProvider(): SourceDocumentProvider {
+    return {
+      extractionMethod: 'test-fixture-insecure-homepage',
+      async fetchSourceDocuments(target) {
+        return [{ label: 'Homepage', url: `http://${target.normalizedDomain}/`, text: 'placeholder homepage text' }];
+      },
+    };
+  }
+
+  it('wires the real production catalogue (not the synthetic test fixture) and lets an admitted candidate reach Research', async () => {
+    const researchCalls: string[] = [];
+    const searches = fakeSearchRepository([seedSearch()]);
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        discoveryProvider: fakeDiscoveryProvider([{ name: 'Acme Co', website: 'https://acme.example.com' }]),
+        sourceDocuments: fakeInsecureHomepageSourceDocumentProvider(),
+        // The actual production dependency, exactly as ../index.ts now
+        // wires it — not qualifyingSignalCatalogue().
+        signalCatalogue: createWebDevelopmentSignalCatalogue(),
+        researchProvider: () => ({
+          async research(input) {
+            researchCalls.push(input.prospectId);
+            return sampleResearch();
+          },
+        }),
+      }),
+    );
+
+    expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: 1 });
+    // The admission path is no longer permanently UNKNOWN in production
+    // composition: the real catalogue's absent-SSL signal got this
+    // candidate past meetsAdmissionThreshold, and Research genuinely ran
+    // (not deterministic-only fallback).
+    expect(researchCalls).toHaveLength(1);
+  });
+
+  it('enforces global Top-N admission across multiple candidates ranked by the real production catalogue', async () => {
+    const topNPlusOne = 11; // DEFAULT_ADMISSION_TOP_N (@acos/core-research's ./admission.ts) is 10
+    const candidates = Array.from({ length: topNPlusOne }, (_, index) => ({
+      name: `Candidate ${index + 1}`,
+      website: `https://candidate-${index + 1}.example.com`,
+    }));
+    const researchCalls: string[] = [];
+    const opportunities = fakeOpportunityRepository();
+    const searches = fakeSearchRepository([seedSearch()]);
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        opportunities,
+        discoveryProvider: fakeDiscoveryProvider(candidates),
+        sourceDocuments: fakeInsecureHomepageSourceDocumentProvider(),
+        signalCatalogue: createWebDevelopmentSignalCatalogue(),
+        researchProvider: () => ({
+          async research(input) {
+            researchCalls.push(input.prospectId);
+            return sampleResearch();
+          },
+        }),
+      }),
+    );
+
+    // Every discovered candidate is still processed — Top-N/budget never
+    // drop a candidate (locked semantic), only decide whether AI ran.
+    expect(outcome).toMatchObject({ outcome: 'completed', prospectsProcessed: topNPlusOne });
+    // Global Top-N behavior: of 11 equally-qualifying candidates, exactly
+    // 10 (DEFAULT_ADMISSION_TOP_N) are admitted to AI escalation and reach
+    // Research — the 11th (outside Top-N) does not, even though it clears
+    // the same admission threshold on its own evidence.
+    expect(researchCalls).toHaveLength(10);
+
+    // Phase 6: the 10 admitted-and-researched candidates are recorded
+    // AI_ENRICHED/null; the one denied admission (outside Top-N) is
+    // recorded DETERMINISTIC_ONLY/NOT_ESCALATED — never the reverse.
+    expect(opportunities.rows).toHaveLength(topNPlusOne);
+    const researchedProspectIds = new Set(researchCalls);
+    for (const opportunity of opportunities.rows) {
+      if (researchedProspectIds.has(opportunity.prospectId)) {
+        expect(opportunity.aiEnrichment).toBe('AI_ENRICHED');
+        expect(opportunity.aiEnrichmentReason).toBeNull();
+      } else {
+        expect(opportunity.aiEnrichment).toBe('DETERMINISTIC_ONLY');
+        expect(opportunity.aiEnrichmentReason).toBe('NOT_ESCALATED');
+      }
+    }
+    const deniedAdmission = opportunities.rows.filter(
+      (opportunity) => !researchedProspectIds.has(opportunity.prospectId),
+    );
+    expect(deniedAdmission).toHaveLength(1);
+  });
+
+  it('AI escalation budget exhausted before this candidate is reached falls back to deterministic-only, recorded as PROVIDER_EXHAUSTED (Phase 6)', async () => {
+    const opportunities = fakeOpportunityRepository();
+    const searches = fakeSearchRepository([
+      seedSearch({ aiEscalationUnitsConsumed: AI_ESCALATION_BUDGET }),
+    ]);
+    const researchCalls: string[] = [];
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        opportunities,
+        discoveryProvider: fakeDiscoveryProvider([
+          { name: 'Acme Co', website: 'https://acme.example.com' },
+        ]),
+        sourceDocuments: fakeInsecureHomepageSourceDocumentProvider(),
+        signalCatalogue: createWebDevelopmentSignalCatalogue(),
+        researchProvider: () => ({
+          async research(input) {
+            researchCalls.push(input.prospectId);
+            return sampleResearch();
+          },
+        }),
+      }),
+    );
+
+    expect(outcome.outcome).toBe('completed');
+    // Budget already exhausted — the provider is never reached.
+    expect(researchCalls).toHaveLength(0);
+    expect(opportunities.rows).toHaveLength(1);
+    expect(opportunities.rows[0]!.aiEnrichment).toBe('DETERMINISTIC_ONLY');
+    expect(opportunities.rows[0]!.aiEnrichmentReason).toBe('PROVIDER_EXHAUSTED');
+  });
+
+  it('a fresh same-domain cache hit skips AI and is recorded AI_ENRICHED with no reason (Phase 6) — the cached evidence is still AI-derived', async () => {
+    const opportunities = fakeOpportunityRepository();
+    const signals = fakeResearchSignalRepository();
+    const signalCache = fakeResearchSignalCacheRepository((id) =>
+      signals.rows.find((row) => row.id === id),
+    );
+    const searches = fakeSearchRepository([seedSearch()]);
+    const researchCalls: string[] = [];
+
+    // Pre-populate the cache with one prior, still-fresh WEBSITE signal for
+    // this same user+domain, as if an earlier Search already researched
+    // it (CF-SAME-FREELANCER-EVIDENCE-REUSE-PO-DEC-001).
+    const [cachedSignal] = await signals.saveSignals(
+      'other_prospect',
+      [
+        {
+          field: 'companySummary',
+          kind: 'WEBSITE',
+          classification: 'OBSERVED',
+          signal: 'cached evidence',
+          confidence: 90,
+          basis: null,
+          sources: [
+            { sourceUrl: 'https://acme.example.com/about', sourceQuote: 'cached evidence', sourceLabel: 'homepage' },
+          ],
+        },
+      ],
+      NOW,
+    );
+    await signalCache.record({
+      userId: 'user_a',
+      normalizedDomain: 'acme.example.com',
+      signalKind: 'WEBSITE',
+      signalId: cachedSignal!.id,
+      observedAt: NOW,
+    });
+
+    const outcome = await claimAndProcessNextSearch(
+      buildDeps({
+        searches,
+        opportunities,
+        signals,
+        signalCache,
+        signalCatalogue: qualifyingSignalCatalogue(),
+        researchProvider: () => ({
+          async research(input) {
+            researchCalls.push(input.prospectId);
+            return sampleResearch();
+          },
+        }),
+      }),
+    );
+
+    expect(outcome.outcome).toBe('completed');
+    // A fresh cache hit is budget-free and skips the provider entirely.
+    expect(researchCalls).toHaveLength(0);
+    expect(searches.rows[0]!.aiEscalationUnitsConsumed).toBe(0);
+    expect(opportunities.rows).toHaveLength(1);
+    expect(opportunities.rows[0]!.aiEnrichment).toBe('AI_ENRICHED');
+    expect(opportunities.rows[0]!.aiEnrichmentReason).toBeNull();
   });
 });

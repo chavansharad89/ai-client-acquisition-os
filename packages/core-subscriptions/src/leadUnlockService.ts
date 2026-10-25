@@ -3,7 +3,7 @@ import { requireUser, type IdentityRepository } from '@acos/core-identity';
 import type { OpportunityRepository } from '@acos/core-opportunity';
 import { extractContactValues, type ResearchSignalRepository } from '@acos/core-research';
 
-import { CLIENT_FINDER_SUBSCRIPTION_PRODUCT_SLUG } from './access';
+import { findActiveClientFinderSubscriptionPeriod } from './access';
 import { LeadUnlockOpportunityNotFoundError, NoActiveClientFinderSubscriptionError, NoQualifyingContactError } from './errors';
 import type { LeadUnlockRepository } from './leadUnlockRepository';
 import type { SubscriptionPeriodRepository } from './subscriptionPeriodRepository';
@@ -77,11 +77,11 @@ export async function unlockOpportunityForOwner(
   const existing = await deps.leadUnlocks.findByUserAndOpportunity(userId, opportunityId);
   if (existing) return existing;
 
-  const activePeriod = await deps.subscriptionPeriods.findActiveForUser(
-    userId,
-    CLIENT_FINDER_SUBSCRIPTION_PRODUCT_SLUG,
-    now,
-  );
+  // Resolves through the same shared decision point access.ts's
+  // hasClientFinderAccess/getClientFinderSubscriptionStatus use (Phase 0
+  // regression-safety consolidation) -- not a second, independently
+  // maintained slug check.
+  const activePeriod = await findActiveClientFinderSubscriptionPeriod(deps, userId, now);
   if (!activePeriod) throw new NoActiveClientFinderSubscriptionError();
 
   const prospect = await deps.prospects.getById(userId, opportunity.prospectId);

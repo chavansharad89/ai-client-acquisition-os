@@ -5,7 +5,7 @@ import {
   createServiceProfile,
   listServiceProfiles,
   ServiceProfileValidationError,
-  type ServiceProfileInput,
+  type NewSearchServiceProfileInput,
 } from '@acos/core-service-profile';
 
 import { clientFinderRepositories } from '../../../src/server/clientFinderRepositories';
@@ -39,7 +39,20 @@ export async function POST(request: NextRequest) {
     // runs validateServiceProfileInput() internally and throws
     // ServiceProfileValidationError for anything malformed — this route
     // does not duplicate that logic, only forwards and maps the error.
-    const profile = await createServiceProfile({ identity, profiles }, token, body as ServiceProfileInput);
+    //
+    // CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001
+    // (system-owned-field correction): only `service`/`geography` are
+    // ever picked out of the raw body — a caller submitting extra fields
+    // (targetCustomer, triggers, etc.) has them dropped here, before
+    // createServiceProfile() even runs; that function's own input type
+    // has no field name for them either, so this is belt-and-suspenders,
+    // not the only guard.
+    const rawBody = (body ?? {}) as Record<string, unknown>;
+    const input: NewSearchServiceProfileInput = {
+      service: rawBody.service as string,
+      geography: rawBody.geography as string,
+    };
+    const profile = await createServiceProfile({ identity, profiles }, token, input);
     return NextResponse.json(profile, { status: 201 });
   } catch (err) {
     if (err instanceof UnauthenticatedError) {

@@ -1,13 +1,27 @@
 import type {
   CompanyRepository,
   DiscoveryProvider,
+  EntityRepository,
   ProspectRepository,
+  StoredCompany,
+  StoredProspect,
 } from '@acos/core-discovery';
 import { runDiscoveryForOwner } from '@acos/core-discovery';
 import type { FollowUpPreparationRepository } from '@acos/core-followup-preparation';
 import { prepareFollowUpForOwner } from '@acos/core-followup-preparation';
-import type { OpportunityRepository, OpportunityScoreRepository } from '@acos/core-opportunity';
-import { createOpportunityForOwner, scoreOpportunityForOwner } from '@acos/core-opportunity';
+import type {
+  AiEnrichment,
+  AiEnrichmentReason,
+  OpportunityRepository,
+  OpportunityScoreRepository,
+} from '@acos/core-opportunity';
+import {
+  createOpportunityForOwner,
+  previewOpportunityRanking,
+  recordAiEnrichmentForOwner,
+  scoreOpportunityForOwner,
+  type OpportunityRankingPreview,
+} from '@acos/core-opportunity';
 import type { OutreachPreparationRepository } from '@acos/core-outreach-preparation';
 import { prepareOutreachForOwner } from '@acos/core-outreach-preparation';
 import type { PersonalizationRepository } from '@acos/core-personalization';
@@ -15,14 +29,34 @@ import { evaluatePersonalizationForOwner } from '@acos/core-personalization';
 import type { QualificationRepository } from '@acos/core-qualification';
 import { evaluateQualificationForOwner } from '@acos/core-qualification';
 import type {
+  AdmissionDecision,
   CategoryPlausibilityRepository,
+  DeterministicSignal,
   ResearchProvider,
+  ResearchSignalCacheRepository,
   ResearchSignalRepository,
+  ServiceSignalCatalogue,
+  SourceDocumentProvider,
+  SuppliedSourceDocuments,
   TargetCustomerMatchModelDeps,
   TargetCustomerMatchRepository,
 } from '@acos/core-research';
-import { runResearchForOwner } from '@acos/core-research';
-import { MAX_SEARCH_ATTEMPTS, type SearchRepository, type StoredSearch } from '@acos/core-search';
+import {
+  applyCachedSignalsForOwner,
+  detectPlacesEntityReality,
+  eliminateDeterministically,
+  evaluateAdmission,
+  fetchPreAdmissionDocuments,
+  lookupCachedSignalForOwner,
+  runResearchForOwner,
+  saveDeterministicSignals,
+} from '@acos/core-research';
+import {
+  AI_ESCALATION_BUDGET,
+  MAX_SEARCH_ATTEMPTS,
+  type SearchRepository,
+  type StoredSearch,
+} from '@acos/core-search';
 
 // Search worker — claim, orchestrate, settle (R-34).
 // -----------------------------------------------------------------------
@@ -53,6 +87,8 @@ export interface SearchWorkerDeps {
   searches: SearchRepository;
   companies: CompanyRepository;
   prospects: ProspectRepository;
+  /** Global Entity Architecture (D1/D8/D21) — see @acos/core-discovery's EntityRepository. */
+  entities: EntityRepository;
   discoveryProvider: DiscoveryProvider;
   signals: ResearchSignalRepository;
   /**
@@ -201,6 +237,42 @@ export interface SearchWorkerDeps {
     repository: TargetCustomerMatchRepository;
     model: TargetCustomerMatchModelDeps;
   };
+  /**
+   * Phase 4 same-freelancer cache-first evidence reuse
+   * (CF-SAME-FREELANCER-EVIDENCE-REUSE-PO-DEC-001, migration 0045).
+   * Forwarded to runResearchForOwner (as `signalCache`, optional there
+   * too — see @acos/core-research's ResearchDeps). Optional for the same
+   * pre-existing-caller reason as `categoryPlausibility`/
+   * `targetCustomerMatch` above: omitting it skips indexing, unchanged
+   * from today. Phase 5 is what will consult this index before deciding
+   * whether to escalate — this pipeline does not read it.
+   */
+  signalCache?: ResearchSignalCacheRepository;
+  /**
+   * Phase 5, PO-1: fetches the pre-admission homepage document(s) for
+   * every discovered candidate, before any AI admission decision — see
+   * runCanonicalPipeline's Pass 1 below. Optional for the same
+   * pre-existing-caller reason as `scores`/`qualifications`/etc. above:
+   * making it required would force every existing caller that builds a
+   * `SearchWorkerDeps` object — including pre-Phase-5 integration tests —
+   * to be edited merely to keep compiling. Omitting it degrades every
+   * candidate to zero deterministic signals (today's actual pre-Phase-5
+   * behavior — elimination stays vacuous, ranking stays UNKNOWN on
+   * Need/Opportunity), never a thrown error. The real entrypoint
+   * (apps/worker/src/index.ts) always supplies it.
+   */
+  sourceDocuments?: SourceDocumentProvider;
+  /**
+   * Phase 1 deterministic signal catalogue (PO-1/PO-3): evaluated against
+   * the pre-admission-fetched document(s) in Pass 1, feeding both
+   * elimination (./entityRealityElimination) and the admission-ranking
+   * preview (@acos/core-opportunity's previewOpportunityRanking). Optional
+   * for the same pre-existing-caller reason as `scores`/`qualifications`
+   * above: a caller/test that omits it simply evaluates every candidate
+   * with zero deterministic signals (today's actual pre-Phase-5
+   * behavior), never a thrown error.
+   */
+  signalCatalogue?: ServiceSignalCatalogue;
   /** Identifies this process/replica. Must be unique per worker instance. */
   workerId: string;
   now?: () => Date;
@@ -377,6 +449,7 @@ async function runCanonicalPipeline(
       searches: deps.searches,
       companies: deps.companies,
       prospects: deps.prospects,
+      entities: deps.entities,
       provider: deps.discoveryProvider,
     },
     userId,
@@ -397,12 +470,261 @@ async function runCanonicalPipeline(
     }),
   );
 
+  // ---- Pass 1 (Phase 5): cheap, deterministic, no AI, no Opportunity
+  // persistence — collects every eligible candidate's deterministic
+  // signals and an in-memory ranking PREVIEW (never persisted; the real
+  // Opportunity is still created once, downstream, in processOneCandidate
+  // -> runPostResearchPipelineForOwner, unchanged). This exists because
+  // Top-N admission (Pass 2 below) is a rank across the WHOLE Search,
+  // decided before any candidate reaches Research/AI — impossible to
+  // decide one candidate at a time.
+  const candidates: PreAdmissionCandidate[] = [];
   for (const prospect of discovery.prospects) {
-    await researchProspectForOwner(deps, userId, prospect.id);
-    await runPostResearchPipelineForOwner(deps, userId, prospect.id);
+    const company = await deps.companies.getById(userId, prospect.companyId);
+    if (!company) continue; // defensive — Discovery always creates the Company first
+
+    // Global Entity Architecture (C-1; Q5_CLOSURE §4.3): a website-less
+    // Company (normalizedDomain null) has no homepage to fetch —
+    // SourceDocumentTarget.normalizedDomain stays non-nullable and this
+    // call is skipped entirely, reusing the existing empty-documents
+    // fallback already used when no SourceDocumentProvider is wired at
+    // all, rather than constructing a URL from a null domain.
+    const supplied: SuppliedSourceDocuments =
+      deps.sourceDocuments && company.normalizedDomain
+        ? await fetchPreAdmissionDocuments(
+            deps.sourceDocuments,
+            { companyName: company.name, normalizedDomain: company.normalizedDomain },
+            clockOf(deps)(),
+          )
+        : { documents: [], fetchedAt: clockOf(deps)(), extractionMethod: 'UNDECLARED' };
+    // Phase 8 (CF-PHASE8-ENTITY-REALITY-ACTIVATION-PO-DEC-001, D1): a
+    // universal, family-agnostic Entity-Reality signal from Discovery's
+    // own businessStatus lookup — in-memory only, never persisted on
+    // Company/Prospect (see core-discovery's service.ts).
+    const placesBusinessStatus = discovery.businessStatusByProspectId.get(prospect.id) ?? null;
+    const placesEntitySignal = detectPlacesEntityReality(placesBusinessStatus, clockOf(deps)());
+
+    // Global Entity Architecture (D15/OQ-9/Q6): write the SAME
+    // observation into the new, global, append-only entity_status_evidence
+    // table, alongside (not instead of) the per-user research_signals
+    // GOOGLE_PLACES_STATUS write that already happens downstream for
+    // this candidate (saveDeterministicSignals, below in
+    // processOneCandidate). Skipped entirely when company.entityId is
+    // NULL — historical-safety fallback (Entity resolution not yet run
+    // for this Company, or this Company predates the Entity layer),
+    // never an error state (Q6's own contract).
+    if (placesEntitySignal && company.entityId) {
+      await deps.entities.recordStatusObservation(
+        {
+          entityId: company.entityId,
+          status: placesBusinessStatus as 'CLOSED_TEMPORARILY' | 'CLOSED_PERMANENTLY',
+          source: 'GOOGLE_PLACES_STATUS',
+        },
+        clockOf(deps)(),
+      );
+    }
+
+    const deterministicSignals = [
+      ...(deps.signalCatalogue?.evaluate(supplied) ?? []),
+      ...(placesEntitySignal ? [placesEntitySignal] : []),
+    ];
+
+    // Phase 2 of requirement/
+    // CLIENT_FINDER_DETERMINISTIC_ARCHITECTURE_IMPLEMENTATION_PLAN.md —
+    // the deterministic Entity Reality elimination boundary, between
+    // Discovery and the per-prospect Research loop. Now fed real
+    // pre-admission signals (PO-1), including Phase 8's Entity-Reality
+    // producer above.
+    const elimination = eliminateDeterministically({ id: prospect.id }, deterministicSignals);
+    if (!elimination.eligible) continue;
+
+    const preview = previewOpportunityRanking(
+      search.parameters,
+      company,
+      deterministicSignals,
+      clockOf(deps)(),
+    );
+
+    candidates.push({ prospect, company, supplied, deterministicSignals, ranking: preview.ranking });
+  }
+
+  // ---- Pass 2 (Phase 5): rank the whole surviving candidate set ONCE
+  // (ranking is never eligibility — @acos/core-acquisition's own rule),
+  // then admit/escalate/persist each one in rank order. Every candidate
+  // collected in Pass 1 is processed — Top-N/threshold/bypass/budget only
+  // decide whether AI runs for it, never whether it is dropped (locked
+  // semantic: a candidate is never dropped for budget/AI reasons).
+  const decisions = evaluateAdmission(
+    candidates.map((candidate) => ({
+      id: candidate.prospect.id,
+      ranking: candidate.ranking,
+      deterministicSignals: candidate.deterministicSignals,
+    })),
+  );
+  const candidatesById = new Map(candidates.map((candidate) => [candidate.prospect.id, candidate]));
+
+  for (const decision of decisions) {
+    const candidate = candidatesById.get(decision.id)!;
+    await processOneCandidate(deps, userId, search, candidate, decision);
   }
 
   return { prospectsProcessed: discovery.prospects.length };
+}
+
+/** One Pass-1 candidate: Discovery's Prospect/Company plus the deterministic evidence and ranking preview computed before any AI call. */
+interface PreAdmissionCandidate {
+  prospect: StoredProspect;
+  company: StoredCompany;
+  supplied: SuppliedSourceDocuments;
+  deterministicSignals: readonly DeterministicSignal[];
+  ranking: OpportunityRankingPreview['ranking'];
+}
+
+/**
+ * Supersede-then-insert the Phase-1 deterministic signal(s) as this
+ * Prospect's own current evidence, as the SOLE write for this pass (D3
+ * of the Phase 5 plan) — used whenever Research/the cache did not
+ * already write their own signals this pass (not admitted, budget
+ * exhausted, or a candidate-level AI failure that threw before writing
+ * anything).
+ */
+async function persistDeterministicOnly(
+  deps: SearchWorkerDeps,
+  prospectId: string,
+  deterministicSignals: readonly DeterministicSignal[],
+  now: Date,
+): Promise<void> {
+  await deps.signals.supersedePrevious(prospectId, now);
+  await saveDeterministicSignals(deps.signals, prospectId, deterministicSignals, now);
+}
+
+/**
+ * CF-ZERO-AI-MVP-PO-DEC-001: the current Client Finder MVP makes zero
+ * AI/LLM provider calls, independent of whether a provider credential
+ * (ANTHROPIC_API_KEY/OPENAI_API_KEY/GEMINI_API_KEY) is configured.
+ * Admission, the escalation budget, and the signal cache all stay fully
+ * in place and keep deciding what WOULD escalate — this is the one flag
+ * that decides whether an admission-eligible candidate is actually
+ * allowed to reach a provider in the current MVP phase. A future PO
+ * decision authorizing live AI enrichment flips this back to `true`;
+ * nothing else in processOneCandidate needs to change to do so.
+ */
+const AI_ESCALATION_ENABLED = false;
+
+/**
+ * Pass-2 admission/escalation/persistence for one candidate (Phase 5).
+ * Every branch ends in `runPostResearchPipelineForOwner`
+ * (Opportunity/Score/Qualification/Personalization/Outreach/Follow-up) —
+ * admission only decides whether AI ran first, never whether this
+ * candidate is processed at all. Each branch also hands that call its
+ * own already-resolved AI enrichment provenance (Phase 6) — pure
+ * metadata wiring over this unchanged control flow, never a new
+ * decision of its own.
+ */
+async function processOneCandidate(
+  deps: SearchWorkerDeps,
+  userId: string,
+  search: StoredSearch,
+  candidate: PreAdmissionCandidate,
+  decision: AdmissionDecision,
+): Promise<void> {
+  const now = clockOf(deps)();
+
+  if (!decision.admitted) {
+    await persistDeterministicOnly(deps, candidate.prospect.id, candidate.deterministicSignals, now);
+    await runPostResearchPipelineForOwner(deps, userId, candidate.prospect.id, {
+      aiEnrichment: 'DETERMINISTIC_ONLY',
+      aiEnrichmentReason: 'NOT_ESCALATED',
+    });
+    return;
+  }
+
+  // Cache check (same-freelancer, WEBSITE kind) before spending any
+  // budget — a fresh hit is budget-free and skips AI entirely for this
+  // candidate (locked semantic: cache hit consumes 0 units). Global
+  // Entity Architecture (C-1): a null-domain candidate has no cache key
+  // under the existing (user_id, normalized_domain, signal_kind) scheme
+  // — skipped entirely, never coerced into a sentinel key.
+  if (deps.signalCache && candidate.company.normalizedDomain) {
+    const cacheResult = await lookupCachedSignalForOwner(
+      deps.signalCache,
+      userId,
+      candidate.company.normalizedDomain,
+      'WEBSITE',
+      now,
+    );
+    if (cacheResult.outcome === 'hit' && cacheResult.freshness === 'fresh') {
+      await applyCachedSignalsForOwner(deps, candidate.prospect.id, cacheResult.signals, now);
+      // Cache's own supersede-then-insert already ran — layer the
+      // deterministic signal on top without wiping it (D3).
+      await saveDeterministicSignals(deps.signals, candidate.prospect.id, candidate.deterministicSignals, now);
+      // The cached evidence originated from prior AI Research — a fresh
+      // reuse of it is AI_ENRICHED, never relabeled deterministic.
+      await runPostResearchPipelineForOwner(deps, userId, candidate.prospect.id, {
+        aiEnrichment: 'AI_ENRICHED',
+        aiEnrichmentReason: null,
+      });
+      return;
+    }
+  }
+
+  // CF-ZERO-AI-MVP-PO-DEC-001: no fresh cached evidence was reused above,
+  // and the current MVP must still make zero provider calls for this
+  // admitted candidate — no budget unit consumed, no provider
+  // constructed or invoked, candidate never dropped. Identical treatment
+  // to a non-admitted candidate (above): deterministic-only, same
+  // provenance pair, since from the candidate's perspective it never
+  // escalated either way.
+  if (!AI_ESCALATION_ENABLED) {
+    await persistDeterministicOnly(deps, candidate.prospect.id, candidate.deterministicSignals, now);
+    await runPostResearchPipelineForOwner(deps, userId, candidate.prospect.id, {
+      aiEnrichment: 'DETERMINISTIC_ONLY',
+      aiEnrichmentReason: 'NOT_ESCALATED',
+    });
+    return;
+  }
+
+  const consumption = await deps.searches.consumeAiEscalationUnit({
+    id: search.id,
+    workerId: deps.workerId,
+    now,
+    budget: AI_ESCALATION_BUDGET,
+  });
+
+  if (consumption.outcome === 'fenced') {
+    // This worker no longer holds the Search's lease — the same
+    // condition completeClaimed/recordAttemptFailure already treat as a
+    // hard failure of the current attempt, propagated and handled
+    // identically by claimAndProcessNextSearch's existing catch.
+    throw new Error(`lost lease on Search ${search.id} while consuming the AI-escalation budget`);
+  }
+
+  if (consumption.outcome === 'exhausted') {
+    // Budget exhaustion never drops a candidate or fails the Search —
+    // deterministic-only fallback, same as a below-threshold candidate.
+    await persistDeterministicOnly(deps, candidate.prospect.id, candidate.deterministicSignals, now);
+    await runPostResearchPipelineForOwner(deps, userId, candidate.prospect.id, {
+      aiEnrichment: 'DETERMINISTIC_ONLY',
+      aiEnrichmentReason: 'PROVIDER_EXHAUSTED',
+    });
+    return;
+  }
+
+  let provenance: { aiEnrichment: AiEnrichment; aiEnrichmentReason: AiEnrichmentReason | null };
+  try {
+    await researchProspectForOwner(deps, userId, candidate.prospect.id, candidate.supplied);
+    // Research already ran its own supersede-then-insert — layer the
+    // deterministic signal on top without wiping it (D3).
+    await saveDeterministicSignals(deps.signals, candidate.prospect.id, candidate.deterministicSignals, now);
+    provenance = { aiEnrichment: 'AI_ENRICHED', aiEnrichmentReason: null };
+  } catch {
+    // Candidate-level AI failure: the unit stays spent — no refund, no
+    // decrement method exists — and the candidate is never dropped. Research
+    // threw before writing anything, so this is the "sole write" path.
+    await persistDeterministicOnly(deps, candidate.prospect.id, candidate.deterministicSignals, now);
+    provenance = { aiEnrichment: 'DETERMINISTIC_ONLY', aiEnrichmentReason: 'ESCALATION_FAILED' };
+  }
+  await runPostResearchPipelineForOwner(deps, userId, candidate.prospect.id, provenance);
 }
 
 /**
@@ -416,11 +738,19 @@ export type ProspectPipelineDeps = Omit<
   'discoveryProvider' | 'workerId' | 'now' | 'leaseDurationMs'
 >;
 
-/** Research for one Prospect — the existing, unmodified runResearchForOwner call. */
+/**
+ * Research for one Prospect — the existing, unmodified runResearchForOwner
+ * call. `suppliedSourceDocuments` (PO-4, Phase 5) is optional and
+ * additive: when provided (Pass 1's pre-admission fetch), it is forwarded
+ * so the provider does not fetch the same homepage a second time; intent
+ * intake (./intentIntake) and any caller that omits it fetch exactly as
+ * before.
+ */
 export async function researchProspectForOwner(
   deps: ProspectPipelineDeps,
   userId: string,
   prospectId: string,
+  suppliedSourceDocuments?: SuppliedSourceDocuments,
 ): Promise<void> {
   await runResearchForOwner(
     {
@@ -433,9 +763,12 @@ export async function researchProspectForOwner(
       // rather than assigning `undefined` to an optional property.
       ...(deps.categoryPlausibility ? { categoryPlausibility: deps.categoryPlausibility } : {}),
       ...(deps.targetCustomerMatch ? { targetCustomerMatch: deps.targetCustomerMatch } : {}),
+      ...(deps.signalCache ? { signalCache: deps.signalCache } : {}),
     },
     userId,
     { prospectId },
+    new Date(),
+    suppliedSourceDocuments ? { suppliedSourceDocuments } : undefined,
   );
 }
 
@@ -446,11 +779,21 @@ export async function researchProspectForOwner(
  * runCanonicalPipeline's per-Prospect loop (INTENT-INTAKE-PO-DEC-001 D4)
  * so intent intake reuses it instead of duplicating it. Behavior, order,
  * optional-dependency gating and error propagation are unchanged.
+ *
+ * `provenance` (Phase 6) is the already-resolved AI enrichment outcome
+ * of whichever processOneCandidate() branch called this — omitted by
+ * intent intake, which is out of this phase's scope and so leaves a
+ * freshly-created Opportunity at its schema default (DETERMINISTIC_ONLY/
+ * NOT_ESCALATED is NOT implied; the column default is unclassified).
+ * When present, it is recorded against the found-or-created Opportunity
+ * whether that Opportunity is new or already existed — a retry
+ * reclassifies the existing row rather than appending anything.
  */
 export async function runPostResearchPipelineForOwner(
   deps: ProspectPipelineDeps,
   userId: string,
   prospectId: string,
+  provenance?: { aiEnrichment: AiEnrichment; aiEnrichmentReason: AiEnrichmentReason | null },
 ): Promise<{ opportunityId: string }> {
   const existingOpportunity = await deps.opportunities.findByProspectId(userId, prospectId);
   const opportunity =
@@ -466,6 +809,16 @@ export async function runPostResearchPipelineForOwner(
       userId,
       { prospectId },
     ));
+
+  if (provenance) {
+    await recordAiEnrichmentForOwner(
+      { opportunities: deps.opportunities },
+      userId,
+      opportunity.id,
+      provenance.aiEnrichment,
+      provenance.aiEnrichmentReason,
+    );
+  }
 
   if (deps.scores) {
     await scoreOpportunityForOwner(

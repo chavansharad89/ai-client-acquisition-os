@@ -1,10 +1,13 @@
-import { redirect } from 'next/navigation';
 
 import { requireUser, UnauthenticatedError } from '@acos/core-identity';
 import { getOpportunity, rankOpportunities } from '@acos/core-opportunity';
+import { getClientFinderSubscriptionStatus } from '@acos/core-subscriptions';
+import { redirect } from 'next/navigation';
 
+import { ClientFinderNav } from '../../../src/components/client-finder/ClientFinderNav';
+import { SubscriptionStatusBadge } from '../../../src/components/client-finder/SubscriptionStatusBadge';
 import { clientFinderRepositories } from '../../../src/server/clientFinderRepositories';
-import { resolveBusinessIdentity } from '../../../src/server/clientFinderView';
+import { resolveBusinessIdentity, resolveWhyFound } from '../../../src/server/clientFinderView';
 import { readSessionTokenFromServerComponent } from '../../../src/server/session';
 
 export const metadata = { title: 'Opportunities — Client Finder' };
@@ -43,11 +46,19 @@ export default async function OpportunitiesPage() {
     throw err;
   }
 
+  // Same existing status computation GET /api/subscriptions/status wraps
+  // (Phase 2, Part 2) — browsing itself is never gated on it.
+  const subscriptionStatus = await getClientFinderSubscriptionStatus(
+    { subscriptionPeriods: repos.subscriptionPeriods },
+    userId,
+  );
+
   const rows = await Promise.all(
     ranked.map(async (entry) => {
       const opportunity = await getOpportunity(repos, token, entry.opportunityId);
       const identity = await resolveBusinessIdentity(repos, userId, opportunity.prospectId);
-      return { entry, opportunity, identity };
+      const whyFound = await resolveWhyFound(repos, userId, opportunity.prospectId);
+      return { entry, opportunity, identity, whyFound };
     }),
   );
 
@@ -55,8 +66,10 @@ export default async function OpportunitiesPage() {
     <main id="main" className="shell">
       <header>
         <p className="eyebrow">Client Finder</p>
+        <ClientFinderNav />
         <h1 className="page-title">Opportunities</h1>
         <p className="lede">Ranked deterministically — same inputs always produce this order.</p>
+        <SubscriptionStatusBadge active={subscriptionStatus.active} expiresAt={subscriptionStatus.expiresAt} />
       </header>
 
       {rows.length === 0 ? (
@@ -65,13 +78,19 @@ export default async function OpportunitiesPage() {
         </p>
       ) : (
         <ol className="opportunity-list">
-          {rows.map(({ entry, opportunity, identity }) => (
+          {rows.map(({ entry, opportunity, identity, whyFound }) => (
             <li key={opportunity.id} className="opportunity-row card">
               <span className="opportunity-rank">#{entry.rank}</span>
               <div className="opportunity-summary">
                 <h2>{identity.companyName ?? `Prospect ${opportunity.prospectId}`}</h2>
+                {whyFound ? <p className="hint">{whyFound}</p> : null}
                 <p>
-                  Score {entry.score.total} · {entry.score.band}
+                  {entry.score.ranking ? (
+                    <>
+                      Need/Opportunity: {entry.score.ranking.needOpportunity} · Service Fit:{' '}
+                      {entry.score.ranking.serviceFit}
+                    </>
+                  ) : null}
                   {opportunity.needDetected && opportunity.offer
                     ? ` · Recommended: ${opportunity.offer.service}`
                     : ' · No suitable offer detected'}

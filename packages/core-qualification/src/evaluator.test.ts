@@ -372,3 +372,88 @@ describe('evaluateQualification — CATEGORY_PLAUSIBLE (Path 2, D4/D5)', () => {
     }
   });
 });
+
+// CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001, Option A: for
+// a NEW Service+Geography search, a MISSING categoryPlausibility
+// determination may be treated as "not applicable" rather than "unknown"
+// when the caller explicitly says so (categoryPlausibilityApplicable:
+// false). Historical searches (every test above, and every test that
+// omits the flag) are completely unaffected — this block is the only
+// place the flag is ever set to `false`.
+describe('evaluateQualification — categoryPlausibilityApplicable (CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001)', () => {
+  it('D: NEW search, categoryPlausibility absent/N/A + otherwise-qualifying evidence -> QUALIFIED', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [signal()],
+      categoryPlausibility: null,
+      categoryPlausibilityApplicable: false,
+    });
+
+    expect(result.state).toBe('QUALIFIED');
+  });
+
+  it('E: NEW search, categoryPlausibility absent/N/A + needDetected false -> existing NOT_QUALIFIED behavior (short-circuit, unaffected)', () => {
+    const result = evaluateQualification({
+      needDetected: false,
+      signals: [signal()],
+      categoryPlausibility: null,
+      categoryPlausibilityApplicable: false,
+    });
+
+    expect(result.state).toBe('NOT_QUALIFIED');
+  });
+
+  it('F: NEW search, categoryPlausibility absent/N/A + remaining criteria insufficient -> INSUFFICIENT_EVIDENCE', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [],
+      categoryPlausibility: null,
+      categoryPlausibilityApplicable: false,
+    });
+
+    expect(result.state).toBe('INSUFFICIENT_EVIDENCE');
+  });
+
+  it('G: historical search, categoryPlausibility absent/UNKNOWN (flag omitted, defaults true) -> INSUFFICIENT_EVIDENCE, unchanged', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [signal()],
+      categoryPlausibility: null,
+    });
+
+    expect(result.state).toBe('INSUFFICIENT_EVIDENCE');
+  });
+
+  it('historical search, categoryPlausibilityApplicable explicitly true + missing determination -> INSUFFICIENT_EVIDENCE, same as omitting it', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [signal()],
+      categoryPlausibility: null,
+      categoryPlausibilityApplicable: true,
+    });
+
+    expect(result.state).toBe('INSUFFICIENT_EVIDENCE');
+  });
+
+  it('does not change the meaning of an actual MATCH even if categoryPlausibilityApplicable is (incorrectly) false', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [signal()],
+      categoryPlausibility: determination('MATCH'),
+      categoryPlausibilityApplicable: false,
+    });
+
+    expect(result.state).toBe('QUALIFIED');
+  });
+
+  it('does not change the meaning of an actual MISMATCH even if categoryPlausibilityApplicable is (incorrectly) false', () => {
+    const result = evaluateQualification({
+      needDetected: true,
+      signals: [signal()],
+      categoryPlausibility: determination('MISMATCH'),
+      categoryPlausibilityApplicable: false,
+    });
+
+    expect(result.state).toBe('NOT_QUALIFIED');
+  });
+});

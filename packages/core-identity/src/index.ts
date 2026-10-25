@@ -13,8 +13,50 @@
 // -----------------------------------------------------------------------
 
 export { createPgIdentityRepository } from './pgRepository';
-export type { IdentityRepository, StoredCredentials, StoredSessionToken } from './repository';
+export type {
+  AccountSetupInput,
+  IdentityRepository,
+  StoredCredentials,
+  StoredSessionToken,
+  StoredUserAuthState,
+} from './repository';
 export type { StoredUser } from './types';
+
+export { ACTIVATION_TOKEN_TTL_MS, evaluateActivationToken, mintActivationToken } from './activationToken';
+export type {
+  ActivationTokenRejection,
+  ActivationTokenVerdict,
+  MintedActivationToken,
+  StoredActivationToken,
+} from './activationToken';
+
+export {
+  buildActivationUrl,
+  ConsoleActivationEmailSender,
+  createActivationEmailSender,
+  EmailProviderNotConfiguredError,
+  GmailDevActivationEmailSender,
+  GmailDevNotConfiguredError,
+  issueActivationLink,
+  ResendActivationEmailSender,
+  ResendDeliveryError,
+  ResendNotConfiguredError,
+} from './activationEmail';
+export type {
+  ActivationEmailMessage,
+  ActivationEmailSender,
+  GmailDevConfig,
+  ResendConfig,
+  ResendTransport,
+  SmtpTransport,
+} from './activationEmail';
+
+// Test fake, exported the same way @acos/core-subscriptions exports
+// fakeSubscriptionPeriodRepository from its own main index — consumers
+// outside this package (apps/web's activationService tests) need it
+// too, and a relative import of ./testSupport from another package is
+// not a thing this repo's module boundaries support.
+export { fakeRepository } from './testSupport';
 
 export {
   hashPassword,

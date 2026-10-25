@@ -6,6 +6,7 @@ import {
   createGooglePlacesClient,
   createGooglePlacesDiscoveryProvider,
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
 } from '@acos/core-discovery';
 import { createPgFollowUpPreparationRepository } from '@acos/core-followup-preparation';
@@ -19,9 +20,14 @@ import {
   createFallbackResearchProvider,
   createHttpSourceDocumentProvider,
   createPgCategoryPlausibilityRepository,
+  createPgResearchSignalCacheRepository,
   createPgResearchSignalRepository,
   createPgTargetCustomerMatchRepository,
   createResearchModel,
+  createWebDevelopmentSignalCatalogue,
+  MissingResearchModelError,
+  MissingResearchProviderCredentialError,
+  type ResearchModel,
   type ResearchModelConfig,
   type ResearchProviderAttempt,
 } from '@acos/core-research';
@@ -94,10 +100,40 @@ function researchModelConfigFor(
   return {
     provider,
     ...(model ? { model } : {}),
-    anthropicApiKey: env.ANTHROPIC_API_KEY,
+    ...(env.ANTHROPIC_API_KEY ? { anthropicApiKey: env.ANTHROPIC_API_KEY } : {}),
     ...(env.OPENAI_API_KEY ? { openAIApiKey: env.OPENAI_API_KEY } : {}),
     ...(env.GEMINI_API_KEY ? { geminiApiKey: env.GEMINI_API_KEY } : {}),
   };
+}
+
+/**
+ * Global Entity Architecture (C-3B / zero-AI requirement): boots a
+ * ResearchModel for one provider WITHOUT crashing the process when that
+ * provider's credential (or, for openai/gemini, its required model) is
+ * absent. createResearchModel() itself still throws for every OTHER
+ * malformed-configuration case (e.g. an unrecognized provider name) —
+ * only the two "this deployment simply did not configure this
+ * provider" errors are caught here, never silently swallowing a real
+ * bug. Does not redesign createResearchModel() or the provider-adapter
+ * architecture; this is the one place that decides a missing credential
+ * means "skip this attempt," not "fail to boot."
+ */
+function tryCreateResearchModel(
+  provider: ResearchModelConfig['provider'],
+  model: string | undefined,
+  env: ReturnType<typeof loadEnv>,
+): ResearchModel | undefined {
+  try {
+    return createResearchModel(researchModelConfigFor(provider, model, env));
+  } catch (error) {
+    if (
+      error instanceof MissingResearchProviderCredentialError ||
+      error instanceof MissingResearchModelError
+    ) {
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 async function main(): Promise<void> {
@@ -106,19 +142,27 @@ async function main(): Promise<void> {
 
   const aiUsageEvents = createPgAiUsageEventRepository(pool);
 
-  const attempts: ResearchProviderAttempt[] = [
-    {
-      provider: env.RESEARCH_PROVIDER,
-      model: createResearchModel(researchModelConfigFor(env.RESEARCH_PROVIDER, env.RESEARCH_MODEL, env)),
-    },
-  ];
+  // Zero-AI (C-3B): a missing credential for the selected provider (or,
+  // when configured, its fallback) is never a boot failure — it simply
+  // means that attempt is not available this run. An empty `attempts`
+  // array (no AI provider configured at all) is a valid, supported
+  // zero-AI deployment; AI remains optional at runtime exactly as every
+  // other part of this pipeline already treats it (deterministic
+  // admission/ranking/qualification are already AI-free).
+  const attempts: ResearchProviderAttempt[] = [];
+  const primaryModel = tryCreateResearchModel(env.RESEARCH_PROVIDER, env.RESEARCH_MODEL, env);
+  if (primaryModel) {
+    attempts.push({ provider: env.RESEARCH_PROVIDER, model: primaryModel });
+  }
   if (env.RESEARCH_FALLBACK_PROVIDER) {
-    attempts.push({
-      provider: env.RESEARCH_FALLBACK_PROVIDER,
-      model: createResearchModel(
-        researchModelConfigFor(env.RESEARCH_FALLBACK_PROVIDER, env.RESEARCH_FALLBACK_MODEL, env),
-      ),
-    });
+    const fallbackModel = tryCreateResearchModel(
+      env.RESEARCH_FALLBACK_PROVIDER,
+      env.RESEARCH_FALLBACK_MODEL,
+      env,
+    );
+    if (fallbackModel) {
+      attempts.push({ provider: env.RESEARCH_FALLBACK_PROVIDER, model: fallbackModel });
+    }
   }
 
   const sourceDocuments = createHttpSourceDocumentProvider({
@@ -131,6 +175,8 @@ async function main(): Promise<void> {
     searches: createPgSearchRepository(pool),
     companies: createPgCompanyRepository(pool),
     prospects: createPgProspectRepository(pool),
+    entities: createPgEntityRepository(pool),
+    sourceDocuments,
     discoveryProvider: createGooglePlacesDiscoveryProvider(
       createGooglePlacesClient({
         apiKey: env.GOOGLE_PLACES_API_KEY,
@@ -139,6 +185,15 @@ async function main(): Promise<void> {
       }),
     ),
     signals: createPgResearchSignalRepository(pool),
+    // Phase 5 admission gate (CLIENT_FINDER_PHASE5_IMPLEMENTATION_READINESS_
+    // REPORT.md Sec.10): the pre-admission deterministic signal catalogue.
+    // Without this, deps.signalCatalogue is undefined, Pass 1's
+    // `deps.signalCatalogue?.evaluate(supplied)` always yields `[]`, and
+    // every candidate's needOpportunity/serviceFit stay UNKNOWN —
+    // meetsAdmissionThreshold and hasStrongSignalBypass both then always
+    // fail, so no production candidate could ever reach Research. Web
+    // Development is the only approved service catalogue (Phase 1 scope).
+    signalCatalogue: createWebDevelopmentSignalCatalogue(),
     researchProvider: (userId: string) =>
       createFallbackResearchProvider({
         sourceDocuments,
@@ -151,19 +206,34 @@ async function main(): Promise<void> {
     opportunities: createPgOpportunityRepository(pool),
     scores: createPgOpportunityScoreRepository(pool),
     categoryPlausibility: createPgCategoryPlausibilityRepository(pool),
+    // Phase 4 (CF-SAME-FREELANCER-EVIDENCE-REUSE-PO-DEC-001, migration
+    // 0045): indexes every Research run's cacheable signals so Phase 5's
+    // cache-first lookup has evidence to find. Does not itself change
+    // Research/TCM invocation — see @acos/core-research's service.ts.
+    signalCache: createPgResearchSignalCacheRepository(pool),
     // PDEF4-PCG4-TCMATCH-PRODWIRING-DEC-001 §1.1/§1.5: reuses the main
     // research attempt's own provider/model config — never an
     // independently configured one. modelId mirrors
     // createAnthropicResearchModel's own default (anthropicModel.ts)
     // when env.RESEARCH_MODEL is unset, rather than reinventing it.
-    targetCustomerMatch: {
-      repository: createPgTargetCustomerMatchRepository(pool),
-      model: {
-        model: createResearchModel(researchModelConfigFor(env.RESEARCH_PROVIDER, env.RESEARCH_MODEL, env)),
-        modelId: env.RESEARCH_MODEL ?? 'claude-opus-5',
-        providerId: env.RESEARCH_PROVIDER,
-      },
-    },
+    //
+    // Zero-AI (C-3B): omitted entirely (not constructed with an absent
+    // model) when the primary provider's credential is unavailable —
+    // targetCustomerMatch is already an OPTIONAL SearchWorkerDeps field
+    // for exactly this reason, so a zero-AI deployment simply runs
+    // without target-customer matching rather than failing to boot.
+    ...(primaryModel
+      ? {
+          targetCustomerMatch: {
+            repository: createPgTargetCustomerMatchRepository(pool),
+            model: {
+              model: primaryModel,
+              modelId: env.RESEARCH_MODEL ?? 'claude-opus-5',
+              providerId: env.RESEARCH_PROVIDER,
+            },
+          },
+        }
+      : {}),
     qualifications: createPgQualificationRepository(pool),
     personalizations: createPgPersonalizationRepository(pool),
     outreachPreparations: createPgOutreachPreparationRepository(pool),

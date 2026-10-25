@@ -46,9 +46,10 @@ not modified or decided by this record.
 ## 5. Relationship to PDEF-2
 
 PDEF-2 is **not reopened or altered**. ₹499 = Basic access / 50 monthly lead-unlock credits; ₹1,499 = Advanced
-access / 300 monthly lead-unlock credits; both independently purchasable with no prior-tier prerequisite in either
-direction. This record decides only what happens when both entitlements are held by the same user at once,
-consistent with and not overriding PDEF-2.
+access / 300 monthly lead-unlock credits (**the ₹1,499 credit figure is superseded — see PDEF-2 §11's notice and
+ES-6's notice below; the ₹499 figure and Basic/Advanced tiering are unaffected**); both independently purchasable
+with no prior-tier prerequisite in either direction. This record decides only what happens when both entitlements
+are held by the same user at once, consistent with and not overriding PDEF-2.
 
 ## 6. DECIDED
 
@@ -69,6 +70,10 @@ period applies to that entitlement. (Credit-expiry implementation mechanics are 
 not be automatically pooled into a single 350-credit balance. (Credit-ledger implementation is not performed by
 this decision.)
 
+**SUPERSEDED NOTICE (added, ₹1,499 side only):** `CLIENT_FINDER_1499_SUBSCRIPTION_ACCESS_MODEL_PO_DECISION.md`
+(`...-PO-DEC-002`) removes the ₹1,499 credit model entirely — there is no ₹1,499 credit bucket to keep separate.
+ES-6's ₹499-credit-bucket half is **unaffected**. ES-1 (cumulative/coexisting entitlements) is also unaffected.
+
 ### ES-7 — Feature access when both tiers are held
 
 **DECIDED: ₹1,499 ADVANCED ACCESS GOVERNS FEATURE ACCESS.** When a user simultaneously holds active ₹499 and
@@ -82,6 +87,11 @@ lead-unlock credits and the ₹1,499 entitlement provides its decided 300 monthl
 allowances remain attributable to their respective entitlements rather than being merged into one 350-credit pool.
 (Implementation priority, ledger mechanics, rollover mechanics, and overage mechanics are not specified by this
 decision.)
+
+**SUPERSEDED NOTICE (added, ₹1,499 side only):** the "₹1,499 entitlement provides its decided 300 monthly
+lead-unlock credits" clause is superseded — see the ES-6 notice above. The ₹1,499 side of this item now simply
+means "unlimited (quota-free) access while the ₹1,499 subscription is active," not a 300-credit allowance. The
+₹499 50-credit allowance is unaffected.
 
 ### ES-9 — Renewal / expiry / cancellation / downgrade
 

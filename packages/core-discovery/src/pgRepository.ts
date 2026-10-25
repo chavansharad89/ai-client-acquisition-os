@@ -24,14 +24,25 @@ interface CompanyRow {
   id: string;
   user_id: string;
   name: string;
-  normalized_domain: string;
+  normalized_domain: string | null;
+  entity_id: string | null;
   created_at: Date;
 }
 
-const COMPANY_COLUMNS = `id, user_id, name, normalized_domain, created_at`;
+const COMPANY_COLUMNS = `id, user_id, name, normalized_domain, entity_id, created_at`;
 
 export function createPgCompanyRepository(sql: SqlExecutor): CompanyRepository {
   return {
+    // Used only by intentIntake.ts's trusted, authorization-evidence-
+    // gated path (K1) — that caller never relaxes requireWebsite, so
+    // normalizedDomain here is always a real string, never null. The
+    // open-discovery path (service.ts's runDiscoveryForOwner) no longer
+    // calls this directly; it uses @acos/core-discovery's EntityRepository
+    // (./entityRepository.ts), which performs the equivalent upsert
+    // atomically alongside Entity resolution. This method still exists,
+    // unchanged in its own contract, specifically so K1's intake path is
+    // never forced through the Entity-resolution transaction it does not
+    // need and must not be exposed to (D1/D8 scope).
     async findOrCreateByDomain(
       userId: string,
       input: { name: string; normalizedDomain: string },
@@ -40,7 +51,7 @@ export function createPgCompanyRepository(sql: SqlExecutor): CompanyRepository {
       const { rows } = await sql.query(
         `INSERT INTO companies (id, user_id, name, normalized_domain, created_at)
          VALUES (gen_random_uuid()::text, $1, $2, $3, $4)
-         ON CONFLICT (user_id, normalized_domain)
+         ON CONFLICT (user_id, normalized_domain) WHERE normalized_domain IS NOT NULL
          DO UPDATE SET name = companies.name
          RETURNING ${COMPANY_COLUMNS}`,
         [userId, input.name, input.normalizedDomain, now],
@@ -65,6 +76,7 @@ function mapCompanyRow(row: CompanyRow): StoredCompany {
     userId: row.user_id,
     name: row.name,
     normalizedDomain: row.normalized_domain,
+    entityId: row.entity_id,
     createdAt: new Date(row.created_at),
   };
 }

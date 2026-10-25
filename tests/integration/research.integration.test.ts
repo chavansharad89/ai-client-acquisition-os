@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   type DiscoveryCandidate,
@@ -37,6 +38,7 @@ import {
   type ServiceProfileInput,
 } from '@acos/core-service-profile';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
 import { suiteDatabase } from './support/suiteDb';
 
@@ -52,10 +54,17 @@ import { suiteDatabase } from './support/suiteDb';
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('research');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 const HOMEPAGE = { url: 'https://acme.test/about', label: 'homepage' };
 const CAREERS = { url: 'https://acme.test/careers', label: 'careers' };
@@ -134,6 +143,7 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     signals: createPgResearchSignalRepository(db.client),
   };
 }
@@ -165,7 +175,7 @@ async function createUserAndSession(label: string): Promise<{ userId: string; to
 
 function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'Website development',
+    service: 'Web & Software Development',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 3_000_000,
@@ -179,7 +189,7 @@ function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): Servi
 function discoveryProvider(candidates: readonly DiscoveryCandidate[]): DiscoveryProvider {
   return {
     async discover() {
-      return candidates;
+      return { candidates, actualQuery: 'test query', provider: 'TEST_PROVIDER' };
     },
   };
 }

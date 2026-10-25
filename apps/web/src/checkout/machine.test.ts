@@ -7,7 +7,7 @@ import {
   isBusy,
   isPurchaseConfirmed,
 } from './machine';
-import type { CheckoutEvent, CheckoutState, OrderPaymentInfo } from './types';
+import type { CheckoutEvent, CheckoutState, OrderPaymentInfo, SubscriptionPaymentInfo } from './types';
 
 const order: OrderPaymentInfo = {
   orderId: 'order_1',
@@ -18,6 +18,15 @@ const order: OrderPaymentInfo = {
   productId: 'ai_freelancing_499',
   productName: 'AI Freelancing Launch Kit',
   status: 'PENDING',
+};
+
+const subscription: SubscriptionPaymentInfo = {
+  razorpaySubscriptionId: 'sub_1',
+  razorpayKeyId: 'rzp_test_public',
+  productId: 'ai_client_acquisition_1499_subscription',
+  productName: 'AI Client Finder Subscription',
+  shortUrl: null,
+  status: 'created',
 };
 
 const run = (events: CheckoutEvent[], from: CheckoutState = initialCheckoutState) =>
@@ -144,6 +153,24 @@ describe('failure and retry', () => {
       { type: 'CHECKOUT_DISMISSED' },
     ]);
     expect(confirming.phase).toBe('confirming');
+  });
+});
+
+describe('the subscription SKU carries the same invariants as a one-time order', () => {
+  it('walks idle -> creating -> opening -> confirming with a subscription payload', () => {
+    expect(
+      run([{ type: 'SUBMIT' }, { type: 'ORDER_CREATED', order: subscription }, { type: 'PAYMENT_SUBMITTED' }])
+        .phase,
+    ).toBe('confirming');
+  });
+
+  it('a Razorpay success never promotes a subscription checkout to a confirmed sale either', () => {
+    const state = run([
+      { type: 'SUBMIT' },
+      { type: 'ORDER_CREATED', order: subscription },
+      { type: 'PAYMENT_SUBMITTED' },
+    ]);
+    expect(isPurchaseConfirmed(state)).toBe(false);
   });
 });
 

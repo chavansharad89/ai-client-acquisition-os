@@ -76,6 +76,9 @@ function fakeOpportunityRepository(seed: StoredOpportunity[] = []): OpportunityR
     async updateStaleness() {
       throw new Error('not used by these tests');
     },
+    async updateAiEnrichment() {
+      throw new Error('not used by these tests');
+    },
   };
 }
 
@@ -116,6 +119,9 @@ function seedOpportunity(overrides: Partial<StoredOpportunity> = {}): StoredOppo
     },
     staleness: 'FRESH',
     stalenessComputedAt: null,
+    aiEnrichment: 'DETERMINISTIC_ONLY',
+    aiEnrichmentReason: null,
+    relevantSubservices: [],
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -167,6 +173,7 @@ function deps(
   opportunities: StoredOpportunity[],
   signals: StoredResearchSignal[] = [],
   determinations: StoredCategoryPlausibilityDetermination[] = [seedDetermination()],
+  notApplicableProspectIds: readonly string[] = [],
 ): QualificationDeps {
   const identity = fakeIdentity({
     ...sessionFor('token-a', 'user_a'),
@@ -178,7 +185,7 @@ function deps(
     opportunities: opportunityRepo,
     signals: fakeResearchSignalRepository(signals),
     qualifications: fakeQualificationRepository(opportunities),
-    categoryPlausibility: fakeCategoryPlausibilityRepository(determinations),
+    categoryPlausibility: fakeCategoryPlausibilityRepository(determinations, notApplicableProspectIds),
   };
 }
 
@@ -262,6 +269,32 @@ describe('evaluateOpportunityQualification / evaluateQualificationForOwner', () 
 
     expect(second.state).toBe('INSUFFICIENT_EVIDENCE');
     expect(second.id).toBe(first.id); // same row, replaced — not a second row
+  });
+});
+
+describe('evaluateQualificationForOwner — CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001', () => {
+  it('a NEW search (no categoryPlausibility determination, flagged not applicable) with qualifying evidence reaches QUALIFIED', async () => {
+    const d = deps([seedOpportunity()], [seedSignal()], [], ['prospect_1']);
+
+    const stored = await evaluateQualificationForOwner(d, 'user_a', 'opportunity_1', NOW);
+
+    expect(stored.state).toBe('QUALIFIED');
+  });
+
+  it('a NEW search (not applicable) with insufficient evidence still lands on INSUFFICIENT_EVIDENCE', async () => {
+    const d = deps([seedOpportunity()], [], [], ['prospect_1']);
+
+    const stored = await evaluateQualificationForOwner(d, 'user_a', 'opportunity_1', NOW);
+
+    expect(stored.state).toBe('INSUFFICIENT_EVIDENCE');
+  });
+
+  it('a historical search (no determination, applicability not flagged) stays capped at INSUFFICIENT_EVIDENCE, unchanged', async () => {
+    const d = deps([seedOpportunity()], [seedSignal()], []);
+
+    const stored = await evaluateQualificationForOwner(d, 'user_a', 'opportunity_1', NOW);
+
+    expect(stored.state).toBe('INSUFFICIENT_EVIDENCE');
   });
 });
 

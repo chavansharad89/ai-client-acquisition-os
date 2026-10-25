@@ -1,8 +1,16 @@
 import { randomUUID } from 'node:crypto';
 
-import { scoreProspect, type ProspectInput } from '@acos/core-acquisition';
+import {
+  BAND_THRESHOLDS,
+  SIGNAL_FRESH_DAYS,
+  SIGNAL_MAX_AGE_DAYS,
+  unknownRankingProfile,
+  type ResearchSignal,
+  type UniversalRankingProfile,
+} from '@acos/core-acquisition';
 import {
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   type DiscoveryCandidate,
@@ -47,26 +55,35 @@ import {
   type ServiceProfileInput,
 } from '@acos/core-service-profile';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
 import { suiteDatabase } from './support/suiteDb';
 
-// OpportunityScore persistence (migration 0018) — real PostgreSQL.
+// OpportunityScore persistence (migration 0018, qualitative shape since
+// migration 0044 / Phase 3) — real PostgreSQL.
 // -----------------------------------------------------------------------
-// Proves migration 0018's schema plus @acos/core-opportunity's
+// Proves migration 0018/0044's schema plus @acos/core-opportunity's
 // scoreOpportunity()/getOpportunityScore() enforce, at the database
 // itself: DEC-008 ownership inheritance (opportunity_scores carries no
 // user_id — ownership resolved via opportunity_id -> opportunities.user_id),
 // one current score per Opportunity (UNIQUE(opportunity_id)), and that
-// @acos/core-acquisition's scoreProspect() is reused unmodified end to
-// end from persisted ResearchSignal rows through a persisted Opportunity's
-// offer. Mirrors tests/integration/opportunity.integration.test.ts.
+// the qualitative UniversalRankingProfile is derived end to end from
+// persisted ResearchSignal rows through a persisted Opportunity's offer
+// — never a numeric score. Mirrors tests/integration/opportunity.integration.test.ts.
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('opportunity_score');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 const CAREERS = { url: 'https://acme.test/careers', label: 'careers' };
 
@@ -112,6 +129,65 @@ function matchingResearch(): LeadResearch {
     automationOpportunities: [],
     recommendedService: { service: 'NONE', rationale: 'insufficient evidence', basedOn: [] },
     confidence: 55,
+    gaps: [],
+  };
+}
+
+/**
+ * K5-D1 (CF-NEED-OPPORTUNITY-SUFFICIENCY-PO-DEC-001): unlike
+ * matchingResearch() above (a single OBSERVED signal — no longer
+ * sufficient on its own for a NEW Service+Geography-only search, see
+ * @acos/core-opportunity's hasCredibleNeedEvidence()), this carries
+ * TWO independent OBSERVED, full-confidence signals from distinct
+ * fields, both matching sampleProfileInput()'s "AI & Automation"
+ * catalogue vocabulary — credible enough to establish NEED_DETECTED
+ * (and therefore a defined opportunity.offer) under the new, stronger
+ * bar.
+ */
+function credibleNeedResearch(): LeadResearch {
+  const unknownField = { classification: 'UNKNOWN' as const, value: null, evidence: [], basis: null, confidence: 0 };
+  return {
+    companySummary: unknownField,
+    businessModel: unknownField,
+    targetCustomers: unknownField,
+    categoryPlausibility: [],
+    visibleProblems: [
+      {
+        classification: 'OBSERVED',
+        value:
+          'the support team manually processes every order — workflow automation would eliminate this bottleneck',
+        evidence: [
+          {
+            quote: 'the support team manually processes every order',
+            sourceUrl: CAREERS.url,
+            sourceLabel: CAREERS.label,
+          },
+        ],
+        basis: null,
+        confidence: 100,
+      },
+    ],
+    growthOpportunities: [],
+    aiOpportunities: [],
+    websiteIssues: [],
+    contentOpportunities: [],
+    automationOpportunities: [
+      {
+        classification: 'OBSERVED',
+        value: 'manual data entry across spreadsheets is error-prone and could use business process automation',
+        evidence: [
+          {
+            quote: 'manual data entry across spreadsheets is error-prone',
+            sourceUrl: CAREERS.url,
+            sourceLabel: CAREERS.label,
+          },
+        ],
+        basis: null,
+        confidence: 100,
+      },
+    ],
+    recommendedService: { service: 'NONE', rationale: 'insufficient evidence', basedOn: [] },
+    confidence: 90,
     gaps: [],
   };
 }
@@ -163,7 +239,7 @@ function testProvider(result: LeadResearch): ResearchProvider {
 function discoveryProvider(candidates: readonly DiscoveryCandidate[]): DiscoveryProvider {
   return {
     async discover() {
-      return candidates;
+      return { candidates, actualQuery: 'test query', provider: 'TEST_PROVIDER' };
     },
   };
 }
@@ -176,6 +252,7 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     signals: createPgResearchSignalRepository(db.client),
     opportunities: createPgOpportunityRepository(db.client),
     scores: createPgOpportunityScoreRepository(db.client),
@@ -217,7 +294,7 @@ async function createUserAndSession(label: string): Promise<{ userId: string; to
 
 function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'AI content system',
+    service: 'AI & Automation',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 15_000_000,
@@ -241,33 +318,52 @@ async function createProspect(
   return { search: running, prospectId: result.prospects[0]!.id };
 }
 
-/** Mirrors @acos/core-opportunity's private neutralScoringInputs()/serviceFitFromOffer() — see service.ts. */
-function expectedInput(
+/**
+ * Mirrors @acos/core-opportunity's private evidenceQualityTier()/
+ * evidenceFreshnessTier()/serviceFitTier()/buildRankingProfile() exactly
+ * (see service.ts) — the same technique this test file's pre-Phase-3
+ * version used for the old scorer's neutralScoringInputs()/
+ * serviceFitFromOffer().
+ */
+function expectedRanking(
   storedSignals: readonly StoredResearchSignal[],
-  offer?: { fit: number; service: string },
-): ProspectInput {
+  offer?: { fit: number },
+  now: Date = new Date('2026-07-01T09:00:00.000Z'),
+): UniversalRankingProfile {
   const { signals } = toScoringSignals(storedSignals);
-  return {
-    signals,
-    icp: {
-      industryMatch: { value: null, basis: 'UNKNOWN' },
-      sizeMatch: { value: null, basis: 'UNKNOWN' },
-      geoMatch: { value: null, basis: 'UNKNOWN' },
-    },
-    abilityToPay: { value: null, basis: 'UNKNOWN' },
-    urgency: { value: null, basis: 'UNKNOWN' },
-    serviceFit: offer
-      ? {
-          value: offer.fit,
-          basis: 'OBSERVED',
-          note: `service fit ${offer.fit}/100 (recommended offer: ${offer.service})`,
-        }
-      : { value: null, basis: 'UNKNOWN' },
-    contact: { hasEmail: false, hasLinkedIn: false, hasPhone: false, unsubscribed: false },
-  };
+  const live = (signals as ResearchSignal[]).filter((s) => !s.supersededAt);
+
+  const wellSourced = live.filter((s) => s.confidence >= 70).length;
+  const evidenceQuality =
+    live.length === 0 ? 'UNKNOWN' : wellSourced >= 3 ? 'STRONG' : wellSourced === 2 ? 'MODERATE' : 'WEAK';
+
+  const newestAgeDays =
+    live.length === 0
+      ? Infinity
+      : Math.min(...live.map((s) => (now.getTime() - s.observedAt.getTime()) / 86_400_000));
+  const evidenceFreshness =
+    live.length === 0
+      ? 'UNKNOWN'
+      : newestAgeDays <= SIGNAL_FRESH_DAYS
+        ? 'STRONG'
+        : newestAgeDays <= SIGNAL_MAX_AGE_DAYS
+          ? 'MODERATE'
+          : 'WEAK';
+
+  const serviceFit = !offer
+    ? 'UNKNOWN'
+    : offer.fit >= BAND_THRESHOLDS.HIGH
+      ? 'STRONG'
+      : offer.fit >= BAND_THRESHOLDS.MEDIUM
+        ? 'MODERATE'
+        : offer.fit > 0
+          ? 'WEAK'
+          : 'UNKNOWN';
+
+  return { ...unknownRankingProfile(), serviceFit, evidenceQuality, evidenceFreshness };
 }
 
-describe('opportunity_scores schema (migration 0018)', () => {
+describe('opportunity_scores schema (migration 0018, nullable legacy columns since migration 0044)', () => {
   it('opportunity_scores exists, carries no user_id, references opportunities', async () => {
     const { db } = suite.require();
     const { rows } = await db.client.query(
@@ -288,14 +384,157 @@ describe('opportunity_scores schema (migration 0018)', () => {
     );
     expect(rows).toHaveLength(1);
   });
-});
 
-describe('scoreOpportunity', () => {
-  it('persists a seven-factor score with every factor field, matching a direct scoreProspect() call (R-14/R-15/R-17)', async () => {
+  it('migration 0044: total/band/observed_share are nullable — the qualitative model has no numeric value for them', async () => {
+    const { db } = suite.require();
+    const { rows } = await db.client.query(
+      `SELECT column_name, is_nullable FROM information_schema.columns
+        WHERE table_name = 'opportunity_scores' AND column_name IN ('total', 'band', 'observed_share')`,
+    );
+    const byColumn = Object.fromEntries(
+      (rows as { column_name: string; is_nullable: string }[]).map((r) => [r.column_name, r.is_nullable]),
+    );
+    expect(byColumn.total).toBe('YES');
+    expect(byColumn.band).toBe('YES');
+    expect(byColumn.observed_share).toBe('YES');
+  });
+
+  // The three tests below were added in response to a review that
+  // believed the qualitative ranking path writes STRONG/MODERATE/WEAK/
+  // UNKNOWN into `band`, which would violate band's original
+  // CHECK (band IN ('HIGH','MEDIUM','LOW')) — migration 0044 left that
+  // CHECK untouched. It does not, in fact, write there: scorePgRepository.ts's
+  // upsert() sets `band = NULL` unconditionally and puts the
+  // UniversalRankingProfile in `factors` (JSONB, no CHECK) instead. These
+  // tests prove that directly against the real column/constraint, not
+  // just through the application type.
+
+  it('the qualitative ranking path writes band = NULL at the database level, never a tier string', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
     const { prospectId } = await createProspect(base, a.token);
-    const rd = researchDeps(base, matchingResearch());
+    const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
+
+    await scoreOpportunity(opportunityScoreDeps(base), a.token, opportunity.id);
+
+    const { db } = suite.require();
+    const { rows } = await db.client.query(
+      `SELECT band FROM opportunity_scores WHERE opportunity_id = $1`,
+      [opportunity.id],
+    );
+    expect((rows[0] as { band: string | null }).band).toBeNull();
+  });
+
+  it("band's original CHECK is untouched: a historical HIGH/MEDIUM/LOW value still inserts, and an invalid value is still rejected", async () => {
+    const a = await createUserAndSession('a');
+    const base = repos();
+    const { prospectId: p1 } = await createProspect(base, a.token);
+    const historical = await createOpportunity(opportunityDeps(base), a.token, { prospectId: p1 });
+
+    const { db } = suite.require();
+
+    for (const value of ['HIGH', 'MEDIUM', 'LOW']) {
+      await db.client.query(
+        `INSERT INTO opportunity_scores
+           (id, opportunity_id, total, band, factors, observed_share, scorer_version, scored_at)
+         VALUES (gen_random_uuid()::text, $1, 50, $2, '{}'::jsonb, 0.5, 'legacy-check', now())
+         ON CONFLICT (opportunity_id) DO UPDATE SET band = EXCLUDED.band, total = EXCLUDED.total`,
+        [historical.id, value],
+      );
+      const { rows } = await db.client.query(
+        `SELECT band FROM opportunity_scores WHERE opportunity_id = $1`,
+        [historical.id],
+      );
+      expect((rows[0] as { band: string }).band).toBe(value);
+    }
+
+    await expect(
+      db.client.query(
+        `UPDATE opportunity_scores SET band = 'NOT_A_REAL_BAND' WHERE opportunity_id = $1`,
+        [historical.id],
+      ),
+    ).rejects.toThrow(/opportunity_scores_band_check/);
+
+    // STRONG/MODERATE/WEAK/UNKNOWN are the application's tier vocabulary
+    // for the `factors` JSONB column, never values the `band` CHECK is
+    // asked to accept — confirmed rejected here, by design, not a bug.
+    await expect(
+      db.client.query(`UPDATE opportunity_scores SET band = 'STRONG' WHERE opportunity_id = $1`, [
+        historical.id,
+      ]),
+    ).rejects.toThrow(/opportunity_scores_band_check/);
+  });
+
+  // Regression coverage for the Review-button 500 (real production
+  // incident): a row written before migration 0044 by the decommissioned
+  // numeric scorer ('prospectScore-v1') still physically holds the old
+  // seven-factor array in `factors` — never the new per-dimension
+  // UniversalRankingProfile. scorePgRepository.ts's mapRow() must not
+  // reinterpret that array as a ranking profile (which previously made
+  // Object.entries(score.ranking) yield raw FactorScore objects as
+  // "tiers", crashing the opportunity detail page's React render).
+  it('a legacy prospectScore-v1 row never exposes its old seven-factor array as a UniversalRankingProfile — ranking comes back null', async () => {
+    const a = await createUserAndSession('a');
+    const base = repos();
+    const { prospectId } = await createProspect(base, a.token);
+    const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
+
+    const { db } = suite.require();
+    const legacyFactors = [
+      { raw: 0, basis: 'UNKNOWN', factor: 'icpFit', points: 0, reason: 'Not established: no ICP attributes could be determined', weight: 20 },
+      { raw: 0.85, basis: 'OBSERVED', factor: 'visibleProblem', points: 17, reason: 'Observed: hiring a content writer', weight: 20 },
+    ];
+    const legacyReasons = ['Observed: hiring a content writer (+17)', 'Not established: no ICP attributes could be determined (no contribution)'];
+    await db.client.query(
+      `INSERT INTO opportunity_scores
+         (id, opportunity_id, total, band, factors, reasons, observed_share, cap, scorer_version, scored_at)
+       VALUES (gen_random_uuid()::text, $1, 27, 'LOW', $2::jsonb, $3, 1, NULL, 'prospectScore-v1', now())
+       ON CONFLICT (opportunity_id) DO UPDATE SET
+         total = EXCLUDED.total, band = EXCLUDED.band, factors = EXCLUDED.factors,
+         reasons = EXCLUDED.reasons, observed_share = EXCLUDED.observed_share, scorer_version = EXCLUDED.scorer_version`,
+      [opportunity.id, JSON.stringify(legacyFactors), legacyReasons],
+    );
+
+    const result = await getOpportunityScore(opportunityScoreDeps(base), a.token, opportunity.id);
+
+    expect(result).not.toBeNull();
+    expect(result!.ranking).toBeNull();
+    // The reasons column is already correctly formatted text for both
+    // legacy and current rows — unaffected by the ranking fix.
+    expect(result!.reasons).toEqual(legacyReasons);
+    expect(result!.rankerVersion).toBe('prospectScore-v1');
+  });
+
+  it('a current universalRanking-v1 row still exposes its real ranking profile unchanged', async () => {
+    const a = await createUserAndSession('a');
+    const base = repos();
+    const { prospectId } = await createProspect(base, a.token);
+    const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
+
+    await scoreOpportunity(opportunityScoreDeps(base), a.token, opportunity.id);
+
+    const result = await getOpportunityScore(opportunityScoreDeps(base), a.token, opportunity.id);
+
+    expect(result).not.toBeNull();
+    expect(result!.rankerVersion).toBe(SCORER_VERSION);
+    expect(result!.ranking).not.toBeNull();
+    // A real profile — every dimension present, each a valid tier, never
+    // the array shape the legacy test above proves is rejected.
+    expect(Object.keys(result!.ranking!).sort()).toEqual(
+      ['commercialReadiness', 'contactability', 'currentActivity', 'evidenceFreshness', 'evidenceQuality', 'needOpportunity', 'serviceFit'].sort(),
+    );
+  });
+});
+
+describe('scoreOpportunity', () => {
+  it('persists a qualitative ranking profile, matching a direct expectedRanking() derivation, never a number (R-14/R-15/R-17, Phase 3)', async () => {
+    const a = await createUserAndSession('a');
+    const base = repos();
+    const { prospectId } = await createProspect(base, a.token);
+    // K5-D1: a NEW search requires credible, corroborated evidence —
+    // matchingResearch()'s single weak signal no longer establishes
+    // NEED_DETECTED, so opportunity.offer would be undefined.
+    const rd = researchDeps(base, credibleNeedResearch());
     await runResearch(rd, a.token, { prospectId });
 
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
@@ -304,36 +543,24 @@ describe('scoreOpportunity', () => {
     const stored = await scoreOpportunity(opportunityScoreDeps(base), a.token, opportunity.id, now);
 
     const storedSignals = await base.signals.listByProspect(a.userId, prospectId);
-    const expected = scoreProspect(
-      expectedInput(storedSignals, {
-        fit: opportunity.offer!.fit,
-        service: opportunity.offer!.service,
-      }),
-      now,
-    );
+    const expected = expectedRanking(storedSignals, { fit: opportunity.offer!.fit }, now);
 
     expect(stored.opportunityId).toBe(opportunity.id);
-    expect(stored.total).toBe(expected.score);
-    expect(stored.band).toBe(expected.band);
-    expect(stored.factors).toHaveLength(7);
-    expect(stored.factors).toEqual(expected.factors);
-    expect(stored.reasons).toEqual(expected.reasons);
-    expect(stored.observedShare).toBe(expected.observedShare);
-    expect(stored.cap).toEqual(expected.cap);
-    expect(stored.scorerVersion).toBe(SCORER_VERSION);
+    expect(stored.ranking).toEqual(expected);
+    expect(stored.ranking!.serviceFit).not.toBe('UNKNOWN');
+    expect(stored.reasons.length).toBeGreaterThan(0);
+    expect(stored.rankerVersion).toBe(SCORER_VERSION);
     expect(stored.scoredAt).toEqual(now);
 
-    const serviceFit = stored.factors.find((f) => f.factor === 'serviceFit')!;
-    expect(serviceFit.basis).toBe('OBSERVED');
-    expect(serviceFit.raw).toBeCloseTo(opportunity.offer!.fit / 100, 5);
+    expect(stored).not.toHaveProperty('total');
+    expect(stored).not.toHaveProperty('band');
+    expect(stored).not.toHaveProperty('observedShare');
 
-    const byFactor = Object.fromEntries(stored.factors.map((f) => [f.factor, f]));
-    expect(byFactor.icpFit!.basis).toBe('UNKNOWN');
-    expect(byFactor.abilityToPay!.basis).toBe('UNKNOWN');
-    expect(byFactor.urgency!.basis).toBe('UNKNOWN');
+    expect(stored.ranking!.needOpportunity).toBe('UNKNOWN');
+    expect(stored.ranking!.contactability).toBe('UNKNOWN');
   });
 
-  it('AC-14: an Opportunity with NO SUITABLE OFFER scores serviceFit as UNKNOWN, never a fabricated offer', async () => {
+  it('AC-14: an Opportunity with NO SUITABLE OFFER ranks Service Fit as UNKNOWN, never a fabricated fit', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
     const { prospectId } = await createProspect(base, a.token);
@@ -344,14 +571,11 @@ describe('scoreOpportunity', () => {
     expect(opportunity.offer).toBeUndefined();
 
     const stored = await scoreOpportunity(opportunityScoreDeps(base), a.token, opportunity.id);
-    const serviceFit = stored.factors.find((f) => f.factor === 'serviceFit')!;
 
-    expect(serviceFit.basis).toBe('UNKNOWN');
-    expect(serviceFit.raw).toBe(0);
-    expect(serviceFit.points).toBe(0);
+    expect(stored.ranking!.serviceFit).toBe('UNKNOWN');
   });
 
-  it('is deterministic — the same Opportunity scored twice with the same signals produces an identical score', async () => {
+  it('is deterministic — the same Opportunity scored twice with the same signals produces an identical ranking', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
     const { prospectId } = await createProspect(base, a.token);
@@ -363,9 +587,7 @@ describe('scoreOpportunity', () => {
     const first = await scoreOpportunity(opportunityScoreDeps(base), a.token, opportunity.id, now);
     const second = await scoreOpportunity(opportunityScoreDeps(base), a.token, opportunity.id, now);
 
-    expect(second.total).toBe(first.total);
-    expect(second.band).toBe(first.band);
-    expect(second.factors).toEqual(first.factors);
+    expect(second.ranking).toEqual(first.ranking);
   });
 
   it('re-scoring replaces the current row — UNIQUE(opportunity_id), never a second row', async () => {

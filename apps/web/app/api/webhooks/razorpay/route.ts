@@ -3,8 +3,11 @@ import { NextResponse } from 'next/server';
 import { loadEnv } from '@acos/config';
 import { handleRazorpayWebhook, verifyRazorpayWebhook } from '@acos/core-payments';
 import { createClaimEmailSender, issueClaimLink } from '@acos/core-entitlements';
+import { createActivationEmailSender } from '@acos/core-identity';
 import { buildPurchaseEventId } from '@acos/core-capi';
 
+import { maybeIssueClientFinderActivationLink } from '../../../../src/server/activationService';
+import { clientFinderRepositories } from '../../../../src/server/clientFinderRepositories';
 import { commerceRepositories } from '../../../../src/server/commerceRepositories';
 import { recordWebhookRejection, webhookTransaction } from '../../../../src/server/webhookStore';
 
@@ -135,6 +138,47 @@ export async function POST(request: Request) {
         );
       } catch (cause) {
         console.error('Failed to issue/send DEC-014 claim link after webhook grant:', cause);
+      }
+    }
+
+    // AUTH Phase 2: a freshly created ₹1,499 subscription_periods row
+    // gets an activation link emailed — the subscription-path mirror of
+    // the DEC-014 block above, added by this phase for exactly this one
+    // call site (design §4 step 6 / §17 Phase 6). `grantedSubscriptionPeriod`
+    // is only set once per genuinely new period row (webhookHandler.ts),
+    // so a retried delivery cannot double-send. Email is read live from
+    // `users.email` by `user_id` — never cached, never the Razorpay
+    // payload — matching design §5/§6's identity-binding rule. Same
+    // deliberately-non-fatal, outside-the-DB-transaction treatment as
+    // the claim-link block above: the subscription period is already
+    // committed, and a mail-provider outage must not turn into a 500
+    // Razorpay retries.
+    if (outcome.status === 'processed' && outcome.grantedSubscriptionPeriod) {
+      try {
+        const { identity, subscriptionPeriods } = clientFinderRepositories();
+        const { userId } = outcome.grantedSubscriptionPeriod;
+        const user = await identity.findUserById(userId);
+        if (user) {
+          const sender = createActivationEmailSender({
+            provider: config.EMAIL_PROVIDER,
+            nodeEnv: config.NODE_ENV,
+            gmailDev:
+              config.GMAIL_DEV_USER && config.GMAIL_DEV_APP_PASSWORD
+                ? { user: config.GMAIL_DEV_USER, appPassword: config.GMAIL_DEV_APP_PASSWORD }
+                : undefined,
+            resend:
+              config.RESEND_API_KEY && config.RESEND_FROM_EMAIL
+                ? { apiKey: config.RESEND_API_KEY, fromEmail: config.RESEND_FROM_EMAIL }
+                : undefined,
+          });
+          await maybeIssueClientFinderActivationLink(
+            { identity, subscriptionPeriods },
+            sender,
+            { userId: user.id, email: user.email, baseUrl: config.APP_BASE_URL },
+          );
+        }
+      } catch (cause) {
+        console.error('Failed to issue/send AUTH Phase 2 activation link after webhook grant:', cause);
       }
     }
 

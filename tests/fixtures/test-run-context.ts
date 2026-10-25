@@ -32,6 +32,7 @@ export interface TestRunIds {
   paymentIds: string[];
   webhookEventIds: string[];
   metaEventIds: string[];
+  searchIds: string[];
 }
 
 /**
@@ -58,7 +59,18 @@ export interface TestRunIds {
  * before orders, since refund_events references orders ON DELETE
  * RESTRICT (migration 0034, B-6).
  */
+/**
+ * `searches` (migration 0014) is unrelated to the payments domain below —
+ * added so Client Finder suites can scope cleanup of PENDING Search rows
+ * between tests. Safe to delete directly: every table that references
+ * searches.id (prospects, category_plausibility_determinations,
+ * target_customer_match_determinations) does so ON DELETE CASCADE, so
+ * there is no RESTRICT to order around. Placed first, ahead of the
+ * payments tables, so `orders` (last, by ON DELETE RESTRICT) stays last —
+ * no FK crosses the two domains either way.
+ */
 export const CLEANUP_ORDER = [
+  'searches',
   'meta_events',
   'webhook_events',
   'refund_events',
@@ -88,6 +100,7 @@ export interface TestRunContext extends TestRunIds {
   trackPayment(id: string): string;
   trackWebhookEvent(id: string): string;
   trackMetaEvent(id: string): string;
+  trackSearch(id: string): string;
   /** Every id this run created, newest table first. */
   idsFor(table: CleanupTable): string[];
   totalTracked(): number;
@@ -114,6 +127,7 @@ export function createTestRunContext(seed?: string): TestRunContext {
   const paymentIds: string[] = [];
   const webhookEventIds: string[] = [];
   const metaEventIds: string[] = [];
+  const searchIds: string[] = [];
 
   const track = (bucket: string[]) => (id: string) => {
     if (!id.includes(runId)) {
@@ -125,17 +139,29 @@ export function createTestRunContext(seed?: string): TestRunContext {
     return id;
   };
 
+  // Search ids are minted by @acos/core-search itself (crypto.randomUUID()
+  // inside the repository), never constructed via this context's id() —
+  // unlike orders/payments/etc., a test has no way to pre-tag one with
+  // runId. The caller supplies the id *after* creation instead, so the
+  // only invariant left to enforce is "don't double-track."
+  const trackUntagged = (bucket: string[]) => (id: string) => {
+    if (!bucket.includes(id)) bucket.push(id);
+    return id;
+  };
+
   return {
     runId,
     orderIds,
     paymentIds,
     webhookEventIds,
     metaEventIds,
+    searchIds,
     id: (prefix, suffix) => `${prefix}_${runId}_${suffix}`,
     trackOrder: track(orderIds),
     trackPayment: track(paymentIds),
     trackWebhookEvent: track(webhookEventIds),
     trackMetaEvent: track(metaEventIds),
+    trackSearch: trackUntagged(searchIds),
     idsFor(table) {
       switch (table) {
         case 'entitlements':
@@ -154,10 +180,16 @@ export function createTestRunContext(seed?: string): TestRunContext {
           return paymentIds;
         case 'orders':
           return orderIds;
+        case 'searches':
+          return searchIds;
       }
     },
     totalTracked: () =>
-      orderIds.length + paymentIds.length + webhookEventIds.length + metaEventIds.length,
+      orderIds.length +
+      paymentIds.length +
+      webhookEventIds.length +
+      metaEventIds.length +
+      searchIds.length,
   };
 }
 
@@ -181,6 +213,7 @@ export async function cleanupTestRun(
     payments: [],
     entitlements: [],
     orders: [],
+    searches: [],
   };
 
   for (const table of CLEANUP_ORDER) {
@@ -264,5 +297,6 @@ function emptyCounts(): Record<CleanupTable, number> {
     payments: 0,
     entitlements: 0,
     orders: 0,
+    searches: 0,
   };
 }

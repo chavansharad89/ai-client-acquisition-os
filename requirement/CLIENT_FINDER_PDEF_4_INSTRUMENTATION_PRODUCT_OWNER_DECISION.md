@@ -33,7 +33,9 @@ Checked against PDEF-2, PDEF-3, PDEF-4, and entitlement stacking as carried forw
 record's §4. **No conflict found; nothing below alters any of the following:**
 
 - PDEF-2 / entitlement stacking: both-tier availability, independent purchase, ₹499 = Basic, ₹1,499 = Advanced,
-  separate 50/300 credit buckets, cumulative/coexisting entitlements, lifecycle mechanics out of MVP.
+  separate 50/300 credit buckets (**₹1,499's 300-credit figure is superseded — see
+  `CLIENT_FINDER_1499_SUBSCRIPTION_ACCESS_MODEL_PO_DECISION.md`; ₹499's 50-credit figure is unaffected**),
+  cumulative/coexisting entitlements, lifecycle mechanics out of MVP.
 - PDEF-3: PCG thresholds (1:500, 2:≥50, 3A:≥10%, 3B:≥5%, 4:≥60%, 5:≤8%), rolling-30-day default, Client-Finder-
   specific population, combined-primary measurement with per-tier diagnostics, the verbatim "qualified visitor"
   and "useful outcome" definitions.

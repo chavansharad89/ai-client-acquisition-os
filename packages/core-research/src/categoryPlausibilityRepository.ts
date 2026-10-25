@@ -61,6 +61,29 @@ export interface CategoryPlausibilityRepository {
     userId: string,
     prospectId: string,
   ): Promise<StoredCategoryPlausibilityDetermination | null>;
+
+  /**
+   * CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001: whether
+   * Path 2 category-plausibility evaluation is APPLICABLE for the
+   * CURRENT Search backing this Prospect — i.e. whether that Search's
+   * immutable target-customer snapshot parses, via
+   * ./categoryPlausibility.ts's `parseTargetSegments()`, to at least one
+   * segment (the exact same condition ./service.ts's runResearchForOwner
+   * already gates the Path 2 write on). `false` is exactly the signature
+   * of CF-SEARCH-INPUT-SERVICE-GEOGRAPHY-ONLY-PO-DEC-002 D2's deliberate
+   * target-customer sentinel, which always parses to zero segments —
+   * distinct from a historical Search whose real target customer parses
+   * to >=1 segment but simply has no determination (yet, or ever): that
+   * case remains `true` here, so Qualification continues to treat a
+   * missing determination as UNKNOWN for it, unchanged. Resolved through
+   * Prospect ownership, the same as getCurrentByProspectId() — never a
+   * caller-supplied searchId, and no new searches/prospects dependency
+   * for a caller (Qualification) that already holds a `prospectId`.
+   */
+  isCategoryPlausibilityApplicableForProspectId(
+    userId: string,
+    prospectId: string,
+  ): Promise<boolean>;
 }
 
 // A11-P1 M-2 source capture (requirement/

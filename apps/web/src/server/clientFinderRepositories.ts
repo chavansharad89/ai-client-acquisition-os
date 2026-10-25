@@ -1,5 +1,5 @@
 import { createPgAiUsageEventRepository } from '@acos/core-ai-usage';
-import { createPgCompanyRepository, createPgProspectRepository } from '@acos/core-discovery';
+import { createPgCompanyRepository, createPgEntityRepository, createPgProspectRepository } from '@acos/core-discovery';
 import { createPgFollowUpPreparationRepository } from '@acos/core-followup-preparation';
 import { createPgIdentityRepository } from '@acos/core-identity';
 import { createPgFeedbackRepository, createPgOpportunityRepository, createPgOpportunityScoreRepository } from '@acos/core-opportunity';
@@ -25,6 +25,7 @@ export function clientFinderRepositories() {
     profiles: createPgServiceProfileRepository(sql),
     searches: createPgSearchRepository(sql),
     companies: createPgCompanyRepository(sql),
+    entities: createPgEntityRepository(sql),
     prospects: createPgProspectRepository(sql),
     signals: createPgResearchSignalRepository(sql),
     categoryPlausibility: createPgCategoryPlausibilityRepository(sql),

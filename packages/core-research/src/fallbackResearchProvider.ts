@@ -79,18 +79,33 @@ export function createFallbackResearchProvider(deps: FallbackResearchProviderDep
 
   return {
     async research(input: ResearchProviderInput) {
-      const sourceDocuments = await deps.sourceDocuments.fetchSourceDocuments({
-        companyName: input.companyName,
-        normalizedDomain: input.normalizedDomain,
-      });
+      // PO-4 (Phase 5): reuse the pre-admission fetch when supplied,
+      // instead of fetching the same homepage a second time. A provider
+      // that predates this field, or a caller that omits it, fetches
+      // exactly as before.
+      // Global Entity Architecture (C-1; Q5_CLOSURE §4.3): a website-less
+      // candidate (input.normalizedDomain === null) has no homepage to
+      // fetch, structurally — never construct `https://${null}`.
+      const supplied = input.suppliedSourceDocuments;
+      const sourceDocuments = supplied
+        ? supplied.documents
+        : input.normalizedDomain
+          ? await deps.sourceDocuments.fetchSourceDocuments({
+              companyName: input.companyName,
+              normalizedDomain: input.normalizedDomain,
+            })
+          : [];
 
       if (sourceDocuments.length === 0) {
         throw new InsufficientEvidenceError(input.companyName, input.normalizedDomain);
       }
-      const fetchedAt = new Date();
+      const fetchedAt = supplied?.fetchedAt ?? new Date();
+      const extractionMethod = supplied?.extractionMethod ?? deps.sourceDocuments.extractionMethod ?? 'UNDECLARED';
 
       // Fetched and built exactly once — reused, unchanged, by every
       // attempt in the chain (§6/§7 of the technical spike).
+      // input.normalizedDomain is guaranteed non-null here — see the
+      // same reasoning in anthropicResearchProvider.ts.
       const researchInput: ResearchInput = {
         companyName: input.companyName,
         websiteUrl: `https://${input.normalizedDomain}`,
@@ -116,7 +131,7 @@ export function createFallbackResearchProvider(deps: FallbackResearchProviderDep
               await input.onSourceDocumentsSupplied?.({
                 documents,
                 fetchedAt,
-                extractionMethod: deps.sourceDocuments.extractionMethod ?? 'UNDECLARED',
+                extractionMethod,
               });
             },
           });

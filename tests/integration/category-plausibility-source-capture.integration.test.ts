@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   type DiscoveryDeps,
@@ -23,9 +24,11 @@ import {
   transitionSearch,
   type SearchDeps,
 } from '@acos/core-search';
-import { createPgServiceProfileRepository, createServiceProfile } from '@acos/core-service-profile';
+import { createPgServiceProfileRepository } from '@acos/core-service-profile';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
+import { createHistoricalServiceProfile } from './support/historicalServiceProfile';
 import { suiteDatabase } from './support/suiteDb';
 
 // A11-P1 M-2 source capture — real PostgreSQL (migration 0028).
@@ -38,10 +41,17 @@ import { suiteDatabase } from './support/suiteDb';
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('source_capture');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 const FETCHED_AT = new Date('2026-09-26T10:00:00.000Z');
 const SUPPLIED = [
@@ -87,6 +97,7 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     signals: createPgResearchSignalRepository(db.client),
     categoryPlausibility: createPgCategoryPlausibilityRepository(db.client),
   };
@@ -107,12 +118,22 @@ async function researchedDetermination(token: string, userId: string) {
     ...base,
     provider: {
       async discover() {
-        return [{ name: 'Acme Co', website: 'https://acme.example.com' }];
+        return {
+          candidates: [{ name: 'Acme Co', website: 'https://acme.example.com' }],
+          actualQuery: 'test query',
+          provider: 'TEST_PROVIDER',
+        };
       },
     },
   };
-  const profile = await createServiceProfile(d, token, {
-    service: 'Website development',
+  // K5-D2: this suite needs a real, non-sentinel targetCustomer so
+  // category-plausibility determination-writing (gated on
+  // parseTargetSegments(targetCustomer).length > 0) actually runs —
+  // createServiceProfile() can no longer supply one for a NEW search,
+  // so this historical-style construction is used instead. See
+  // ./support/historicalServiceProfile.ts.
+  const profile = await createHistoricalServiceProfile(d.profiles, userId, {
+    service: 'Web & Software Development',
     targetCustomer: 'Restaurants; Cafes',
     geography: 'Mumbai',
     minProjectValuePaise: 3_000_000,

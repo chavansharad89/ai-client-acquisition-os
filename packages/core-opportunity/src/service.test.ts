@@ -1,8 +1,11 @@
 import {
-  rankProspects,
-  scoreProspect,
-  type ProspectInput,
-  type ProspectScore,
+  BAND_THRESHOLDS,
+  rankByUniversalProfile,
+  SIGNAL_FRESH_DAYS,
+  SIGNAL_MAX_AGE_DAYS,
+  unknownRankingProfile,
+  type ResearchSignal,
+  type UniversalRankingProfile,
 } from '@acos/core-acquisition';
 import type { CompanyRepository, ProspectRepository, StoredCompany, StoredProspect } from '@acos/core-discovery';
 import { hashAccessToken } from '@acos/core-entitlements';
@@ -12,12 +15,13 @@ import {
   type StoredSessionToken,
 } from '@acos/core-identity';
 import {
+  DETERMINISTIC_ABSENT_SSL_FIELD,
   toScoringSignals,
   type ResearchSignalRepository,
   type StoredResearchSignal,
 } from '@acos/core-research';
 import type { SearchRepository, StoredSearch } from '@acos/core-search';
-import type { ServiceProfileFields } from '@acos/core-service-profile';
+import { SYSTEM_DEFAULT_TARGET_CUSTOMER, type ServiceProfileFields } from '@acos/core-service-profile';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -34,6 +38,7 @@ import {
   getOpportunityScore,
   getOpportunityTrackingSummary,
   rankOpportunities,
+  recordAiEnrichmentForOwner,
   recordFeedback,
   scoreOpportunity,
   SCORER_VERSION,
@@ -61,10 +66,40 @@ function fakeIdentity(sessions: Record<string, StoredSessionToken>): IdentityRep
     async findUserByEmail() {
       throw new Error('not used by these tests');
     },
+    async findUserById() {
+      throw new Error('not used by these tests');
+    },
+    async findCredentialsByEmail() {
+      throw new Error('not used by these tests');
+    },
     async findSessionToken(tokenHash: string) {
       return sessions[tokenHash] ?? null;
     },
     async saveSessionToken() {
+      throw new Error('not used by these tests');
+    },
+    async revokeSessionToken() {
+      throw new Error('not used by these tests');
+    },
+    async findOrCreateUser() {
+      throw new Error('not used by these tests');
+    },
+    async findUserAuthStateById() {
+      throw new Error('not used by these tests');
+    },
+    async saveActivationToken() {
+      throw new Error('not used by these tests');
+    },
+    async findActivationToken() {
+      throw new Error('not used by these tests');
+    },
+    async consumeActivationToken() {
+      throw new Error('not used by these tests');
+    },
+    async setEmailVerified() {
+      throw new Error('not used by these tests');
+    },
+    async completeAccountSetup() {
       throw new Error('not used by these tests');
     },
   };
@@ -119,6 +154,7 @@ function fakeCompanyRepository(seed: StoredCompany[] = []): CompanyRepository {
         userId,
         name: `Company ${id}`,
         normalizedDomain: `${id}.test`,
+        entityId: null,
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
       };
     },
@@ -154,6 +190,9 @@ function fakeSearchRepository(seed: StoredSearch[] = []): SearchRepository {
       throw new Error('not used by these tests');
     },
     async recordAttemptFailure() {
+      throw new Error('not used by these tests');
+    },
+    async consumeAiEscalationUnit() {
       throw new Error('not used by these tests');
     },
   };
@@ -214,6 +253,8 @@ function seedSearch(overrides: Partial<StoredSearch> = {}): StoredSearch {
     idempotencyKey: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    completedAt: null,
+    aiEscalationUnitsConsumed: 0,
     ...overrides,
   };
 }
@@ -290,6 +331,39 @@ describe('createOpportunity', () => {
     expect(opportunity.offer).toBeUndefined();
   });
 
+  // ---- K5-D1 (Need/Opportunity evidence sufficiency) --------------------
+  // requirement/CLIENT_FINDER_PHASE_K5_PO_DECISION_PREPARATION.md, K5-D1
+  // (Option C): the gate in createOpportunityForOwner applies only to a
+  // NEW Service+Geography-only search (a system-owned sentinel
+  // targetCustomer); a historical search (a real targetCustomer) keeps
+  // its pre-K5 behavior unchanged. Both tests below use the IDENTICAL
+  // single, OBSERVED, keyword-matching signal — only the Search's own
+  // targetCustomer differs.
+
+  it('10a. historical behavior remains unchanged: a historical search (real targetCustomer) still detects need from a single matching signal, exactly as before K5-D1', async () => {
+    const d = deps(
+      [seedProspect()],
+      [seedSearch({ parameters: serviceProfileFields({ targetCustomer: 'Restaurants' }) })],
+      [matchingSignal()],
+    );
+
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+    expect(opportunity.needDetected).toBe(true);
+  });
+
+  it('10b. K5-D1 engages only for a NEW search: the identical single matching signal is NOT sufficient once targetCustomer is the system-owned sentinel', async () => {
+    const d = deps(
+      [seedProspect()],
+      [seedSearch({ parameters: serviceProfileFields({ targetCustomer: SYSTEM_DEFAULT_TARGET_CUSTOMER }) })],
+      [matchingSignal()],
+    );
+
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+    expect(opportunity.needDetected).toBe(false);
+  });
+
   it('a Prospect with only non-matching signals also records NO SUITABLE OFFER', async () => {
     const d = deps(
       [seedProspect()],
@@ -342,6 +416,7 @@ describe('createOpportunity', () => {
           userId: 'user_a',
           name: 'Meridian Fitness Club',
           normalizedDomain: 'meridian.test',
+          entityId: null,
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
         },
       ]);
@@ -360,6 +435,7 @@ describe('createOpportunity', () => {
           userId: 'user_a',
           name: 'Meridian Fitness Club',
           normalizedDomain: 'meridian.test',
+          entityId: null,
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
         },
       ]);
@@ -393,6 +469,103 @@ describe('createOpportunity', () => {
       const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
 
       expect(opportunity.needDetected).toBe(true);
+    });
+  });
+
+  // ---- Zero-AI deterministic offer path (C-3B conformance) --------------
+  // The Phase 1 deterministic absent-SSL signal (DETERMINISTIC_ABSENT_SSL_
+  // FIELD, kind WEBSITE) already reached ./adapters' R-70/R-71-filtered
+  // offerSignals, and buildRankingProfile()'s needOpportunityTier() already
+  // recognized it for ranking — but no ServiceRule's keywords ever
+  // contained vocabulary matching its fixed text, so suggestOffers() could
+  // never produce a `top` offer from it alone, and a zero-AI (deterministic
+  // -only) search could never reach needDetected=true. These tests prove
+  // the fix (service.ts's `deterministicRule`) without touching K5-D1,
+  // R-70, R-71, or Universal Ranking.
+  describe('zero-AI deterministic offer path (C-3B conformance)', () => {
+    function absentSslSignal(overrides: Partial<StoredResearchSignal> = {}): StoredResearchSignal {
+      return matchingSignal({
+        field: DETERMINISTIC_ABSENT_SSL_FIELD,
+        kind: 'WEBSITE',
+        classification: 'OBSERVED',
+        signal: 'Website served over HTTP without TLS (no SSL): http://example.test',
+        confidence: 100,
+        ...overrides,
+      });
+    }
+
+    it('a lone deterministic absent-SSL signal — no AI-sourced evidence at all — establishes a credible need for a historical-style search', async () => {
+      const d = deps([seedProspect()], [seedSearch()], [absentSslSignal()]);
+
+      const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+      expect(opportunity.needDetected).toBe(true);
+      expect(opportunity.offer?.basedOn).toEqual([
+        'Website served over HTTP without TLS (no SSL): http://example.test',
+      ]);
+    });
+
+    it('K5-D1 remains intact: the identical lone deterministic signal enters the offer path (top is defined) but is NOT sufficient for a NEW Service+Geography-only search — a single field never satisfies hasCredibleNeedEvidence()', async () => {
+      const d = deps(
+        [seedProspect()],
+        [seedSearch({ parameters: serviceProfileFields({ targetCustomer: SYSTEM_DEFAULT_TARGET_CUSTOMER }) })],
+        [absentSslSignal()],
+      );
+
+      const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+      expect(opportunity.offer).toBeDefined(); // suggestOffers() now matches — necessary condition met
+      expect(opportunity.needDetected).toBe(false); // K5-D1's >=2-distinct-field bar is unchanged
+    });
+
+    it('weak/status-only evidence does not manufacture a need: a GOOGLE_PLACES_STATUS signal is never matched by the deterministic rule, even if its text happens to contain the matching keyword', async () => {
+      const d = deps(
+        [seedProspect()],
+        [seedSearch()],
+        [
+          matchingSignal({
+            field: 'deterministic.placesClosedPermanently',
+            kind: 'GOOGLE_PLACES_STATUS',
+            classification: 'OBSERVED',
+            signal: 'Google Places reports this business as permanently closed — no ssl mentioned incidentally',
+            confidence: 100,
+          }),
+        ],
+      );
+
+      const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+      expect(opportunity.offer).toBeUndefined();
+      expect(opportunity.needDetected).toBe(false);
+    });
+
+    it('R-70/R-71 remain intact: the identical absent-SSL text in a topical field (companySummary) still does not establish a need', async () => {
+      const d = deps(
+        [seedProspect()],
+        [seedSearch()],
+        [absentSslSignal({ field: 'companySummary' })],
+      );
+
+      const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+      expect(opportunity.offer).toBeUndefined();
+      expect(opportunity.needDetected).toBe(false);
+    });
+
+    it('AI-present behavior is unchanged: an AI-sourced matching signal with no deterministic signal present detects a need exactly as before this fix', async () => {
+      const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+
+      const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+      expect(opportunity.needDetected).toBe(true);
+      expect(opportunity.offer).toEqual({
+        service: 'AI content system',
+        rationale:
+          'They are hiring for content (hiring a content writer) — a system delivers it without a headcount.',
+        estimatedValuePaise: 3_000_000,
+        fit: 88,
+        basedOn: ['hiring a content writer'],
+      });
     });
   });
 
@@ -447,116 +620,152 @@ describe('createOpportunity', () => {
   });
 });
 
-// ---- Phase 10: scoreOpportunity / getOpportunityScore -------------------
+// ---- Phase 10/Phase 3: scoreOpportunity / getOpportunityScore -----------
 // Mirrors tests/integration/opportunity-score.integration.test.ts's
 // real-Postgres proof of the same ownership boundary and migration
-// 0018 schema.
+// 0018/0044 schema. Since Phase 3 (deterministic architecture plan),
+// scoreOpportunity() persists a qualitative UniversalRankingProfile
+// instead of the legacy seven-factor numeric score.
 
 const NOW = new Date('2026-07-01T09:00:00.000Z');
 
 /**
- * Builds the exact ProspectInput scoreOpportunity() is documented to
- * construct (see service.ts's neutralScoringInputs()/
- * serviceFitFromOffer()), so tests can verify the wiring produces
- * precisely what a direct scoreProspect() call would — without
- * re-deriving prospectScore.ts's own arithmetic (covered by that
- * package's own prospectScore.test.ts) and without inventing any new
- * detection logic of its own.
+ * Mirrors service.ts's own private evidenceQualityTier()/
+ * evidenceFreshnessTier()/serviceFitTier()/buildRankingProfile() exactly
+ * — the same technique the pre-Phase-3 version of this test file used
+ * for the old scorer's neutralScoringInputs()/serviceFitFromOffer() — so
+ * tests verify the wiring (ownership, persistence, idempotency) without
+ * re-deriving tier arithmetic the unit tests below already cover once.
  */
-function expectedInput(
-  storedSignals: StoredResearchSignal[],
-  offer?: { fit: number; service: string },
-): ProspectInput {
+function expectedRanking(
+  storedSignals: readonly StoredResearchSignal[],
+  offer?: { fit: number },
+  now: Date = NOW,
+): UniversalRankingProfile {
   const { signals } = toScoringSignals(storedSignals);
-  return {
-    signals,
-    icp: {
-      industryMatch: { value: null, basis: 'UNKNOWN' },
-      sizeMatch: { value: null, basis: 'UNKNOWN' },
-      geoMatch: { value: null, basis: 'UNKNOWN' },
-    },
-    abilityToPay: { value: null, basis: 'UNKNOWN' },
-    urgency: { value: null, basis: 'UNKNOWN' },
-    serviceFit: offer
-      ? {
-          value: offer.fit,
-          basis: 'OBSERVED',
-          note: `service fit ${offer.fit}/100 (recommended offer: ${offer.service})`,
-        }
-      : { value: null, basis: 'UNKNOWN' },
-    contact: { hasEmail: false, hasLinkedIn: false, hasPhone: false, unsubscribed: false },
-  };
+  const live = (signals as ResearchSignal[]).filter((s) => !s.supersededAt);
+
+  const wellSourced = live.filter((s) => s.confidence >= 70).length;
+  const evidenceQuality =
+    live.length === 0 ? 'UNKNOWN' : wellSourced >= 3 ? 'STRONG' : wellSourced === 2 ? 'MODERATE' : 'WEAK';
+
+  const newestAgeDays =
+    live.length === 0
+      ? Infinity
+      : Math.min(...live.map((s) => (now.getTime() - s.observedAt.getTime()) / 86_400_000));
+  const evidenceFreshness =
+    live.length === 0
+      ? 'UNKNOWN'
+      : newestAgeDays <= SIGNAL_FRESH_DAYS
+        ? 'STRONG'
+        : newestAgeDays <= SIGNAL_MAX_AGE_DAYS
+          ? 'MODERATE'
+          : 'WEAK';
+
+  const serviceFit = !offer
+    ? 'UNKNOWN'
+    : offer.fit >= BAND_THRESHOLDS.HIGH
+      ? 'STRONG'
+      : offer.fit >= BAND_THRESHOLDS.MEDIUM
+        ? 'MODERATE'
+        : offer.fit > 0
+          ? 'WEAK'
+          : 'UNKNOWN';
+
+  return { ...unknownRankingProfile(), serviceFit, evidenceQuality, evidenceFreshness };
 }
 
 describe('scoreOpportunity', () => {
-  it('derives serviceFit from Opportunity.offer.fit and persists every factor (weight/raw/points/basis/reason)', async () => {
+  it('derives serviceFit from Opportunity.offer.fit and persists a qualitative ranking profile, never a number', async () => {
     const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
     const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
 
     const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
 
-    const expected = scoreProspect(
-      expectedInput([matchingSignal()], {
-        fit: opportunity.offer!.fit,
-        service: opportunity.offer!.service,
-      }),
-      NOW,
-    );
+    const expected = expectedRanking([matchingSignal()], { fit: opportunity.offer!.fit });
 
     expect(stored.opportunityId).toBe(opportunity.id);
-    expect(stored.total).toBe(expected.score);
-    expect(stored.band).toBe(expected.band);
-    expect(stored.factors).toHaveLength(7);
-    expect(stored.factors).toEqual(expected.factors);
-    expect(stored.reasons).toEqual(expected.reasons);
-    expect(stored.observedShare).toBe(expected.observedShare);
-    expect(stored.cap).toEqual(expected.cap);
-    expect(stored.scorerVersion).toBe(SCORER_VERSION);
+    expect(stored.ranking).toEqual(expected);
+    expect(stored.ranking!.serviceFit).not.toBe('UNKNOWN');
+    expect(stored.reasons.length).toBeGreaterThan(0);
+    expect(stored.reasons.some((r) => r.startsWith('Service Fit:'))).toBe(true);
+    expect(stored.rankerVersion).toBe(SCORER_VERSION);
     expect(stored.scoredAt).toEqual(NOW);
 
-    const serviceFit = stored.factors.find((f) => f.factor === 'serviceFit')!;
-    expect(serviceFit.basis).toBe('OBSERVED');
-    expect(serviceFit.raw).toBeCloseTo(opportunity.offer!.fit / 100, 5);
+    // No numeric field anywhere on the persisted shape — the type itself
+    // has none, but assert the runtime value too, in case a future edit
+    // widens the type without meaning to widen the contract.
+    expect(stored).not.toHaveProperty('total');
+    expect(stored).not.toHaveProperty('band');
+    expect(stored).not.toHaveProperty('observedShare');
   });
 
-  it('uses the scorer’s neutral/UNKNOWN representation for icp, abilityToPay, urgency and contact — never inventing detection logic', async () => {
+  it('uses UNKNOWN for Need/Opportunity (no deterministic signal present), Contactability, Current Activity and Commercial Readiness — no deterministic producer is wired in for the latter three yet', async () => {
     const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
     const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
 
     const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
-    const byFactor = Object.fromEntries(stored.factors.map((f) => [f.factor, f]));
 
-    expect(byFactor.icpFit!.basis).toBe('UNKNOWN');
-    expect(byFactor.icpFit!.points).toBe(0);
-    expect(byFactor.abilityToPay!.basis).toBe('UNKNOWN');
-    expect(byFactor.abilityToPay!.points).toBe(0);
-    expect(byFactor.urgency!.basis).toBe('UNKNOWN');
-    expect(byFactor.urgency!.points).toBe(0);
-    // contactability has no UNKNOWN basis in the scorer's own contract
-    // (prospectScore.ts always reports it OBSERVED) — "no channels known"
-    // is expressed as zero channels, not a fabricated one.
-    expect(byFactor.contactability!.raw).toBe(0);
-    expect(byFactor.contactability!.points).toBe(0);
+    expect(stored.ranking!.needOpportunity).toBe('UNKNOWN');
+    expect(stored.ranking!.contactability).toBe('UNKNOWN');
+    expect(stored.ranking!.currentActivity).toBe('UNKNOWN');
+    expect(stored.ranking!.commercialReadiness).toBe('UNKNOWN');
   });
 
-  it('AC-14: an Opportunity with NO SUITABLE OFFER scores serviceFit as UNKNOWN, never a fabricated offer', async () => {
+  it('PO-3 (Phase 5): a live Phase-1 deterministic absent-SSL signal ranks Need/Opportunity as STRONG', async () => {
+    const deterministic = matchingSignal({
+      id: 'deterministic_1',
+      field: DETERMINISTIC_ABSENT_SSL_FIELD,
+      kind: 'WEBSITE',
+      signal: 'Website served over HTTP without TLS (no SSL): http://example.test',
+      confidence: 100,
+    });
+    const d = deps([seedProspect()], [seedSearch()], [deterministic]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+
+    expect(stored.ranking!.needOpportunity).toBe('STRONG');
+  });
+
+  it('PO-3 (Phase 5): a SUPERSEDED deterministic absent-SSL signal stays blind — Need/Opportunity remains UNKNOWN', async () => {
+    const superseded = matchingSignal({
+      id: 'deterministic_1',
+      field: DETERMINISTIC_ABSENT_SSL_FIELD,
+      kind: 'WEBSITE',
+      signal: 'Website served over HTTP without TLS (no SSL): http://example.test',
+      confidence: 100,
+      supersededAt: NOW,
+    });
+    const d = deps([seedProspect()], [seedSearch()], [superseded]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+
+    expect(stored.ranking!.needOpportunity).toBe('UNKNOWN');
+  });
+
+  it('AC-14: an Opportunity with NO SUITABLE OFFER ranks Service Fit as UNKNOWN, never a fabricated fit', async () => {
     const d = deps([seedProspect()], [seedSearch()], []);
     const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
     expect(opportunity.offer).toBeUndefined();
 
     const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
-    const serviceFit = stored.factors.find((f) => f.factor === 'serviceFit')!;
 
-    expect(serviceFit.basis).toBe('UNKNOWN');
-    expect(serviceFit.raw).toBe(0);
-    expect(serviceFit.points).toBe(0);
+    expect(stored.ranking!.serviceFit).toBe('UNKNOWN');
   });
 
-  it('applies the inference discount exactly once for an INFERRED signal reaching the scorer', async () => {
-    // 100 halved ONCE by toScoringSignals -> 50 -> just clears
-    // prospectScore.ts's own confidence>=50 gate for visibleProblem, so
-    // the signal counts at raw 0.5. A second, doubled discount would
-    // produce 25 -> below the gate -> raw 0, basis UNKNOWN instead.
+  it('Phase 1 absent-SSL signal does not itself produce an invented/elevated ranking tier — one OBSERVED signal never alone reaches STRONG Evidence Quality', async () => {
+    const single = matchingSignal({ classification: 'OBSERVED', confidence: 100, observedAt: NOW });
+    const d = deps([seedProspect()], [seedSearch()], [single]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+
+    expect(stored.ranking!.evidenceQuality).not.toBe('STRONG');
+  });
+
+  it('no LLM/provider call occurs during ranking — the fake ResearchSignalRepository/offer detection are the only inputs read', async () => {
     const inferred = matchingSignal({
       classification: 'INFERRED',
       confidence: 100,
@@ -566,14 +775,15 @@ describe('scoreOpportunity', () => {
     const d = deps([seedProspect()], [seedSearch()], [inferred]);
     const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
 
-    const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
-    const visibleProblem = stored.factors.find((f) => f.factor === 'visibleProblem')!;
-
-    expect(visibleProblem.basis).toBe('OBSERVED');
-    expect(visibleProblem.raw).toBeCloseTo(0.5, 5);
+    // Purely a wiring/determinism check — no network/provider dependency
+    // exists in `deps`, so a successful, synchronous-shaped result here
+    // is itself proof no model call happened.
+    await expect(scoreOpportunity(d, 'token-a', opportunity.id, NOW)).resolves.toMatchObject({
+      opportunityId: opportunity.id,
+    });
   });
 
-  it('adapts a mixed OBSERVED/INFERRED/UNKNOWN signal batch identically to a direct scoreProspect() call', async () => {
+  it('adapts a mixed OBSERVED/INFERRED/UNKNOWN signal batch identically to a direct expectedRanking() derivation', async () => {
     const observed = matchingSignal({ id: 's1', classification: 'OBSERVED', confidence: 90 });
     const inferred = matchingSignal({
       id: 's2',
@@ -594,29 +804,23 @@ describe('scoreOpportunity', () => {
     const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
 
     const stored = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
-    const expected = scoreProspect(
-      expectedInput(
-        mixedSignals,
-        opportunity.offer && { fit: opportunity.offer.fit, service: opportunity.offer.service },
-      ),
-      NOW,
+    const expected = expectedRanking(
+      mixedSignals,
+      opportunity.offer && { fit: opportunity.offer.fit },
     );
 
-    expect(stored.factors).toEqual(expected.factors);
-    expect(stored.total).toBe(expected.score);
+    expect(stored.ranking).toEqual(expected);
   });
 
-  it('is deterministic — scoring the same Opportunity twice with the same inputs produces an identical score', async () => {
+  it('is deterministic — scoring the same Opportunity twice with the same inputs produces an identical ranking', async () => {
     const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
     const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
 
     const first = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
     const second = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
 
-    expect(second.total).toBe(first.total);
-    expect(second.band).toBe(first.band);
-    expect(second.factors).toEqual(first.factors);
-    expect(second.scorerVersion).toBe(first.scorerVersion);
+    expect(second.ranking).toEqual(first.ranking);
+    expect(second.rankerVersion).toBe(first.rankerVersion);
   });
 
   it('re-scoring replaces the current score in place — one row per Opportunity, never a second', async () => {
@@ -695,38 +899,23 @@ describe('getOpportunityScore', () => {
   });
 });
 
-// ---- Phase 11: rankOpportunities ----------------------------------------
+// ---- Phase 11/Phase 3: rankOpportunities --------------------------------
 // Mirrors tests/integration/opportunity-ranking.integration.test.ts's
-// real-Postgres proof of the same ownership boundary. Scores are seeded
-// directly via d.scores.upsert() with hand-built ProspectScore values —
-// rankOpportunities() only orders already-persisted scores, so these
-// tests do not need to re-derive scoreOpportunity()'s own wiring
-// (covered above) or prospectScore.ts's arithmetic (covered by that
-// package's own tests).
+// real-Postgres proof of the same ownership boundary. Rankings are
+// seeded directly via d.scores.upsert() with hand-built
+// UniversalRankingProfile values — rankOpportunities() only orders
+// already-persisted rankings, so these tests do not need to re-derive
+// scoreOpportunity()'s own wiring (covered above) or
+// universalRanking.ts's comparator arithmetic (covered by that module's
+// own tests).
 
-/** A minimal, valid ProspectScore for seeding — only `score`/`observedShare`/`id` drive ranking order. */
-function sampleScore(overrides: Partial<ProspectScore> = {}): ProspectScore {
-  const base: ProspectScore = {
-    score: 50,
-    band: 'MEDIUM',
-    factors: [
-      {
-        factor: 'icpFit',
-        weight: 20,
-        raw: 0.5,
-        points: 10,
-        basis: 'OBSERVED',
-        reason: 'Observed: sample signal',
-      },
-    ],
-    reasons: ['Observed: sample signal (+10)'],
-    observedShare: 0.5,
-  };
-  return { ...base, ...overrides };
+/** A ranking profile for seeding, overriding only the dimension(s) a test cares about. */
+function sampleRanking(overrides: Partial<UniversalRankingProfile> = {}): UniversalRankingProfile {
+  return { ...unknownRankingProfile(), needOpportunity: 'MODERATE', ...overrides };
 }
 
 describe('rankOpportunities', () => {
-  it('orders scored Opportunities by total score, descending (R-15/AC-17)', async () => {
+  it('orders scored Opportunities by Primary-dimension tier, descending (R-15/AC-17)', async () => {
     const d = deps(
       [
         seedProspect({ id: 'prospect_1' }),
@@ -738,9 +927,9 @@ describe('rankOpportunities', () => {
     const opp1 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
     const opp2 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
     const opp3 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_3' }, NOW);
-    await d.scores.upsert(opp1.id, sampleScore({ score: 80 }), 'v1', NOW);
-    await d.scores.upsert(opp2.id, sampleScore({ score: 50 }), 'v1', NOW);
-    await d.scores.upsert(opp3.id, sampleScore({ score: 90 }), 'v1', NOW);
+    await d.scores.upsert(opp1.id, sampleRanking({ needOpportunity: 'MODERATE' }), [], 'v1', NOW);
+    await d.scores.upsert(opp2.id, sampleRanking({ needOpportunity: 'WEAK' }), [], 'v1', NOW);
+    await d.scores.upsert(opp3.id, sampleRanking({ needOpportunity: 'STRONG' }), [], 'v1', NOW);
 
     const ranked = await rankOpportunities(d, 'token-a', NOW);
 
@@ -748,7 +937,7 @@ describe('rankOpportunities', () => {
     expect(ranked.map((r) => r.rank)).toEqual([1, 2, 3]);
   });
 
-  it('matches rankProspects() called directly on the same candidates — the comparator is not reimplemented', async () => {
+  it('matches rankByUniversalProfile() called directly on the same candidates — the comparator is not reimplemented', async () => {
     const d = deps(
       [
         seedProspect({ id: 'prospect_1' }),
@@ -762,35 +951,22 @@ describe('rankOpportunities', () => {
     const opp3 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_3' }, NOW);
     const s1 = await d.scores.upsert(
       opp1.id,
-      sampleScore({ score: 65, observedShare: 0.4 }),
+      sampleRanking({ needOpportunity: 'MODERATE', evidenceQuality: 'WEAK' }),
+      [],
       'v1',
       NOW,
     );
     const s2 = await d.scores.upsert(
       opp2.id,
-      sampleScore({ score: 65, observedShare: 0.9 }),
+      sampleRanking({ needOpportunity: 'MODERATE', evidenceQuality: 'STRONG' }),
+      [],
       'v1',
       NOW,
     );
-    const s3 = await d.scores.upsert(
-      opp3.id,
-      sampleScore({ score: 30, observedShare: 0.1 }),
-      'v1',
-      NOW,
-    );
+    const s3 = await d.scores.upsert(opp3.id, sampleRanking({ needOpportunity: 'WEAK' }), [], 'v1', NOW);
 
-    const direct = rankProspects(
-      [s1, s2, s3].map((s) => ({
-        id: s.opportunityId,
-        score: {
-          score: s.total,
-          band: s.band,
-          factors: s.factors,
-          reasons: s.reasons,
-          observedShare: s.observedShare,
-          ...(s.cap !== undefined ? { cap: s.cap } : {}),
-        },
-      })),
+    const direct = rankByUniversalProfile(
+      [s1, s2, s3].map((s) => ({ id: s.opportunityId, ranking: s.ranking! })),
     );
 
     const ranked = await rankOpportunities(d, 'token-a', NOW);
@@ -798,7 +974,7 @@ describe('rankOpportunities', () => {
     expect(ranked.map((r) => r.opportunityId)).toEqual(direct.map((c) => c.id));
   });
 
-  it('breaks a tie on total score by observedShare, descending', async () => {
+  it('breaks a tie on Primary dimensions by Important-dimension tier (Evidence Quality), descending', async () => {
     const d = deps(
       [
         seedProspect({ id: 'prospect_1' }),
@@ -808,15 +984,15 @@ describe('rankOpportunities', () => {
     );
     const low = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
     const high = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
-    await d.scores.upsert(low.id, sampleScore({ score: 70, observedShare: 0.2 }), 'v1', NOW);
-    await d.scores.upsert(high.id, sampleScore({ score: 70, observedShare: 0.8 }), 'v1', NOW);
+    await d.scores.upsert(low.id, sampleRanking({ evidenceQuality: 'WEAK' }), [], 'v1', NOW);
+    await d.scores.upsert(high.id, sampleRanking({ evidenceQuality: 'STRONG' }), [], 'v1', NOW);
 
     const ranked = await rankOpportunities(d, 'token-a', NOW);
 
     expect(ranked.map((r) => r.opportunityId)).toEqual([high.id, low.id]);
   });
 
-  it('breaks a tie on total score and observedShare by opportunity id, ascending', async () => {
+  it('breaks a total tie on every dimension by opportunity id, ascending', async () => {
     const d = deps(
       [
         seedProspect({ id: 'prospect_1' }),
@@ -827,8 +1003,8 @@ describe('rankOpportunities', () => {
     const first = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
     const second = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
     expect(first.id < second.id).toBe(true);
-    await d.scores.upsert(first.id, sampleScore({ score: 60, observedShare: 0.5 }), 'v1', NOW);
-    await d.scores.upsert(second.id, sampleScore({ score: 60, observedShare: 0.5 }), 'v1', NOW);
+    await d.scores.upsert(first.id, sampleRanking(), [], 'v1', NOW);
+    await d.scores.upsert(second.id, sampleRanking(), [], 'v1', NOW);
 
     const ranked = await rankOpportunities(d, 'token-a', NOW);
 
@@ -845,7 +1021,7 @@ describe('rankOpportunities', () => {
     );
     const scored = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
     const unscored = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
-    await d.scores.upsert(scored.id, sampleScore(), 'v1', NOW);
+    await d.scores.upsert(scored.id, sampleRanking(), [], 'v1', NOW);
 
     const ranked = await rankOpportunities(d, 'token-a', NOW);
 
@@ -854,7 +1030,7 @@ describe('rankOpportunities', () => {
     expect(ranked.some((r) => r.opportunityId === unscored.id)).toBe(false);
   });
 
-  it("does not include another user's Opportunities, even when scored higher", async () => {
+  it("does not include another user's Opportunities, even when ranked higher", async () => {
     const d = deps(
       [
         seedProspect({ id: 'prospect_1' }),
@@ -869,8 +1045,8 @@ describe('rankOpportunities', () => {
     );
     const mine = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
     const theirs = await createOpportunity(d, 'token-b', { prospectId: 'prospect_2' }, NOW);
-    await d.scores.upsert(mine.id, sampleScore({ score: 40 }), 'v1', NOW);
-    await d.scores.upsert(theirs.id, sampleScore({ score: 99 }), 'v1', NOW);
+    await d.scores.upsert(mine.id, sampleRanking({ needOpportunity: 'WEAK' }), [], 'v1', NOW);
+    await d.scores.upsert(theirs.id, sampleRanking({ needOpportunity: 'STRONG' }), [], 'v1', NOW);
 
     const ranked = await rankOpportunities(d, 'token-a', NOW);
 
@@ -881,7 +1057,7 @@ describe('rankOpportunities', () => {
   it('rejects an unauthenticated call before touching the repository', async () => {
     const d = deps([seedProspect()], [seedSearch()]);
     const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
-    await d.scores.upsert(opportunity.id, sampleScore(), 'v1', NOW);
+    await d.scores.upsert(opportunity.id, sampleRanking(), [], 'v1', NOW);
 
     await expect(rankOpportunities(d, null, NOW)).rejects.toBeInstanceOf(UnauthenticatedError);
   });
@@ -898,9 +1074,9 @@ describe('rankOpportunities', () => {
     const opp1 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
     const opp2 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
     const opp3 = await createOpportunity(d, 'token-a', { prospectId: 'prospect_3' }, NOW);
-    await d.scores.upsert(opp1.id, sampleScore({ score: 80 }), 'v1', NOW);
-    await d.scores.upsert(opp2.id, sampleScore({ score: 50 }), 'v1', NOW);
-    await d.scores.upsert(opp3.id, sampleScore({ score: 90 }), 'v1', NOW);
+    await d.scores.upsert(opp1.id, sampleRanking({ needOpportunity: 'MODERATE' }), [], 'v1', NOW);
+    await d.scores.upsert(opp2.id, sampleRanking({ needOpportunity: 'WEAK' }), [], 'v1', NOW);
+    await d.scores.upsert(opp3.id, sampleRanking({ needOpportunity: 'STRONG' }), [], 'v1', NOW);
 
     const first = await rankOpportunities(d, 'token-a', NOW);
     const second = await rankOpportunities(d, 'token-a', NOW);
@@ -917,7 +1093,7 @@ describe('rankOpportunities', () => {
   it('ranks a single scored Opportunity as rank 1', async () => {
     const d = deps([seedProspect()], [seedSearch()]);
     const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
-    const stored = await d.scores.upsert(opportunity.id, sampleScore(), 'v1', NOW);
+    const stored = await d.scores.upsert(opportunity.id, sampleRanking(), [], 'v1', NOW);
 
     const ranked = await rankOpportunities(d, 'token-a', NOW);
 
@@ -927,7 +1103,7 @@ describe('rankOpportunities', () => {
   it('is a pure read — no repository row is created, removed or mutated', async () => {
     const d = deps([seedProspect()], [seedSearch()]);
     const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
-    await d.scores.upsert(opportunity.id, sampleScore(), 'v1', NOW);
+    await d.scores.upsert(opportunity.id, sampleRanking(), [], 'v1', NOW);
 
     const opportunities = d.opportunities as ReturnType<typeof fakeOpportunityRepository>;
     const scores = d.scores as ReturnType<typeof fakeOpportunityScoreRepository>;
@@ -940,6 +1116,25 @@ describe('rankOpportunities', () => {
     expect(scores.rows).toBe(scoreRows);
     expect(opportunities.rows).toHaveLength(1);
     expect(scores.rows).toHaveLength(1);
+  });
+
+  it('never eliminates a candidate — an UNKNOWN-on-every-dimension Opportunity still appears, ranked, not removed', async () => {
+    const d = deps(
+      [
+        seedProspect({ id: 'prospect_1' }),
+        seedProspect({ id: 'prospect_2', companyId: 'company_2' }),
+      ],
+      [seedSearch()],
+    );
+    const strong = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+    const noEvidence = await createOpportunity(d, 'token-a', { prospectId: 'prospect_2' }, NOW);
+    await d.scores.upsert(strong.id, sampleRanking({ needOpportunity: 'STRONG' }), [], 'v1', NOW);
+    await d.scores.upsert(noEvidence.id, unknownRankingProfile(), [], 'v1', NOW);
+
+    const ranked = await rankOpportunities(d, 'token-a', NOW);
+
+    expect(ranked.map((r) => r.opportunityId)).toEqual([strong.id, noEvidence.id]);
+    expect(ranked).toHaveLength(2);
   });
 });
 
@@ -1060,6 +1255,102 @@ describe('classifyOpportunityStaleness', () => {
   });
 });
 
+// ---- Phase 6: recordAiEnrichmentForOwner --------------------------------
+// Pure metadata wiring over Phase 5's already-implemented
+// admission/cache/budget/escalation outcomes — this function classifies
+// nothing itself, it only persists an outcome the caller (the search
+// worker's processOneCandidate()) already resolved. Not reachable from
+// any HTTP path — see createOpportunityForOwner/scoreOpportunityForOwner
+// for the same "ForOwner" convention.
+
+describe('recordAiEnrichmentForOwner', () => {
+  it('defaults to DETERMINISTIC_ONLY with no reason at creation, before any provenance is recorded', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    expect(opportunity.aiEnrichment).toBe('DETERMINISTIC_ONLY');
+    expect(opportunity.aiEnrichmentReason).toBeNull();
+  });
+
+  it('records AI_ENRICHED with a null reason', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const updated = await recordAiEnrichmentForOwner(d, 'user_a', opportunity.id, 'AI_ENRICHED', null);
+
+    expect(updated.aiEnrichment).toBe('AI_ENRICHED');
+    expect(updated.aiEnrichmentReason).toBeNull();
+  });
+
+  it('records DETERMINISTIC_ONLY with each of the three reasons', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    for (const reason of ['NOT_ESCALATED', 'ESCALATION_FAILED', 'PROVIDER_EXHAUSTED'] as const) {
+      const updated = await recordAiEnrichmentForOwner(
+        d,
+        'user_a',
+        opportunity.id,
+        'DETERMINISTIC_ONLY',
+        reason,
+      );
+      expect(updated.aiEnrichment).toBe('DETERMINISTIC_ONLY');
+      expect(updated.aiEnrichmentReason).toBe(reason);
+    }
+  });
+
+  it('is reclassifiable — a second call for the same Opportunity updates it in place, never a duplicate', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    await recordAiEnrichmentForOwner(
+      d,
+      'user_a',
+      opportunity.id,
+      'DETERMINISTIC_ONLY',
+      'NOT_ESCALATED',
+    );
+    const reclassified = await recordAiEnrichmentForOwner(d, 'user_a', opportunity.id, 'AI_ENRICHED', null);
+
+    expect(reclassified.id).toBe(opportunity.id);
+    expect(reclassified.aiEnrichment).toBe('AI_ENRICHED');
+    expect(reclassified.aiEnrichmentReason).toBeNull();
+    expect(await d.opportunities.list('user_a')).toHaveLength(1);
+  });
+
+  it('does not touch `state`, `offer`, or `staleness`', async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    const updated = await recordAiEnrichmentForOwner(d, 'user_a', opportunity.id, 'AI_ENRICHED', null);
+
+    expect(updated.state).toBe(opportunity.state);
+    expect(updated.offer).toEqual(opportunity.offer);
+    expect(updated.staleness).toBe(opportunity.staleness);
+  });
+
+  it('an unknown opportunityId is rejected', async () => {
+    const d = deps([], [], []);
+
+    await expect(
+      recordAiEnrichmentForOwner(d, 'user_a', 'does-not-exist', 'AI_ENRICHED', null),
+    ).rejects.toBeInstanceOf(OpportunityNotFoundError);
+  });
+
+  it("a different user's own userId cannot record provenance on another user's Opportunity — treated as not found", async () => {
+    const d = deps([seedProspect()], [seedSearch()], [matchingSignal()]);
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' }, NOW);
+
+    await expect(
+      recordAiEnrichmentForOwner(d, 'user_b', opportunity.id, 'AI_ENRICHED', null),
+    ).rejects.toBeInstanceOf(OpportunityNotFoundError);
+
+    const untouched = await d.opportunities.getById('user_a', opportunity.id);
+    expect(untouched!.aiEnrichment).toBe('DETERMINISTIC_ONLY');
+    expect(untouched!.aiEnrichmentReason).toBeNull();
+  });
+});
+
 // ---- Phase 13: getOpportunityNextAction (R-20/AC-21) ---------------------
 // Mirrors tests/integration/opportunity-next-action.integration.test.ts's
 // real-Postgres proof of the same ownership boundary.
@@ -1081,8 +1372,11 @@ function seedOpportunity(overrides: Partial<StoredOpportunity> = {}): StoredOppo
       fit: 80,
       basedOn: ['signal_1'],
     },
+    relevantSubservices: [],
     staleness: 'FRESH',
     stalenessComputedAt: null,
+    aiEnrichment: 'DETERMINISTIC_ONLY',
+    aiEnrichmentReason: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     ...overrides,
@@ -1569,5 +1863,92 @@ describe('getOpportunityTrackingSummary', () => {
     await expect(
       getOpportunityTrackingSummary({ identity, opportunities, feedback }, 'not-a-real-token', NOW),
     ).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
+});
+
+// ---- Phase 7B: relevant predefined subservices (MULR item 6) ----------
+// createOpportunityForOwner computes relevantSubservices once, from the
+// same persisted signals already read for offer detection (see
+// ./subserviceMatching.test.ts for the pure matching-rule unit coverage).
+// These tests prove the pipeline wiring and persistence round trip only.
+
+describe('createOpportunity — relevant predefined subservices (Phase 7B)', () => {
+  it('12. multiple matched subservices are persisted as multiple entries on ONE Opportunity, never one Opportunity per subservice', async () => {
+    const d = deps(
+      [seedProspect()],
+      [seedSearch({ parameters: serviceProfileFields({ service: 'Web & Software Development' }) })],
+      [
+        matchingSignal({ field: 'visibleProblems', signal: 'needs website development' }),
+        matchingSignal({ id: 'signal_2', field: 'websiteIssues', signal: 'also needs mobile apps' }),
+      ],
+    );
+
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+    expect(opportunity.relevantSubservices.slice().sort()).toEqual(
+      ['Mobile apps', 'Website development'].sort(),
+    );
+    expect((await d.opportunities.list('user_a')).length).toBe(1);
+  });
+
+  it('13. repository write/read round trip preserves relevantSubservices', async () => {
+    const d = deps(
+      [seedProspect()],
+      [seedSearch({ parameters: serviceProfileFields({ service: 'Web & Software Development' }) })],
+      [matchingSignal({ field: 'visibleProblems', signal: 'needs website development' })],
+    );
+
+    const created = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+    const reread = await d.opportunities.getById('user_a', created.id);
+
+    expect(reread!.relevantSubservices).toEqual(created.relevantSubservices);
+    expect(reread!.relevantSubservices).toEqual(['Website development']);
+  });
+
+  it('a Prospect with no problem/opportunity-field evidence for the selected service records an empty array, never undefined/null', async () => {
+    const d = deps(
+      [seedProspect()],
+      [seedSearch({ parameters: serviceProfileFields({ service: 'Web & Software Development' }) })],
+      [],
+    );
+
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+    expect(opportunity.relevantSubservices).toEqual([]);
+  });
+
+  it("a selected service that is not one of the 17 catalogue families (e.g. the caller's own free-text service) records no subservices, never a guess", async () => {
+    const d = deps(
+      [seedProspect()],
+      [seedSearch({ parameters: serviceProfileFields({ service: 'AI content system' }) })],
+      [matchingSignal({ field: 'visibleProblems', signal: 'needs website development' })],
+    );
+
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+    expect(opportunity.relevantSubservices).toEqual([]);
+  });
+
+  it('16/18: subservice matching leaves this Opportunity’s offer detection, ranking profile, and need/needDetected output identical to the pre-Phase-7B behavior', async () => {
+    const d = deps(
+      [seedProspect()],
+      [seedSearch({ parameters: serviceProfileFields({ service: 'Web & Software Development' }) })],
+      // Keeps offer.ts's own, unmodified keyword match ('content'/'writer')
+      // alongside the literal subservice phrase, so both detection paths
+      // fire from the same, single signal — proving one leaves the other
+      // untouched rather than picking signals that only exercise one path.
+      [matchingSignal({ field: 'visibleProblems', signal: 'hiring a content writer for website development' })],
+    );
+
+    const opportunity = await createOpportunity(d, 'token-a', { prospectId: 'prospect_1' });
+
+    // Same offer/needDetected contract as the pre-existing
+    // "detects a need and recommends an offer" test above — relevant
+    // subservices add a field, they never change this outcome.
+    expect(opportunity.needDetected).toBe(true);
+    expect(opportunity.offer?.service).toBe('Web & Software Development');
+    expect(opportunity.relevantSubservices).toEqual(['Website development']);
+
+    const score = await scoreOpportunity(d, 'token-a', opportunity.id, NOW);
+    expect(score.ranking!.needOpportunity).toBeDefined();
+    expect(score.ranking!.serviceFit).toBeDefined();
   });
 });

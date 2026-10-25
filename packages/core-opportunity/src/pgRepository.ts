@@ -2,7 +2,13 @@ import type { OpportunityStaleness } from '@acos/core-acquisition';
 import type { SqlExecutor } from '@acos/core-entitlements';
 
 import type { OpportunityRepository } from './repository';
-import type { DetectedOffer, OpportunityState, StoredOpportunity } from './types';
+import type {
+  AiEnrichment,
+  AiEnrichmentReason,
+  DetectedOffer,
+  OpportunityState,
+  StoredOpportunity,
+} from './types';
 
 // PostgreSQL implementation.
 // -----------------------------------------------------------------------
@@ -24,29 +30,38 @@ interface OpportunityRow {
   offer_estimated_value_paise: number | null;
   offer_fit: number | null;
   offer_based_on: string[];
+  relevant_subservices: string[];
   staleness: OpportunityStaleness;
   staleness_computed_at: Date | null;
+  ai_enrichment: AiEnrichment;
+  ai_enrichment_reason: AiEnrichmentReason | null;
   created_at: Date;
   updated_at: Date;
 }
 
 const COLUMNS = `id, user_id, prospect_id, state, need_detected, recommended_service,
   offer_rationale, offer_estimated_value_paise, offer_fit, offer_based_on,
-  staleness, staleness_computed_at, created_at, updated_at`;
+  relevant_subservices, staleness, staleness_computed_at, ai_enrichment,
+  ai_enrichment_reason, created_at, updated_at`;
 
 export function createPgOpportunityRepository(sql: SqlExecutor): OpportunityRepository {
   return {
     async create(
       userId: string,
-      input: { prospectId: string; needDetected: boolean; offer: DetectedOffer | undefined },
+      input: {
+        prospectId: string;
+        needDetected: boolean;
+        offer: DetectedOffer | undefined;
+        relevantSubservices: readonly string[];
+      },
       now: Date,
     ): Promise<StoredOpportunity> {
       const { rows } = await sql.query(
         `INSERT INTO opportunities
            (id, user_id, prospect_id, state, need_detected, recommended_service,
             offer_rationale, offer_estimated_value_paise, offer_fit, offer_based_on,
-            created_at, updated_at)
-         VALUES (gen_random_uuid()::text, $1, $2, 'NEW', $3, $4, $5, $6, $7, $8, $9, $9)
+            relevant_subservices, created_at, updated_at)
+         VALUES (gen_random_uuid()::text, $1, $2, 'NEW', $3, $4, $5, $6, $7, $8, $9, $10, $10)
          RETURNING ${COLUMNS}`,
         [
           userId,
@@ -57,6 +72,7 @@ export function createPgOpportunityRepository(sql: SqlExecutor): OpportunityRepo
           input.offer?.estimatedValuePaise ?? null,
           input.offer?.fit ?? null,
           input.offer ? [...input.offer.basedOn] : [],
+          [...input.relevantSubservices],
           now,
         ],
       );
@@ -105,6 +121,23 @@ export function createPgOpportunityRepository(sql: SqlExecutor): OpportunityRepo
       const row = rows[0] as OpportunityRow | undefined;
       return row ? mapRow(row) : null;
     },
+
+    async updateAiEnrichment(
+      userId: string,
+      id: string,
+      aiEnrichment: AiEnrichment,
+      aiEnrichmentReason: AiEnrichmentReason | null,
+    ): Promise<StoredOpportunity | null> {
+      const { rows } = await sql.query(
+        `UPDATE opportunities
+            SET ai_enrichment = $3, ai_enrichment_reason = $4
+          WHERE id = $2 AND user_id = $1
+        RETURNING ${COLUMNS}`,
+        [userId, id, aiEnrichment, aiEnrichmentReason],
+      );
+      const row = rows[0] as OpportunityRow | undefined;
+      return row ? mapRow(row) : null;
+    },
   };
 }
 
@@ -124,8 +157,11 @@ function mapRow(row: OpportunityRow): StoredOpportunity {
           basedOn: row.offer_based_on,
         }
       : undefined,
+    relevantSubservices: row.relevant_subservices,
     staleness: row.staleness,
     stalenessComputedAt: row.staleness_computed_at ? new Date(row.staleness_computed_at) : null,
+    aiEnrichment: row.ai_enrichment,
+    aiEnrichmentReason: row.ai_enrichment_reason,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };

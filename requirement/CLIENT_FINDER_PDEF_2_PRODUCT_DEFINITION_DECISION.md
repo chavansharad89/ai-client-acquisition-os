@@ -113,6 +113,13 @@ cycle.
 The credits are intended to protect systemic resource consumption and to provide a future path for overage expansion
 and custom/enterprise scaling.
 
+**SUPERSEDED NOTICE (added, ₹1,499 row only):** the ₹1,499 "300 monthly lead-unlock credits" figure above is
+**superseded for the ₹1,499 subscription product's current commercial model** by
+`CLIENT_FINDER_1499_SUBSCRIPTION_ACCESS_MODEL_PO_DECISION.md` (`...-PO-DEC-002`) — the current ₹1,499 model has
+**no credits, no balance, and no per-unlock charge** (time-bounded 30-day access instead). The ₹499 row (50
+monthly lead-unlock credits) is **unaffected** and remains current; this notice does not reopen ₹499's credit
+model.
+
 **Product Owner rationale:** A clear credit-based system that resets every billing cycle protects systemic resource
 consumption and creates a natural path for overage expansion or enterprise scaling.
 
@@ -159,6 +166,10 @@ bundled into the ₹1,499 entitlement, capped at 300 monthly lead-unlock credits
 Finder gating "not decided") in favor of inclusion, independent of ₹499 ownership (§16). The PRD's OQ-3 text itself
 has not been edited by this record (see §19, follow-up).
 
+**See §11's superseded notice:** the "capped at 300 monthly lead-unlock credits" clause above is superseded for the
+₹1,499 subscription's current commercial model (no credits) — the Advanced-vs-Basic capability-level distinction
+itself is unaffected.
+
 ## 16. Independent-purchase rule
 
 A buyer may purchase ₹1,499 without having purchased ₹499, and receives Advanced Client Finder directly. A buyer who
@@ -171,7 +182,7 @@ made or authorized by this record to reconcile the two.
 | Tier | Monthly lead-unlock credits | Reset |
 |---|---|---|
 | ₹499 | 50 | Each billing cycle |
-| ₹1,499 | 300 | Each billing cycle |
+| ₹1,499 | 300 | Each billing cycle (**superseded — see §11's notice; current ₹1,499 model has no credits**) |
 
 No accounting mechanism, counter, enforcement path, or overage-billing mechanism is defined, implemented, or
 authorized by this record. "Overage expansion" and "custom/enterprise scaling" are recorded as a future product

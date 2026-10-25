@@ -4,7 +4,7 @@ import {
   type ResearchSourceKind,
   type ServiceRule,
 } from '@acos/core-acquisition';
-import type { StoredResearchSignal } from '@acos/core-research';
+import { OBSERVED_FACT_CONFIDENCE, type StoredResearchSignal } from '@acos/core-research';
 import type { ServiceProfileFields } from '@acos/core-service-profile';
 
 // Pure adapters onto @acos/core-acquisition's existing, unmodified
@@ -172,28 +172,87 @@ const TOPICAL_FIELDS = new Set(['companySummary', 'businessModel', 'targetCustom
  * pass these gates) is untouched and remains an open product decision;
  * see requirement/PHASE_24_EVIDENCE_RELEVANCE_SCOPE_LOCK.md §15.
  */
+/**
+ * R-70/R-71-eligible rows — shared verbatim by toOfferSignals() and
+ * hasCredibleNeedEvidence() (K5-D1) so the two can never diverge on
+ * what counts as admissible evidence. Extracted, not duplicated: R-71's
+ * field exclusion and R-70's source-conflict check are defined once,
+ * here, exactly as they always have been.
+ */
+function eligibleRows(
+  stored: readonly StoredResearchSignal[],
+  company: SourceBusinessIdentity,
+): readonly StoredResearchSignal[] {
+  const companyToken = primaryNameToken(company.name);
+  const sourceConflict = hasConflictingSource(stored, companyToken);
+
+  return stored.filter((row) => {
+    if (row.classification === 'UNKNOWN' || row.signal === null) return false;
+    if (TOPICAL_FIELDS.has(row.field)) return false; // R-71
+    if (sourceConflict) return false; // R-70
+    return true;
+  });
+}
+
 export function toOfferSignals(
   stored: readonly StoredResearchSignal[],
   company: SourceBusinessIdentity,
 ): readonly OfferSignal[] {
-  const companyToken = primaryNameToken(company.name);
-  const sourceConflict = hasConflictingSource(stored, companyToken);
+  return eligibleRows(stored, company).map((row) => ({
+    kind: row.kind,
+    signal: row.signal!,
+    confidence: row.confidence,
+    observedAt: row.observedAt,
+    supersededAt: row.supersededAt,
+  }));
+}
 
-  const signals: OfferSignal[] = [];
+// ---- K5-D1 (Need/Opportunity evidence sufficiency) ----------------------
+// requirement/CLIENT_FINDER_PHASE_K5_PO_DECISION_PREPARATION.md, K5-D1
+// (Option C, selected): for a NEW Service+Geography-only search, a
+// suggestOffers() trigger+keyword match is necessary but not
+// sufficient to establish NEED_DETECTED — it can be satisfied by a
+// signal that merely states a neutral fact ("uses WordPress", "has a
+// website") rather than a genuine problem, gap, change, requirement,
+// or opportunity. This gate runs strictly AFTER eligibleRows()'s
+// existing R-70/R-71 field-level filtering (shared verbatim above,
+// never duplicated, never loosened) and never touches
+// suggestOffers()/offer.fit/Universal Ranking — it only decides whether
+// a match is credible enough to flip `needDetected`. The caller
+// (@acos/core-opportunity's createOpportunityForOwner) applies this
+// gate only to a NEW-style search; a historical search (a real,
+// segment-bearing targetCustomer) is unaffected — see service.ts.
+//
+// Mirrors @acos/core-research's Phase 5 hasStrongSignalBypass()
+// pattern (independent, top-reliability corroboration) adapted — not
+// copied — for Need/Opportunity: requires >=2 independent matched
+// signals (from distinct Observation fields, the same taxonomy R-71
+// already uses to tell one claim from another), with >=1 of them
+// OBSERVED at full, undiscounted confidence (OBSERVED_FACT_CONFIDENCE —
+// persist.ts halves INFERRED confidence, so this floor is already
+// meaningful without a new scale). A single hit, or any number of
+// purely INFERRED/partial-confidence hits, is not enough on its own.
+// Never a numeric score, never an LLM call, never a parallel evidence
+// model: every field read here (classification, confidence, field)
+// already exists on StoredResearchSignal.
+// -----------------------------------------------------------------------
 
-  for (const row of stored) {
-    if (row.classification === 'UNKNOWN' || row.signal === null) continue;
-    if (TOPICAL_FIELDS.has(row.field)) continue; // R-71
-    if (sourceConflict) continue; // R-70
+export function hasCredibleNeedEvidence(
+  stored: readonly StoredResearchSignal[],
+  company: SourceBusinessIdentity,
+  rule: ServiceRule,
+): boolean {
+  const matched = eligibleRows(stored, company).filter((row) => {
+    if (row.supersededAt) return false;
+    if (!rule.triggers.includes(row.kind)) return false;
+    const text = row.signal!.toLowerCase();
+    return rule.keywords.some((keyword) => text.includes(keyword));
+  });
 
-    signals.push({
-      kind: row.kind,
-      signal: row.signal,
-      confidence: row.confidence,
-      observedAt: row.observedAt,
-      supersededAt: row.supersededAt,
-    });
-  }
+  const distinctFields = new Set(matched.map((row) => row.field));
+  if (distinctFields.size < 2) return false;
 
-  return signals;
+  return matched.some(
+    (row) => row.classification === 'OBSERVED' && row.confidence >= OBSERVED_FACT_CONFIDENCE,
+  );
 }

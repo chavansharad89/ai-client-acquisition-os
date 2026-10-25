@@ -13,10 +13,19 @@ import {
 import { getOpportunityOutreachPreparation } from '@acos/core-outreach-preparation';
 import { getOpportunityPersonalization } from '@acos/core-personalization';
 import { getOpportunityQualification } from '@acos/core-qualification';
-import { getCategoryPlausibilityDetermination, listResearchSignals } from '@acos/core-research';
+import {
+  extractContactValues,
+  getCategoryPlausibilityDetermination,
+  listResearchSignals,
+  maskContactIdentifiersInText,
+} from '@acos/core-research';
+import { getClientFinderSubscriptionStatus } from '@acos/core-subscriptions';
 import { notFound, redirect } from 'next/navigation';
 
+import { ClientFinderNav } from '../../../../src/components/client-finder/ClientFinderNav';
+import { ContactUnlockPanel } from '../../../../src/components/client-finder/ContactUnlockPanel';
 import { FeedbackForm } from '../../../../src/components/client-finder/FeedbackForm';
+import { SubscriptionStatusBadge } from '../../../../src/components/client-finder/SubscriptionStatusBadge';
 import { clientFinderRepositories } from '../../../../src/server/clientFinderRepositories';
 import { resolveBusinessIdentity } from '../../../../src/server/clientFinderView';
 import { getPool } from '../../../../src/server/db';
@@ -108,13 +117,64 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
     ...new Set((fallbackEvents.length > 0 ? fallbackEvents : usageEvents).map((event) => event.provider)),
   ];
 
+  // ₹1,499 Client Finder subscription — contact-access section (Phase 2,
+  // Parts 2/3). Every read below reuses an existing, unmodified function:
+  // getClientFinderSubscriptionStatus is the SAME function GET
+  // /api/subscriptions/status wraps; leadUnlocks.findByUserAndOpportunity
+  // and extractContactValues are the SAME reads/computation
+  // unlockOpportunity() itself performs before ever writing anything —
+  // nothing here re-implements that service's business logic, and
+  // nothing here reveals a contact value (extractContactValues' result is
+  // only ever checked for `.length > 0`, never rendered).
+  const [subscriptionStatus, existingUnlock] = await Promise.all([
+    getClientFinderSubscriptionStatus({ subscriptionPeriods: repos.subscriptionPeriods }, userId),
+    repos.leadUnlocks.findByUserAndOpportunity(userId, opportunity.id),
+  ]);
+  const hasQualifyingContact = extractContactValues(signals, identity.normalizedDomain).length > 0;
+
+  // Evidence masking (Phase 2, Part 1 contact-evidence leak fix): a raw
+  // source quote or claim can itself contain an email/phone number quoted
+  // from the source page. Masking is unconditional here — independent of
+  // today's unlock/subscription state — because ContactUnlockPanel below
+  // is the one sanctioned channel for revealing a contact value; this
+  // section's job is provenance, not a second reveal path.
+  const maskedSignals = signals.map((signal) => ({
+    ...signal,
+    signal: signal.signal ? maskContactIdentifiersInText(signal.signal, identity.normalizedDomain) : signal.signal,
+    sources: signal.sources.map((source) => ({
+      ...source,
+      sourceQuote: maskContactIdentifiersInText(source.sourceQuote, identity.normalizedDomain),
+    })),
+  }));
+  const maskedCategoryPlausibility = categoryPlausibility
+    ? {
+        ...categoryPlausibility,
+        segmentResults: categoryPlausibility.segmentResults.map((segment) => ({
+          ...segment,
+          evidence: segment.evidence.map((source) => ({
+            ...source,
+            quote: maskContactIdentifiersInText(source.quote, identity.normalizedDomain),
+          })),
+        })),
+      }
+    : null;
+
   return (
     <main id="main" className="shell">
       <header>
         <p className="eyebrow">Client Finder</p>
+        <ClientFinderNav />
         <h1 className="page-title">{identity.companyName ?? `Prospect ${opportunity.prospectId}`}</h1>
         <p className="lede">Next action: {nextAction.label}</p>
+        <SubscriptionStatusBadge active={subscriptionStatus.active} expiresAt={subscriptionStatus.expiresAt} />
       </header>
+
+      <ContactUnlockPanel
+        opportunityId={opportunity.id}
+        subscriptionActive={subscriptionStatus.active}
+        initialUnlockedContacts={existingUnlock?.contacts ?? null}
+        hasQualifyingContact={hasQualifyingContact}
+      />
 
       <section className="card">
         <h2>Opportunity</h2>
@@ -131,6 +191,16 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
             <dt>Staleness</dt>
             <dd>{opportunity.staleness}</dd>
           </div>
+          <div className="row">
+            <dt>AI enrichment</dt>
+            <dd>{opportunity.aiEnrichment}</dd>
+          </div>
+          {opportunity.aiEnrichment === 'DETERMINISTIC_ONLY' ? (
+            <div className="row">
+              <dt>AI enrichment reason</dt>
+              <dd>{opportunity.aiEnrichmentReason}</dd>
+            </div>
+          ) : null}
         </dl>
         {opportunity.offer ? (
           <div className="card">
@@ -142,29 +212,48 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
         ) : (
           <p>No suitable offer — evidence was insufficient to recommend one (AC-14).</p>
         )}
+        {opportunity.relevantSubservices.length > 0 ? (
+          <div className="card">
+            <h3>Relevant subservices</h3>
+            <ul>
+              {opportunity.relevantSubservices.map((subservice) => (
+                <li key={subservice}>{subservice}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
 
       {score ? (
         <section className="card">
-          <h2>Score: {score.total} ({score.band})</h2>
-          <ul>
-            {score.factors.map((factor) => (
-              <li key={factor.factor}>
-                {factor.factor}: +{factor.points} ({factor.basis}) — {factor.reason}
-              </li>
-            ))}
-          </ul>
-          <p>Observed share: {Math.round(score.observedShare * 100)}%</p>
+          <h2>Ranking</h2>
+          {score.ranking ? (
+            <ul>
+              {Object.entries(score.ranking)
+                // C-4: UNKNOWN is a valid internal state (never a penalty)
+                // but is hidden here rather than shown as literal
+                // "UNKNOWN" — for all seven dimensions, Primary included.
+                // No replacement value is substituted; the dimension is
+                // simply absent from this list.
+                .filter(([, tier]) => tier !== 'UNKNOWN')
+                .map(([dimension, tier]) => (
+                  <li key={dimension}>
+                    {dimension}: {tier}
+                  </li>
+                ))}
+            </ul>
+          ) : null}
+          <p className="hint">{score.reasons.join(' · ')}</p>
         </section>
       ) : null}
 
       <section className="card">
         <h2>Evidence</h2>
-        {signals.length === 0 ? (
+        {maskedSignals.length === 0 ? (
           <p>No research signals recorded.</p>
         ) : (
           <ul className="evidence-list">
-            {signals.map((signal) => (
+            {maskedSignals.map((signal) => (
               <li key={signal.id} className="evidence-item">
                 <p>
                   <strong>{signal.field}</strong> — {signal.classification}
@@ -186,35 +275,35 @@ export default async function OpportunityDetailPage({ params }: { params: { id: 
         )}
       </section>
 
-      {categoryPlausibility ? (
+      {maskedCategoryPlausibility ? (
         <section className="card">
-          <h2>Category plausibility: {categoryPlausibility.aggregateResult}</h2>
+          <h2>Category plausibility: {maskedCategoryPlausibility.aggregateResult}</h2>
           <p className="hint">
-            Target customer (as of this Search): {categoryPlausibility.targetCustomer}
+            Target customer (as of this Search): {maskedCategoryPlausibility.targetCustomer}
           </p>
-          <p className="hint">Determined {categoryPlausibility.observedAt.toISOString()}</p>
+          <p className="hint">Determined {maskedCategoryPlausibility.observedAt.toISOString()}</p>
           <dl className="summary">
             <div className="row">
               <dt>Determination ID</dt>
-              <dd>{categoryPlausibility.id}</dd>
+              <dd>{maskedCategoryPlausibility.id}</dd>
             </div>
             <div className="row">
               <dt>Search ID</dt>
-              <dd>{categoryPlausibility.searchId}</dd>
+              <dd>{maskedCategoryPlausibility.searchId}</dd>
             </div>
             <div className="row">
               <dt>Prospect ID</dt>
-              <dd>{categoryPlausibility.prospectId}</dd>
+              <dd>{maskedCategoryPlausibility.prospectId}</dd>
             </div>
           </dl>
-          <p className="hint">Target segments ({categoryPlausibility.targetSegments.length}):</p>
+          <p className="hint">Target segments ({maskedCategoryPlausibility.targetSegments.length}):</p>
           <ol>
-            {categoryPlausibility.targetSegments.map((targetSegment, index) => (
+            {maskedCategoryPlausibility.targetSegments.map((targetSegment, index) => (
               <li key={`${index}-${targetSegment}`}>{targetSegment}</li>
             ))}
           </ol>
           <ul className="evidence-list">
-            {categoryPlausibility.segmentResults.map((segment) => (
+            {maskedCategoryPlausibility.segmentResults.map((segment) => (
               <li key={segment.segment} className="evidence-item">
                 <p>
                   <strong>{segment.segment}</strong> — {segment.fit}

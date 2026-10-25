@@ -6,7 +6,16 @@ import {
   ResearchProspectNotFoundError,
   type CategoryPlausibilityRepository,
   type StoredCategoryPlausibilityDetermination,
+  type StoredResearchSignal,
 } from '@acos/core-research';
+import {
+  CLIENT_FINDER_SUBSCRIPTION_PRODUCT_SLUG,
+  fakeSubscriptionPeriodRepository,
+  type LeadUnlock,
+  type LeadUnlockRepository,
+  type SubscriptionPeriod,
+  type SubscriptionPeriodRepository,
+} from '@acos/core-subscriptions';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -24,6 +33,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   token: 'tok-a' as string | undefined,
   repos: {} as Record<string, unknown>,
+  signals: [] as unknown[],
+  aiEnrichment: 'AI_ENRICHED' as 'AI_ENRICHED' | 'DETERMINISTIC_ONLY',
+  aiEnrichmentReason: null as 'NOT_ESCALATED' | 'ESCALATION_FAILED' | 'PROVIDER_EXHAUSTED' | null,
+  relevantSubservices: [] as readonly string[],
+  score: null as unknown,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -59,15 +73,18 @@ vi.mock('@acos/core-opportunity', async (importOriginal) => ({
     needDetected: true,
     staleness: 'FRESH',
     offer: null,
+    aiEnrichment: state.aiEnrichment,
+    aiEnrichmentReason: state.aiEnrichmentReason,
+    relevantSubservices: state.relevantSubservices,
   }),
-  getOpportunityScore: async () => null,
+  getOpportunityScore: async () => state.score,
   getOpportunityNextAction: async () => ({ label: 'Review' }),
   getFeedback: async () => null,
 }));
 
 vi.mock('@acos/core-research', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@acos/core-research')>()),
-  listResearchSignals: async () => [],
+  listResearchSignals: async () => state.signals,
 }));
 
 vi.mock('@acos/core-qualification', async (importOriginal) => ({
@@ -101,6 +118,9 @@ function fakeIdentity(sessions: Record<string, StoredSessionToken>): IdentityRep
     async createUser() {
       throw new Error('not used by these tests');
     },
+    async findOrCreateUser() {
+      throw new Error('not used by these tests');
+    },
     async findUserByEmail() {
       throw new Error('not used by these tests');
     },
@@ -117,6 +137,24 @@ function fakeIdentity(sessions: Record<string, StoredSessionToken>): IdentityRep
       throw new Error('not used by these tests');
     },
     async revokeSessionToken() {
+      throw new Error('not used by these tests');
+    },
+    async findUserAuthStateById() {
+      throw new Error('not used by these tests');
+    },
+    async saveActivationToken() {
+      throw new Error('not used by these tests');
+    },
+    async findActivationToken() {
+      throw new Error('not used by these tests');
+    },
+    async consumeActivationToken() {
+      throw new Error('not used by these tests');
+    },
+    async setEmailVerified() {
+      throw new Error('not used by these tests');
+    },
+    async completeAccountSetup() {
       throw new Error('not used by these tests');
     },
   };
@@ -205,6 +243,9 @@ function fakeCategoryPlausibility(
         null
       );
     },
+    async isCategoryPlausibilityApplicableForProspectId() {
+      throw new Error('not used by these tests');
+    },
   };
 }
 
@@ -231,10 +272,55 @@ async function seedEvent(
   );
 }
 
+// Phase 0 regression-safety hardening (AUTH_COMMERCIAL_IMPLEMENTATION_
+// IMPACT_AUDIT.md §15 item 2): this previously keyed only on `userId` and
+// ignored `productSlug`/`now`, so it could not fail a test that queried
+// the wrong slug or a since-expired period. It now delegates to
+// `fakeSubscriptionPeriodRepository`, the same real-formula fake used by
+// access.test.ts and leadUnlockService.test.ts. `activationAt` defaults
+// to "yesterday" relative to the real clock (not a fixed calendar date)
+// so this stays active regardless of when the suite runs; pass
+// `activationAt`/`durationDays` explicitly to construct an expired or
+// not-yet-active period.
+function fakeSubscriptionPeriods(
+  activeUserIds: readonly string[] = [],
+  overrides: { productSlug?: string; activationAt?: Date; durationDays?: number } = {},
+): SubscriptionPeriodRepository {
+  const periods: SubscriptionPeriod[] = activeUserIds.map((userId) => ({
+    id: 'sub_period_a',
+    userId,
+    productSlug: overrides.productSlug ?? CLIENT_FINDER_SUBSCRIPTION_PRODUCT_SLUG,
+    razorpaySubscriptionId: 'rzp_sub_a',
+    razorpayPaymentId: 'rzp_pay_a',
+    activationAt: overrides.activationAt ?? new Date(Date.now() - 24 * 60 * 60 * 1000),
+    durationDays: overrides.durationDays ?? 30,
+    refundedAt: null,
+    createdAt: new Date('2026-09-28T00:00:00.000Z'),
+    updatedAt: new Date('2026-09-28T00:00:00.000Z'),
+  }));
+  return fakeSubscriptionPeriodRepository(periods);
+}
+
+function fakeLeadUnlocks(existing: Record<string, LeadUnlock> = {}): LeadUnlockRepository {
+  return {
+    async findByUserAndOpportunity(userId, opportunityId) {
+      return existing[`${userId}:${opportunityId}`] ?? null;
+    },
+    async revealAtomically() {
+      throw new Error('not used by these tests');
+    },
+  };
+}
+
 let usageEvents: ReturnType<typeof fakeAiUsageEventRepository>;
 
 beforeEach(() => {
   state.token = 'tok-a';
+  state.signals = [];
+  state.aiEnrichment = 'AI_ENRICHED';
+  state.aiEnrichmentReason = null;
+  state.relevantSubservices = [];
+  state.score = null;
   usageEvents = fakeAiUsageEventRepository();
   state.repos = {
     identity: fakeIdentity({ ...sessionFor('tok-a', 'user_a'), ...sessionFor('tok-b', 'user_b') }),
@@ -245,11 +331,16 @@ beforeEach(() => {
     ]),
     companies: {
       async getById(_userId: string, id: string) {
-        return id === 'company_prospect_a' ? { id, name: 'Fixture Bistro' } : null;
+        return id === 'company_prospect_a' ? { id, name: 'Fixture Bistro', normalizedDomain: 'fixturebistro.com' } : null;
       },
     },
     categoryPlausibility: fakeCategoryPlausibility([{ userId: 'user_a', determination: DETERMINATION }]),
     usageEvents,
+    // Default: no active subscription anywhere, no prior unlock anywhere —
+    // the most restrictive/safe default (Phase 2 Parts 2/3). Tests that
+    // need a subscriber or an existing unlock override these two keys.
+    subscriptionPeriods: fakeSubscriptionPeriods([]),
+    leadUnlocks: fakeLeadUnlocks({}),
   };
 });
 
@@ -389,5 +480,351 @@ describe('Opportunity detail page — P8/D11 evidence', () => {
   it("a different user's session cannot render this Prospect's evidence", async () => {
     state.token = 'tok-b';
     await expect(renderPage()).rejects.toBeInstanceOf(ResearchProspectNotFoundError);
+  });
+});
+
+/** The ranking section's own `<ul>...</ul>` inner HTML, scoped away from the Evidence/Qualification lists elsewhere on the page. */
+function rankingSectionHtml(html: string): string {
+  return html.match(/<h2>Ranking<\/h2>\s*<ul>(.*?)<\/ul>/s)?.[1] ?? '';
+}
+
+function scoreWithRanking(ranking: Record<string, 'STRONG' | 'MODERATE' | 'WEAK' | 'UNKNOWN'>) {
+  return {
+    id: 'score_a',
+    opportunityId: 'opp_a',
+    ranking,
+    reasons: ['fixture reason'],
+    rankerVersion: 'v1',
+    scoredAt: new Date('2026-09-28T00:00:00.000Z'),
+    createdAt: new Date('2026-09-28T00:00:00.000Z'),
+  };
+}
+
+// C-4 (CLIENT_FINDER_C_SERIES_PRODUCT_OWNER_DECISION_RECORD.md): UNKNOWN is
+// a valid internal ranking state that must never be shown as literal
+// "UNKNOWN" text — the dimension is hidden instead, with no fabricated
+// replacement value, for all seven dimensions including Primary ones.
+describe('Opportunity detail page — C-4 UNKNOWN ranking dimension visibility', () => {
+  it('hides an UNKNOWN Primary dimension (needOpportunity)', async () => {
+    state.score = scoreWithRanking({
+      needOpportunity: 'UNKNOWN',
+      serviceFit: 'STRONG',
+      evidenceQuality: 'STRONG',
+      evidenceFreshness: 'STRONG',
+      contactability: 'STRONG',
+      currentActivity: 'STRONG',
+      commercialReadiness: 'STRONG',
+    });
+    const section = rankingSectionHtml(await renderPage());
+    expect(section).not.toContain('needOpportunity:');
+  });
+
+  it('hides an UNKNOWN Important dimension (evidenceQuality)', async () => {
+    state.score = scoreWithRanking({
+      needOpportunity: 'STRONG',
+      serviceFit: 'STRONG',
+      evidenceQuality: 'UNKNOWN',
+      evidenceFreshness: 'STRONG',
+      contactability: 'STRONG',
+      currentActivity: 'STRONG',
+      commercialReadiness: 'STRONG',
+    });
+    const section = rankingSectionHtml(await renderPage());
+    expect(section).not.toContain('evidenceQuality:');
+  });
+
+  it('hides an UNKNOWN Supporting dimension (contactability)', async () => {
+    state.score = scoreWithRanking({
+      needOpportunity: 'STRONG',
+      serviceFit: 'STRONG',
+      evidenceQuality: 'STRONG',
+      evidenceFreshness: 'STRONG',
+      contactability: 'UNKNOWN',
+      currentActivity: 'STRONG',
+      commercialReadiness: 'STRONG',
+    });
+    const section = rankingSectionHtml(await renderPage());
+    expect(section).not.toContain('contactability:');
+  });
+
+  it('keeps every known (non-UNKNOWN) dimension visible with its real tier', async () => {
+    state.score = scoreWithRanking({
+      needOpportunity: 'STRONG',
+      serviceFit: 'MODERATE',
+      evidenceQuality: 'WEAK',
+      evidenceFreshness: 'UNKNOWN',
+      contactability: 'UNKNOWN',
+      currentActivity: 'UNKNOWN',
+      commercialReadiness: 'STRONG',
+    });
+    const section = text(rankingSectionHtml(await renderPage()));
+    expect(section).toContain('needOpportunity: STRONG');
+    expect(section).toContain('serviceFit: MODERATE');
+    expect(section).toContain('evidenceQuality: WEAK');
+    expect(section).toContain('commercialReadiness: STRONG');
+  });
+
+  it('never renders the literal word UNKNOWN in the ranking section, and never substitutes a fabricated tier for it', async () => {
+    state.score = scoreWithRanking({
+      needOpportunity: 'UNKNOWN',
+      serviceFit: 'UNKNOWN',
+      evidenceQuality: 'UNKNOWN',
+      evidenceFreshness: 'UNKNOWN',
+      contactability: 'STRONG',
+      currentActivity: 'UNKNOWN',
+      commercialReadiness: 'UNKNOWN',
+    });
+    const section = rankingSectionHtml(await renderPage());
+    expect(section).not.toContain('UNKNOWN');
+    // Only the one known dimension renders — no placeholder item stands in for the six hidden ones.
+    const items = [...section.matchAll(/<li>(.*?)<\/li>/g)];
+    expect(items).toHaveLength(1);
+    expect(text(items[0]![1]!)).toBe('contactability: STRONG');
+  });
+});
+
+// Regression coverage for the real production incident: a legacy
+// prospectScore-v1 score (written before migration 0044) has
+// score.ranking === null (scorePgRepository.ts's mapRow() no longer
+// reinterprets its old seven-factor array as a UniversalRankingProfile).
+// This page must render that case without throwing "Objects are not
+// valid as a React child" — the qualitative ranking list is simply
+// absent, while the pre-existing, already-correct reasons text still
+// renders.
+describe('Opportunity detail page — legacy (pre-migration-0044) score compatibility', () => {
+  it('renders without error when ranking is null, omits the ranking list, and still shows reasons', async () => {
+    state.score = {
+      id: 'score_a',
+      opportunityId: 'opp_a',
+      ranking: null,
+      reasons: ['Observed: hiring a content writer (+17)'],
+      rankerVersion: 'prospectScore-v1',
+      scoredAt: new Date('2026-09-28T00:00:00.000Z'),
+      createdAt: new Date('2026-09-28T00:00:00.000Z'),
+    };
+
+    const html = await renderPage();
+
+    expect(html).toContain('<h2>Ranking</h2>');
+    expect(html).not.toMatch(/<h2>Ranking<\/h2>\s*<ul>/);
+    expect(text(html)).toContain('Observed: hiring a content writer (+17)');
+  });
+});
+
+// Phase 7A: candidate-level AI enrichment provenance (MULR item 9). Renders
+// the already-persisted StoredOpportunity.aiEnrichment/aiEnrichmentReason
+// exactly as stored — nothing here recomputes or redefines those values.
+describe('Opportunity detail page — Phase 7A AI enrichment provenance', () => {
+  it('renders AI_ENRICHED with no reason shown', async () => {
+    state.aiEnrichment = 'AI_ENRICHED';
+    state.aiEnrichmentReason = null;
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('AI enrichment AI_ENRICHED');
+    expect(page).not.toContain('AI enrichment reason');
+  });
+
+  it('renders DETERMINISTIC_ONLY with reason NOT_ESCALATED', async () => {
+    state.aiEnrichment = 'DETERMINISTIC_ONLY';
+    state.aiEnrichmentReason = 'NOT_ESCALATED';
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('AI enrichment DETERMINISTIC_ONLY');
+    expect(page).toContain('AI enrichment reason NOT_ESCALATED');
+  });
+
+  it('renders DETERMINISTIC_ONLY with reason ESCALATION_FAILED', async () => {
+    state.aiEnrichment = 'DETERMINISTIC_ONLY';
+    state.aiEnrichmentReason = 'ESCALATION_FAILED';
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('AI enrichment DETERMINISTIC_ONLY');
+    expect(page).toContain('AI enrichment reason ESCALATION_FAILED');
+  });
+
+  it('renders DETERMINISTIC_ONLY with reason PROVIDER_EXHAUSTED', async () => {
+    state.aiEnrichment = 'DETERMINISTIC_ONLY';
+    state.aiEnrichmentReason = 'PROVIDER_EXHAUSTED';
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('AI enrichment DETERMINISTIC_ONLY');
+    expect(page).toContain('AI enrichment reason PROVIDER_EXHAUSTED');
+  });
+
+  it('does not render an "AI enrichment reason" row when AI_ENRICHED even if a stale reason value were present', async () => {
+    state.aiEnrichment = 'AI_ENRICHED';
+    // Defensive: authoritative values always pair AI_ENRICHED with
+    // reason = NULL, but the UI must not display a reason row for
+    // AI_ENRICHED regardless of what the stored reason value is.
+    state.aiEnrichmentReason = 'NOT_ESCALATED';
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('AI enrichment AI_ENRICHED');
+    expect(page).not.toContain('AI enrichment reason');
+  });
+});
+
+// Phase 7B: relevant predefined subservices (MULR item 6). Renders the
+// already-persisted StoredOpportunity.relevantSubservices exactly as
+// stored — nothing here recomputes or redefines the matching.
+describe('Opportunity detail page — Phase 7B relevant subservices', () => {
+  it('14. renders a "Relevant subservices" section listing each matched subservice when present', async () => {
+    state.relevantSubservices = ['Website development', 'Mobile apps'];
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('Relevant subservices');
+    expect(page).toContain('Website development');
+    expect(page).toContain('Mobile apps');
+  });
+
+  it('15. omits the "Relevant subservices" section entirely when none matched', async () => {
+    state.relevantSubservices = [];
+
+    const page = text(await renderPage());
+
+    expect(page).not.toContain('Relevant subservices');
+  });
+});
+
+function signalWithQuote(quote: string, claim: string | null = null): StoredResearchSignal {
+  return {
+    id: 'signal_1',
+    prospectId: 'prospect_a',
+    field: 'visibleProblems',
+    kind: 'WEBSITE',
+    classification: 'OBSERVED',
+    signal: claim,
+    confidence: 70,
+    basis: null,
+    observedAt: new Date('2026-09-28T09:00:00.000Z'),
+    supersededAt: null,
+    sources: [{ id: 'source_1', sourceUrl: 'https://fixture.test/contact', sourceLabel: 'Contact page', sourceQuote: quote }],
+  };
+}
+
+// ₹1,499 Client Finder subscription — Phase 2 Part 1 (contact-evidence
+// leak fix) and Parts 2/3 (subscription status + unlock UI) regression
+// coverage.
+describe('Opportunity detail page — ₹1,499 Client Finder subscription contact access', () => {
+  it('masks a personal email found in a source quote before unlock, and never renders the raw value', async () => {
+    state.signals = [signalWithQuote('Reach the owner at jane.doe@gmail.com for a quote.')];
+
+    const page = text(await renderPage());
+
+    expect(page).not.toContain('jane.doe@gmail.com');
+    expect(page).toContain('[contact hidden — unlock to view]');
+  });
+
+  it('masks a phone number found in a signal claim before unlock, and never renders the raw value', async () => {
+    state.signals = [signalWithQuote('See homepage for details.', 'Call 98765 43210 to book a table.')];
+
+    const page = text(await renderPage());
+
+    expect(page).not.toContain('98765 43210');
+    expect(page).toContain('[contact hidden — unlock to view]');
+  });
+
+  it('leaves evidence with no contact identifier exactly as stored', async () => {
+    state.signals = [signalWithQuote('Posted a job listing for a front-of-house manager.')];
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('Posted a job listing for a front-of-house manager.');
+    expect(page).not.toContain('[contact hidden — unlock to view]');
+  });
+
+  it('a non-subscriber with no prior unlock sees a subscribe prompt, never an Unlock Contact button', async () => {
+    state.signals = [signalWithQuote('Email owner@personalmail.com for bookings.')];
+    (state.repos as Record<string, unknown>).subscriptionPeriods = fakeSubscriptionPeriods([]);
+    (state.repos as Record<string, unknown>).leadUnlocks = fakeLeadUnlocks({});
+
+    const html = await renderPage();
+    const page = text(html);
+
+    expect(page).toContain('Client Finder subscription: Not active');
+    expect(page).toContain('Contact information is available for this opportunity.');
+    expect(page).toContain('An active ₹1,499 Client Finder subscription is required to unlock it.');
+    expect(page).not.toContain('Unlock Contact');
+    expect(page).not.toContain('owner@personalmail.com');
+    expect(html).toContain(`/checkout/${CLIENT_FINDER_SUBSCRIPTION_PRODUCT_SLUG}`);
+  });
+
+  it('an active subscriber with a qualifying contact and no prior unlock sees the Unlock Contact action', async () => {
+    state.signals = [signalWithQuote('Email owner@personalmail.com for bookings.')];
+    (state.repos as Record<string, unknown>).subscriptionPeriods = fakeSubscriptionPeriods(['user_a']);
+    (state.repos as Record<string, unknown>).leadUnlocks = fakeLeadUnlocks({});
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('Client Finder subscription: Active');
+    expect(page).toContain('Unlock Contact');
+    expect(page).not.toContain('owner@personalmail.com');
+  });
+
+  it('a subscriber with an EXPIRED period sees a subscribe prompt, not Unlock Contact', async () => {
+    state.signals = [signalWithQuote('Email owner@personalmail.com for bookings.')];
+    (state.repos as Record<string, unknown>).subscriptionPeriods = fakeSubscriptionPeriods(['user_a'], {
+      activationAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+      durationDays: 30,
+    });
+    (state.repos as Record<string, unknown>).leadUnlocks = fakeLeadUnlocks({});
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('Client Finder subscription: Not active');
+    expect(page).not.toContain('Unlock Contact');
+  });
+
+  it('a subscriber whose only active period is for a DIFFERENT product sees a subscribe prompt, not Unlock Contact', async () => {
+    state.signals = [signalWithQuote('Email owner@personalmail.com for bookings.')];
+    (state.repos as Record<string, unknown>).subscriptionPeriods = fakeSubscriptionPeriods(['user_a'], {
+      productSlug: 'ai_freelancing_499',
+    });
+    (state.repos as Record<string, unknown>).leadUnlocks = fakeLeadUnlocks({});
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('Client Finder subscription: Not active');
+    expect(page).not.toContain('Unlock Contact');
+  });
+
+  it('an active subscriber with no qualifying contact sees no contact details found, and no Unlock button', async () => {
+    state.signals = [signalWithQuote('We are open Monday to Saturday.')];
+    (state.repos as Record<string, unknown>).subscriptionPeriods = fakeSubscriptionPeriods(['user_a']);
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('No contact details were found in the research evidence for this opportunity.');
+    expect(page).not.toContain('Unlock Contact');
+  });
+
+  it('a previously unlocked opportunity renders its revealed contacts directly, independent of today’s subscription state', async () => {
+    state.signals = [signalWithQuote('Email owner@personalmail.com for bookings.')];
+    (state.repos as Record<string, unknown>).subscriptionPeriods = fakeSubscriptionPeriods([]); // expired/none today
+    (state.repos as Record<string, unknown>).leadUnlocks = fakeLeadUnlocks({
+      'user_a:opp_a': {
+        id: 'unlock_1',
+        userId: 'user_a',
+        opportunityId: 'opp_a',
+        subscriptionPeriodId: 'sub_period_old',
+        unlockedAt: new Date('2026-09-01T00:00:00.000Z'),
+        createdAt: new Date('2026-09-01T00:00:00.000Z'),
+        contacts: [{ kind: 'PERSONAL_EMAIL', value: 'owner@personalmail.com' }],
+      },
+    });
+
+    const page = text(await renderPage());
+
+    expect(page).toContain('Unlocked');
+    expect(page).toContain('Personal email: owner@personalmail.com');
+    // The Evidence section's own rendering of the same text is still masked —
+    // the only place the raw value may legitimately appear is this reveal.
+    expect(page).toContain('[contact hidden — unlock to view]');
   });
 });

@@ -1,6 +1,7 @@
 import { NoActiveClientFinderSubscriptionError } from './errors';
 import type { LeadUnlockRepository } from './leadUnlockRepository';
 import type { SubscriptionPeriodRepository } from './subscriptionPeriodRepository';
+import type { SubscriptionPeriod } from './types';
 
 // The Client Finder access gate (plan §I) -- did not exist before this
 // feature (no code anywhere checked "does this user hold an active
@@ -23,6 +24,25 @@ export interface ClientFinderAccessDeps {
 }
 
 /**
+ * The one place `findActiveForUser` is called for the Client Finder
+ * subscription slug. `hasClientFinderAccess`, `getClientFinderSubscriptionStatus`,
+ * and leadUnlockService's `unlockOpportunityForOwner` (the actual
+ * contact-unlock write path) all resolve through this function instead of
+ * each independently re-querying -- previously they did not, which is the
+ * split-brain risk AUTH_COMMERCIAL_IMPLEMENTATION_IMPACT_AUDIT.md §15 item 1
+ * flagged: a future entitlement change landed in only one call site could
+ * make the read path (page gating/status badge) and the write path
+ * (unlock) disagree about who has access.
+ */
+export async function findActiveClientFinderSubscriptionPeriod(
+  deps: Pick<ClientFinderAccessDeps, 'subscriptionPeriods'>,
+  userId: string,
+  now: Date,
+): Promise<SubscriptionPeriod | null> {
+  return deps.subscriptionPeriods.findActiveForUser(userId, CLIENT_FINDER_SUBSCRIPTION_PRODUCT_SLUG, now);
+}
+
+/**
  * True when the user may perform a Client Finder subscriber-only action
  * (currently: unlock). `opportunityId`, when given, additionally admits
  * a user who has no active subscription today but already holds a
@@ -36,11 +56,7 @@ export async function hasClientFinderAccess(
   opportunityId: string | null = null,
   now: Date = new Date(),
 ): Promise<boolean> {
-  const active = await deps.subscriptionPeriods.findActiveForUser(
-    userId,
-    CLIENT_FINDER_SUBSCRIPTION_PRODUCT_SLUG,
-    now,
-  );
+  const active = await findActiveClientFinderSubscriptionPeriod(deps, userId, now);
   if (active) return true;
 
   if (opportunityId !== null) {
@@ -78,11 +94,7 @@ export async function getClientFinderSubscriptionStatus(
   userId: string,
   now: Date = new Date(),
 ): Promise<ClientFinderSubscriptionStatus> {
-  const active = await deps.subscriptionPeriods.findActiveForUser(
-    userId,
-    CLIENT_FINDER_SUBSCRIPTION_PRODUCT_SLUG,
-    now,
-  );
+  const active = await findActiveClientFinderSubscriptionPeriod(deps, userId, now);
   if (!active) return { active: false, expiresAt: null, durationDays: null };
   return {
     active: true,

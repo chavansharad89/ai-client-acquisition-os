@@ -1,5 +1,6 @@
 export {
   CLIENT_FINDER_SUBSCRIPTION_PRODUCT_SLUG,
+  findActiveClientFinderSubscriptionPeriod,
   getClientFinderSubscriptionStatus,
   hasClientFinderAccess,
   requireClientFinderAccess,
@@ -26,3 +27,5 @@ export type {
 } from './subscriptionPeriodRepository';
 
 export type { LeadUnlock, LeadUnlockContact, SubscriptionPeriod } from './types';
+
+export { fakeSubscriptionPeriodRepository } from './testing/fakeSubscriptionPeriodRepository';

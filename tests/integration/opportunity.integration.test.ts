@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   type DiscoveryCandidate,
@@ -39,6 +40,7 @@ import {
   type ServiceProfileInput,
 } from '@acos/core-service-profile';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
 import { suiteDatabase } from './support/suiteDb';
 
@@ -54,10 +56,17 @@ import { suiteDatabase } from './support/suiteDb';
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('opportunity');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 const CAREERS = { url: 'https://acme.test/careers', label: 'careers' };
 
@@ -107,6 +116,69 @@ function matchingResearch(): LeadResearch {
       basedOn: [],
     },
     confidence: 55,
+    gaps: [],
+  };
+}
+
+/**
+ * K5-D1 (CF-NEED-OPPORTUNITY-SUFFICIENCY-PO-DEC-001): unlike
+ * matchingResearch() above (a single OBSERVED signal — no longer
+ * sufficient on its own for a NEW Service+Geography-only search, see
+ * @acos/core-opportunity's hasCredibleNeedEvidence()), this carries
+ * TWO independent OBSERVED, full-confidence signals from distinct
+ * fields, both matching sampleProfileInput()'s "AI & Automation"
+ * catalogue vocabulary ('workflow automation', 'business process
+ * automation') — credible enough to establish NEED_DETECTED under the
+ * new, stronger bar.
+ */
+function credibleNeedResearch(): LeadResearch {
+  const unknownField = { classification: 'UNKNOWN' as const, value: null, evidence: [], basis: null, confidence: 0 };
+  return {
+    companySummary: unknownField,
+    businessModel: unknownField,
+    targetCustomers: unknownField,
+    categoryPlausibility: [],
+    visibleProblems: [
+      {
+        classification: 'OBSERVED',
+        value:
+          'the support team manually processes every order — workflow automation would eliminate this bottleneck',
+        evidence: [
+          {
+            quote: 'the support team manually processes every order',
+            sourceUrl: CAREERS.url,
+            sourceLabel: CAREERS.label,
+          },
+        ],
+        basis: null,
+        confidence: 100,
+      },
+    ],
+    growthOpportunities: [],
+    aiOpportunities: [],
+    websiteIssues: [],
+    contentOpportunities: [],
+    automationOpportunities: [
+      {
+        classification: 'OBSERVED',
+        value: 'manual data entry across spreadsheets is error-prone and could use business process automation',
+        evidence: [
+          {
+            quote: 'manual data entry across spreadsheets is error-prone',
+            sourceUrl: CAREERS.url,
+            sourceLabel: CAREERS.label,
+          },
+        ],
+        basis: null,
+        confidence: 100,
+      },
+    ],
+    recommendedService: {
+      service: 'NONE',
+      rationale: 'insufficient evidence to recommend one',
+      basedOn: [],
+    },
+    confidence: 90,
     gaps: [],
   };
 }
@@ -162,7 +234,7 @@ function testProvider(result: LeadResearch): ResearchProvider {
 function discoveryProvider(candidates: readonly DiscoveryCandidate[]): DiscoveryProvider {
   return {
     async discover() {
-      return candidates;
+      return { candidates, actualQuery: 'test query', provider: 'TEST_PROVIDER' };
     },
   };
 }
@@ -175,6 +247,7 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     signals: createPgResearchSignalRepository(db.client),
     opportunities: createPgOpportunityRepository(db.client),
   };
@@ -211,7 +284,7 @@ async function createUserAndSession(label: string): Promise<{ userId: string; to
 
 function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'AI content system',
+    service: 'AI & Automation',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 15_000_000,
@@ -265,7 +338,11 @@ describe('createOpportunity', () => {
     const a = await createUserAndSession('a');
     const base = repos();
     const { prospectId } = await createProspect(base, a.token);
-    const rd = researchDeps(base, matchingResearch());
+    // K5-D1: this is a NEW Service+Geography-only search, so a single
+    // weak signal (matchingResearch()) is no longer sufficient to
+    // establish NEED_DETECTED — credibleNeedResearch() supplies the
+    // >=2-independent-signal evidence the new sufficiency gate requires.
+    const rd = researchDeps(base, credibleNeedResearch());
     await runResearch(rd, a.token, { prospectId });
 
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
@@ -274,8 +351,11 @@ describe('createOpportunity', () => {
     expect(opportunity.prospectId).toBe(prospectId);
     expect(opportunity.state).toBe('NEW');
     expect(opportunity.needDetected).toBe(true);
-    expect(opportunity.offer?.service).toBe('AI content system');
-    expect(opportunity.offer?.basedOn).toEqual(['hiring a content writer']);
+    expect(opportunity.offer?.service).toBe('AI & Automation');
+    expect(opportunity.offer?.basedOn).toEqual([
+      'the support team manually processes every order — workflow automation would eliminate this bottleneck',
+      'manual data entry across spreadsheets is error-prone and could use business process automation',
+    ]);
   });
 
   it('AC-13/AC-14: a Prospect with no matching evidence persists NO SUITABLE OFFER, not a default to the service', async () => {

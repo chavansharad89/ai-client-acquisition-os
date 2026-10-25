@@ -1,8 +1,10 @@
-import { notFound, redirect } from 'next/navigation';
 
 import { UnauthenticatedError } from '@acos/core-identity';
 import { getSearch } from '@acos/core-search';
+import { SYSTEM_DEFAULT_TARGET_CUSTOMER } from '@acos/core-service-profile';
+import { notFound, redirect } from 'next/navigation';
 
+import { ClientFinderNav } from '../../../../src/components/client-finder/ClientFinderNav';
 import { SearchStatusPoller } from '../../../../src/components/client-finder/SearchStatusPoller';
 import { clientFinderRepositories } from '../../../../src/server/clientFinderRepositories';
 import { readSessionTokenFromServerComponent } from '../../../../src/server/session';
@@ -52,6 +54,7 @@ export default async function SearchStatusPage({ params }: { params: { id: strin
       <SearchStatusPoller status={search.status} />
       <header>
         <p className="eyebrow">Client Finder</p>
+        <ClientFinderNav />
         <h1 className="page-title">Search status</h1>
       </header>
 
@@ -64,10 +67,16 @@ export default async function SearchStatusPage({ params }: { params: { id: strin
             <dt>Service</dt>
             <dd>{search.parameters.service}</dd>
           </div>
-          <div className="row">
-            <dt>Target customer</dt>
-            <dd>{search.parameters.targetCustomer}</dd>
-          </div>
+          {/* CF-SEARCH-INPUT-SERVICE-GEOGRAPHY-ONLY-PO-DEC-002 D2: a NEW
+              search's targetCustomer is a system-owned sentinel, not
+              freelancer-meaningful data — don't show it. Historical
+              searches with a real targetCustomer still show it. */}
+          {search.parameters.targetCustomer !== SYSTEM_DEFAULT_TARGET_CUSTOMER ? (
+            <div className="row">
+              <dt>Target customer</dt>
+              <dd>{search.parameters.targetCustomer}</dd>
+            </div>
+          ) : null}
           <div className="row">
             <dt>Geography</dt>
             <dd>{search.parameters.geography}</dd>

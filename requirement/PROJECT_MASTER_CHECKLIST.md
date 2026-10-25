@@ -141,6 +141,14 @@ launch gates and have no implementation or launch consequence until a Product Ow
 Undefined in any record (would need definition in the same decision): "qualified visitor", "useful outcome",
 "completion", measurement window, and how each is instrumented.
 
+> **Cross-reference / reconciliation notice (2026-10-12, additive only):** PCG-1..6 above are commercial-funnel
+> gates (visitor/buyer counts, conversion, refunds, completion) and do not evaluate whether discovered
+> opportunities are themselves useful, evidence-backed leads. A separate, complementary pre-production
+> discovery-quality gate — validating against the universal five-dimension framework and the Minimum Useful Lead
+> Result fields — is recorded in `CF-DISCOVERY-QUALITY-LAUNCH-GATE-PO-DEC-001`
+> (`CLIENT_FINDER_DISCOVERY_QUALITY_LAUNCH_GATE_PO_DECISION.md`). Neither record alters the other's figures or
+> status.
+
 ---
 
 ## §4 Master checklist

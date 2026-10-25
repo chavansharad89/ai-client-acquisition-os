@@ -12,7 +12,12 @@
 
 export { createPgServiceProfileRepository } from './pgRepository';
 export type { ServiceProfileRepository } from './repository';
-export type { ServiceProfileFields, ServiceProfileInput, StoredServiceProfile } from './types';
+export type {
+  NewSearchServiceProfileInput,
+  ServiceProfileFields,
+  ServiceProfileInput,
+  StoredServiceProfile,
+} from './types';
 
 export {
   RATIONALE_MAX_LENGTH,
@@ -25,6 +30,15 @@ export {
 } from './validation';
 export { ServiceProfileValidationError } from './errors';
 export type { ServiceProfileValidationReason } from './errors';
+
+export {
+  applySystemServiceProfileDefaults,
+  deriveSystemKeywords,
+  SYSTEM_DEFAULT_MIN_PROJECT_VALUE_PAISE,
+  SYSTEM_DEFAULT_RATIONALE,
+  SYSTEM_DEFAULT_TARGET_CUSTOMER,
+  SYSTEM_DEFAULT_TRIGGERS,
+} from './systemDefaults';
 
 export {
   createServiceProfile,

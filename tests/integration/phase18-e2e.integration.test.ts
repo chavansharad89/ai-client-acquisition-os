@@ -4,6 +4,7 @@ import { createPgAiUsageEventRepository, toNewAiUsageEventInput } from '@acos/co
 import {
   createGooglePlacesDiscoveryProvider,
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   type ExternalDiscoveryClient,
 } from '@acos/core-discovery';
@@ -14,6 +15,8 @@ import {
   createAnthropicResearchProvider,
   createHttpSourceDocumentProvider,
   createPgResearchSignalRepository,
+  type DeterministicSignal,
+  type ServiceSignalCatalogue,
 } from '@acos/core-research';
 import { createPgSearchRepository, createSearch, type SearchDeps } from '@acos/core-search';
 import {
@@ -23,6 +26,7 @@ import {
 } from '@acos/core-service-profile';
 import { claimAndProcessNextSearch, type SearchWorkerDeps } from '@acos/worker/searchWorker';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
 import { suiteDatabase } from './support/suiteDb';
 
@@ -40,10 +44,17 @@ import { suiteDatabase } from './support/suiteDb';
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('phase18_e2e');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 function repos() {
   const { db } = suite.require();
@@ -53,6 +64,7 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     signals: createPgResearchSignalRepository(db.client),
     opportunities: createPgOpportunityRepository(db.client),
     aiUsageEvents: createPgAiUsageEventRepository(db.client),
@@ -74,7 +86,7 @@ async function createUserAndSession(label: string): Promise<{ userId: string; to
 
 function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'Website development',
+    service: 'Web & Software Development',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 3_000_000,
@@ -137,6 +149,37 @@ function fakeAnthropicMessage(id: string) {
   };
 }
 
+/**
+ * Phase 5: a deterministic signal catalogue that always reports one
+ * qualifying, top-reliability, Primary-dimension signal — the same
+ * approved test seam apps/worker/src/searchWorker/worker.test.ts's own
+ * qualifyingSignalCatalogue() uses, reproduced locally here since this
+ * suite does not import that unexported test helper. Needed so the
+ * admitted candidate genuinely clears the Phase 5 admission gate
+ * (evaluateAdmission) and the real Anthropic-shaped Research provider
+ * actually runs, rather than the candidate being denied admission by
+ * default.
+ */
+function qualifyingSignalCatalogue(): ServiceSignalCatalogue {
+  return {
+    service: 'test',
+    evaluate(): readonly DeterministicSignal[] {
+      return [
+        {
+          signal: {
+            kind: 'WEBSITE',
+            signal: 'qualifying deterministic signal (test fixture)',
+            confidence: 100,
+            observedAt: new Date(),
+          },
+          dimension: 'NEED_OPPORTUNITY_GAP',
+          field: 'test.qualifyingSignal',
+        },
+      ];
+    },
+  };
+}
+
 function buildDeps(
   base: ReturnType<typeof repos>,
   domain: string,
@@ -144,7 +187,7 @@ function buildDeps(
 ): SearchWorkerDeps {
   const discoveryClient: ExternalDiscoveryClient = {
     async searchText() {
-      return [{ name: 'Acme Robotics', websiteUri: `https://${domain}` }];
+      return [{ name: 'Acme Robotics', websiteUri: `https://${domain}`, businessStatus: 'OPERATIONAL' }];
     },
   };
 
@@ -167,6 +210,7 @@ function buildDeps(
     searches: base.searches,
     companies: base.companies,
     prospects: base.prospects,
+    entities: base.entities,
     discoveryProvider: createGooglePlacesDiscoveryProvider(discoveryClient),
     signals: base.signals,
     researchProvider: (userId: string) =>
@@ -180,6 +224,19 @@ function buildDeps(
       }),
     opportunities: base.opportunities,
     workerId,
+    // Phase 5: Research only runs for an admitted candidate — without a
+    // qualifying deterministic signal, admission denies by default.
+    signalCatalogue: qualifyingSignalCatalogue(),
+    // Phase 5 PO-1/PO-4: the SAME SourceDocumentProvider instance the
+    // research provider above uses. Without this, Pass 1 synthesizes an
+    // empty SuppliedSourceDocuments placeholder (worker.ts) that is always
+    // forwarded to the provider and always wins over the provider's own
+    // fetch (anthropicResearchProvider.ts's `supplied ? supplied.documents
+    // : await deps.sourceDocuments.fetchSourceDocuments(...)`), so Research
+    // would otherwise always throw InsufficientEvidenceError once genuinely
+    // admitted. Wiring the same instance here makes Pass 1 do the one real
+    // fetch, which the provider then reuses — exactly PO-4's intent.
+    sourceDocuments,
   };
 }
 

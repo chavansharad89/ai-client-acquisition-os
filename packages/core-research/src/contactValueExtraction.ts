@@ -47,7 +47,8 @@ const MASKED_LOCAL_PART_RE = /\*/;
 // PHONE vs. nothing.
 const PHONE_CANDIDATE_RE = /\+?\d[\d\s().-]{6,18}\d/g;
 
-function candidateSubstrings(text: string): readonly string[] {
+/** Exported (read-only, unchanged behavior) so contactValueMasking.ts can reuse the exact same candidate rules — never a second, drifting copy of these regexes. */
+export function candidateSubstrings(text: string): readonly string[] {
   const found: string[] = [];
   for (const match of text.matchAll(EMAIL_CANDIDATE_RE)) {
     if (MASKED_LOCAL_PART_RE.test(match[0])) continue;

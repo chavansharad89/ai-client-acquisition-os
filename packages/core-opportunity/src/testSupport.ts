@@ -1,9 +1,11 @@
-import type { OpportunityStaleness, ProspectScore } from '@acos/core-acquisition';
+import type { OpportunityStaleness, UniversalRankingProfile } from '@acos/core-acquisition';
 
 import type { FeedbackRepository } from './feedbackRepository';
 import type { OpportunityRepository } from './repository';
 import type { OpportunityScoreRepository } from './scoreRepository';
 import type {
+  AiEnrichment,
+  AiEnrichmentReason,
   DetectedOffer,
   RecordFeedbackInput,
   StoredFeedback,
@@ -29,7 +31,12 @@ export function fakeOpportunityRepository(
 
     async create(
       userId: string,
-      input: { prospectId: string; needDetected: boolean; offer: DetectedOffer | undefined },
+      input: {
+        prospectId: string;
+        needDetected: boolean;
+        offer: DetectedOffer | undefined;
+        relevantSubservices: readonly string[];
+      },
       now: Date,
     ) {
       if (rows.some((row) => row.prospectId === input.prospectId)) {
@@ -44,8 +51,11 @@ export function fakeOpportunityRepository(
         state: 'NEW',
         needDetected: input.needDetected,
         offer: input.offer,
+        relevantSubservices: input.relevantSubservices,
         staleness: 'FRESH',
         stalenessComputedAt: null,
+        aiEnrichment: 'DETERMINISTIC_ONLY',
+        aiEnrichmentReason: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -81,6 +91,23 @@ export function fakeOpportunityRepository(
       rows[index] = updated;
       return updated;
     },
+
+    async updateAiEnrichment(
+      userId: string,
+      id: string,
+      aiEnrichment: AiEnrichment,
+      aiEnrichmentReason: AiEnrichmentReason | null,
+    ) {
+      const index = rows.findIndex((row) => row.id === id && row.userId === userId);
+      if (index === -1) return null;
+      const updated: StoredOpportunity = {
+        ...rows[index]!,
+        aiEnrichment,
+        aiEnrichmentReason,
+      };
+      rows[index] = updated;
+      return updated;
+    },
   };
 }
 
@@ -104,8 +131,9 @@ export function fakeOpportunityScoreRepository(
 
     async upsert(
       opportunityId: string,
-      score: ProspectScore,
-      scorerVersion: string,
+      ranking: UniversalRankingProfile,
+      reasons: readonly string[],
+      rankerVersion: string,
       scoredAt: Date,
     ) {
       const index = rows.findIndex((row) => row.opportunityId === opportunityId);
@@ -113,13 +141,9 @@ export function fakeOpportunityScoreRepository(
       const stored: StoredOpportunityScore = {
         id: existing?.id ?? `opportunity_score_${(counter += 1)}`,
         opportunityId,
-        total: score.score,
-        band: score.band,
-        factors: score.factors,
-        reasons: score.reasons,
-        observedShare: score.observedShare,
-        cap: score.cap,
-        scorerVersion,
+        ranking,
+        reasons,
+        rankerVersion,
         scoredAt,
         createdAt: existing?.createdAt ?? scoredAt,
       };

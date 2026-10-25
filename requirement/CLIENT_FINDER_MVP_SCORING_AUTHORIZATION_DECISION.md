@@ -1,5 +1,7 @@
 # Client Finder MVP — Scoring Authorization Decision
 
+> **Superseded-in-part notice (2026-10-12):** `CF-UNIVERSAL-RANKING-SUPERSEDES-MVP-SCORING-PO-DEC-001` (see `CLIENT_FINDER_UNIVERSAL_RANKING_SUPERSEDES_MVP_SCORING_PO_DECISION.md`) reconciles this decision with the newer `CF-UNIVERSAL-RANKING-FRAMEWORK-PO-DEC-001`. Where they conflict, the newer ranking-framework decision governs: the 20/20/15/15/15/10/5 weighting scheme below no longer carries standing as a decided Product Owner weighting, and the composite `OpportunityScore` is no longer authorized to be shown to the user as a number. Decision D (§5, four-factor deferral) and the historical record below are unaffected and remain authoritative. This notice is additive; the content below is preserved unchanged as the historical record of what was decided on 2026-09-24.
+
 **Purpose:** Establish an explicit, auditable product/scope decision for two
 currently unauthorized items surfaced by a read-only repository audit, so that
 the next implementation or commit step (if any) has a documented basis. This

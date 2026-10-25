@@ -62,11 +62,13 @@ describe('all required secrets present', () => {
       'DATABASE_URL',
       'DOWNLOAD_GRANT_SECRET',
       'GEMINI_API_KEY',
+      'GMAIL_DEV_APP_PASSWORD',
       'GOOGLE_PLACES_API_KEY',
       'META_CAPI_ACCESS_TOKEN',
       'OPENAI_API_KEY',
       'RAZORPAY_KEY_SECRET',
       'RAZORPAY_WEBHOOK_SECRET',
+      'RESEND_API_KEY',
     ]);
     // The publishable key must NOT be in there — marking it secret would
     // imply a confidentiality it does not have.
@@ -83,7 +85,6 @@ describe('a missing required secret fails at load', () => {
     'RAZORPAY_WEBHOOK_SECRET',
     'META_PIXEL_ID',
     'META_CAPI_ACCESS_TOKEN',
-    'ANTHROPIC_API_KEY',
     'DOWNLOAD_GRANT_SECRET',
     'GOOGLE_PLACES_API_KEY',
   ])('refuses to load without %s', (key) => {
@@ -93,13 +94,6 @@ describe('a missing required secret fails at load', () => {
     } catch (error) {
       expect((error as EnvValidationError).missing).toContain(key);
     }
-  });
-
-  it('missing ANTHROPIC_API_KEY is a boot failure, not a first-call failure', () => {
-    // The regression this guards: the key used to be read inside the
-    // Anthropic SDK constructor, so a process booted fine and died on its
-    // first research call instead.
-    expect(() => loadEnv(without('ANTHROPIC_API_KEY'))).toThrow(/ANTHROPIC_API_KEY/);
   });
 
   it('missing DOWNLOAD_GRANT_SECRET is a boot failure', () => {
@@ -113,7 +107,6 @@ describe('a missing required secret fails at load', () => {
       expect.unreachable('expected a validation error');
     } catch (error) {
       const missing = (error as EnvValidationError).missing;
-      expect(missing).toContain('ANTHROPIC_API_KEY');
       expect(missing).toContain('DOWNLOAD_GRANT_SECRET');
       expect(missing).toContain('RAZORPAY_WEBHOOK_SECRET');
       expect(missing.length).toBeGreaterThanOrEqual(8);
@@ -151,19 +144,26 @@ describe('no secret value is ever emitted', () => {
     'places-key-not-real',
     'sk-openai-not-real',
     'gm-not-real',
+    'gmail-app-pw-not-real',
+    'resend-key-not-real',
   ];
-  // OPENAI_API_KEY/GEMINI_API_KEY are OPTIONAL (unlike every other secret
-  // in COMPLETE) — set explicitly here so this suite still proves every
-  // secret this system CAN hold is redacted, not just the required ones.
+  // OPENAI_API_KEY/GEMINI_API_KEY/GMAIL_DEV_APP_PASSWORD/RESEND_API_KEY are
+  // all OPTIONAL (unlike every other secret in COMPLETE) — set explicitly
+  // here so this suite still proves every secret this system CAN hold is
+  // redacted, not just the required ones.
   const COMPLETE_WITH_OPTIONAL_PROVIDERS: NodeJS.ProcessEnv = {
     ...COMPLETE,
     OPENAI_API_KEY: 'sk-openai-not-real',
     GEMINI_API_KEY: 'gm-not-real',
+    GMAIL_DEV_USER: 'dev@example.com',
+    GMAIL_DEV_APP_PASSWORD: 'gmail-app-pw-not-real',
+    RESEND_API_KEY: 'resend-key-not-real',
+    RESEND_FROM_EMAIL: 'no-reply@example.com',
   };
 
   it('keeps values out of the error when a variable is missing', () => {
     try {
-      loadEnv(without('ANTHROPIC_API_KEY'));
+      loadEnv(without('DOWNLOAD_GRANT_SECRET'));
       expect.unreachable('expected a validation error');
     } catch (error) {
       const serialised = `${(error as Error).message} ${JSON.stringify(error)}`;
@@ -298,6 +298,22 @@ describe('multi-model research provider selection (OPTIONAL credentials)', () =>
     const summary = redactedEnv(loadEnv(COMPLETE));
     expect(summary.OPENAI_API_KEY).toBe('[unset]');
     expect(summary.GEMINI_API_KEY).toBe('[unset]');
+  });
+});
+
+describe('zero-AI boot path (Global Entity Architecture, C-3B: ANTHROPIC_API_KEY is OPTIONAL)', () => {
+  it('boots without ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY — a zero-AI deployment keeps booting', () => {
+    const env = loadEnv(without('ANTHROPIC_API_KEY'));
+    expect(env.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(env.OPENAI_API_KEY).toBeUndefined();
+    expect(env.GEMINI_API_KEY).toBeUndefined();
+  });
+
+  it('is a boot failure only when ANTHROPIC_API_KEY is present but empty, never merely absent', () => {
+    expect(() => loadEnv({ ...without('ANTHROPIC_API_KEY'), ANTHROPIC_API_KEY: '   ' })).toThrow(
+      EnvValidationError,
+    );
+    expect(() => loadEnv(without('ANTHROPIC_API_KEY'))).not.toThrow();
   });
 });
 

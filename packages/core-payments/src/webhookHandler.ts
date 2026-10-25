@@ -119,6 +119,16 @@ export type WebhookOutcome =
        * for. Absent for a refund event, which grants nothing.
        */
       grantedEntitlement?: { orderId: string; customerEmail: string };
+      /**
+       * Present only when this event created a NEW ₹1,499 Client Finder
+       * subscription_periods row (subscription.charged) — the userId to
+       * issue an AUTH Phase 2 activation link for. Absent for every
+       * other processed event, including a renewal charge once the
+       * caller's own activation-service decides the user is already
+       * fully activated (that decision is made by the caller, not here —
+       * this package has no dependency on, or opinion about, activation).
+       */
+      grantedSubscriptionPeriod?: { userId: string };
     }
   | { status: 'duplicate'; eventId: string; event: string }
   /** Verified and well-formed, but not an event we act on. Still recorded. */
@@ -363,7 +373,13 @@ export async function handleRazorpayWebhook(
         );
       }
 
-      await tx.insertSubscriptionPeriod({
+      // Captured so a retried delivery of the SAME charge under a
+      // DIFFERENT razorpay event id (the webhook_events dedupe above
+      // only catches a retry of the identical event id) does not also
+      // re-trigger AUTH Phase 2's activation-email call site below —
+      // `grantedSubscriptionPeriod` is only set when a row was actually,
+      // newly inserted this call.
+      const insertedNewPeriod = await tx.insertSubscriptionPeriod({
         userId,
         productSlug: 'ai_client_acquisition_1499_subscription',
         razorpaySubscriptionId: subscriptionEntity.id,
@@ -372,7 +388,12 @@ export async function handleRazorpayWebhook(
         durationDays: deps.clientFinderSubscriptionDurationDays,
       });
       await tx.markWebhookProcessed(deps.eventId, verified.receivedAt);
-      return { status: 'processed', eventId: deps.eventId, event: body.event };
+      return {
+        status: 'processed',
+        eventId: deps.eventId,
+        event: body.event,
+        ...(insertedNewPeriod ? { grantedSubscriptionPeriod: { userId } } : {}),
+      };
     }
 
     // Refund processing (B-6) — a disjoint path from payment.captured

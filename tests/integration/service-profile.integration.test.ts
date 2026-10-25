@@ -14,6 +14,7 @@ import {
   getServiceProfile,
   listServiceProfiles,
   updateServiceProfile,
+  ServiceProfileValidationError,
   type ServiceProfileDeps,
   type ServiceProfileInput,
 } from '@acos/core-service-profile';
@@ -60,7 +61,7 @@ async function createUserAndSession(label: string): Promise<{ userId: string; to
 
 function sampleInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'Content writing',
+    service: 'Content & Copywriting',
     targetCustomer: 'D2C restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 3_000_000,
@@ -104,12 +105,12 @@ describe('ServiceProfile ownership', () => {
       d,
       b.token,
       created.id,
-      sampleInput({ service: 'hijacked' }),
+      sampleInput({ service: 'Branding' }),
     );
     expect(result).toBeNull();
 
     const stillOriginal = await getServiceProfile(d, a.token, created.id);
-    expect(stillOriginal?.service).toBe('Content writing');
+    expect(stillOriginal?.service).toBe('Content & Copywriting');
   });
 
   it('a different authenticated user cannot delete the profile', async () => {
@@ -131,13 +132,27 @@ describe('ServiceProfile ownership', () => {
     const d = deps();
 
     const mine = await createServiceProfile(d, a.token, sampleInput());
-    await createServiceProfile(d, b.token, sampleInput({ service: 'SEO audits' }));
+    await createServiceProfile(d, b.token, sampleInput({ service: 'Digital Marketing' }));
 
     const aList = await listServiceProfiles(d, a.token);
     expect(aList.map((p) => p.id)).toEqual([mine.id]);
 
     const bList = await listServiceProfiles(d, b.token);
     expect(bList.map((p) => p.id)).not.toContain(mine.id);
+  });
+});
+
+describe('service vocabulary (D6, CF-SERVICE-CATALOG-PO-DEC-001)', () => {
+  it('createServiceProfile rejects a non-canonical service value against the real database', async () => {
+    const a = await createUserAndSession('a');
+    const d = deps();
+
+    await expect(
+      createServiceProfile(d, a.token, sampleInput({ service: 'SEO audits' })),
+    ).rejects.toBeInstanceOf(ServiceProfileValidationError);
+
+    const list = await listServiceProfiles(d, a.token);
+    expect(list).toHaveLength(0);
   });
 });
 

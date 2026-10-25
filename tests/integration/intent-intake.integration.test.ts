@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   type DiscoveryDeps,
@@ -28,6 +29,7 @@ import {
 } from '@acos/core-search';
 import { createPgServiceProfileRepository, createServiceProfile } from '@acos/core-service-profile';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
 import { suiteDatabase } from './support/suiteDb';
 
@@ -42,10 +44,17 @@ import { suiteDatabase } from './support/suiteDb';
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('intent_intake');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 const OBSERVED_AT = new Date('2026-01-30T09:15:00.000Z');
 
@@ -72,6 +81,7 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     signals: createPgResearchSignalRepository(db.client),
   };
 }
@@ -125,16 +135,21 @@ async function setupProspect(): Promise<{ token: string; prospectId: string; bas
 
   const d: SearchDeps & DiscoveryDeps = {
     ...base,
-    provider: { discover: async () => [{ name: 'Acme Co', website: 'https://acme.example.com' }] },
+    provider: {
+      discover: async () => ({
+        candidates: [{ name: 'Acme Co', website: 'https://acme.example.com' }],
+        actualQuery: 'test query',
+        provider: 'TEST_PROVIDER',
+      }),
+    },
   };
+  // CF-SEARCH-INPUT-SERVICE-GEOGRAPHY-ONLY-PO-DEC-001/002: a NEW search's
+  // profile accepts only service+geography — createServiceProfile() always
+  // constructs the other five fields itself (applySystemServiceProfileDefaults()),
+  // so there is nothing else to supply here.
   const profile = await createServiceProfile(d, token, {
-    service: 'App development',
-    targetCustomer: 'Restaurants',
+    service: 'Web & Software Development',
     geography: 'Mumbai',
-    minProjectValuePaise: 3_000_000,
-    triggers: ['PUBLIC_INTENT'],
-    keywords: ['app'],
-    rationale: 'They asked for an app ({signal}).',
   });
   const created = await createSearch(d, token, { serviceProfileId: profile.id });
   const running = (await transitionSearch(d, token, created.id, { status: 'RUNNING' }))!;

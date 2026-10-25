@@ -23,6 +23,7 @@ function fakeDeps(overrides: Partial<SearchWorkerPollLoopDeps> = {}): SearchWork
     } as unknown as SearchWorkerPollLoopDeps['searches'],
     companies: {} as SearchWorkerPollLoopDeps['companies'],
     prospects: {} as SearchWorkerPollLoopDeps['prospects'],
+    entities: {} as SearchWorkerPollLoopDeps['entities'],
     discoveryProvider: {} as SearchWorkerPollLoopDeps['discoveryProvider'],
     signals: {} as SearchWorkerPollLoopDeps['signals'],
     researchProvider: {} as SearchWorkerPollLoopDeps['researchProvider'],

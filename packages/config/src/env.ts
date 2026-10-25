@@ -65,11 +65,21 @@ const envSchema = z.object({
     .regex(/^v\d+\.\d+$/)
     .default('v20.0'),
 
-  // Required by @acos/core-research, @acos/core-outreach and
+  // Used by @acos/core-research, @acos/core-outreach and
   // @acos/core-proposal. Previously read implicitly by the Anthropic SDK
   // constructor, which meant a deployment could boot cleanly and then
-  // fail on the first research call instead of at startup.
-  ANTHROPIC_API_KEY: z.string().trim().min(1),
+  // fail on the first research call instead of at startup — this schema
+  // still validates it at load time whenever it IS supplied.
+  //
+  // OPTIONAL (Global Entity Architecture, C-3B / zero-AI requirement):
+  // Anthropic is no longer the one provider a deployment cannot do
+  // without. A deployment with no AI provider credential at all
+  // (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY all absent) must
+  // still boot and run the deterministic search pipeline — AI remains
+  // optional at runtime, never mandatory at boot. apps/worker/src/index.ts
+  // is the one place that turns "this provider's credential is absent"
+  // into "skip this attempt," never into a boot-time crash.
+  ANTHROPIC_API_KEY: z.string().trim().min(1).optional(),
 
   // Multi-Model Research Provider (requirement/
   // MULTI_MODEL_RESEARCH_PROVIDER_*.md) — OPTIONAL, unlike every other
@@ -156,6 +166,15 @@ const envSchema = z.object({
   // validation failure.
   GMAIL_DEV_USER: z.string().trim().email().optional(),
   GMAIL_DEV_APP_PASSWORD: z.string().trim().min(1).optional(),
+
+  // Production transactional email, selected by EMAIL_PROVIDER=resend
+  // (AUTH-PO-12 — see @acos/core-identity's createActivationEmailSender).
+  // Both stay optional here for the same reason GMAIL_DEV_USER/
+  // GMAIL_DEV_APP_PASSWORD do: unset is a normal, working non-production
+  // state. createActivationEmailSender itself refuses EMAIL_PROVIDER=
+  // resend without both of these set, in any environment.
+  RESEND_API_KEY: z.string().trim().min(1).optional(),
+  RESEND_FROM_EMAIL: z.string().trim().email().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -180,6 +199,7 @@ export const SECRET_KEYS = [
   'DOWNLOAD_GRANT_SECRET',
   'GOOGLE_PLACES_API_KEY',
   'GMAIL_DEV_APP_PASSWORD',
+  'RESEND_API_KEY',
 ] as const satisfies readonly EnvKey[];
 
 export type SecretKey = (typeof SECRET_KEYS)[number];

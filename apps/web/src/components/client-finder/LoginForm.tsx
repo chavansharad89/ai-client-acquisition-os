@@ -2,17 +2,14 @@
 
 import { useCallback, useState } from 'react';
 
-// Minimal session-mint form for the Client Finder MVP UI.
-// -----------------------------------------------------------------------
-// Deliberately email-only: MVP identity is provisioned out of band (see
-// apps/web/app/api/auth/session/route.ts's doc comment) — there is no
-// signup here, only "mint me a session for an account that already
-// exists." A user with no existing `users` row sees the 404 message
-// below, not an account.
-// -----------------------------------------------------------------------
+// Password-authenticated sign-in form for the Client Finder MVP UI
+// (AUTH-PO-11: no session may be minted from an email alone — this
+// posts to the existing secure /api/auth/login mechanism, the same one
+// apps/web/app/access/login/page.tsx uses).
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'busy' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -20,10 +17,10 @@ export function LoginForm() {
     setStatus('busy');
     setError(null);
     try {
-      const response = await fetch('/api/auth/session', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -36,7 +33,7 @@ export function LoginForm() {
       setError('Could not reach the server. Try again.');
       setStatus('error');
     }
-  }, [email]);
+  }, [email, password]);
 
   return (
     <form
@@ -47,15 +44,29 @@ export function LoginForm() {
       }}
     >
       <h2>Sign in</h2>
-      <p>Enter the email your account was provisioned with.</p>
+      <p>Enter the email and password your account was provisioned with.</p>
       <div className="field">
         <label htmlFor="login-email">Email</label>
         <input
           id="login-email"
           type="email"
+          autoComplete="email"
           required
           value={email}
+          disabled={status === 'busy'}
           onChange={(event) => setEmail(event.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="login-password">Password</label>
+        <input
+          id="login-password"
+          type="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          disabled={status === 'busy'}
+          onChange={(event) => setPassword(event.target.value)}
         />
       </div>
       {error ? (

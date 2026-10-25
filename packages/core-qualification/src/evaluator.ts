@@ -14,6 +14,20 @@ export interface QualificationEvaluatorInput {
    * lookup (D6).
    */
   categoryPlausibility: StoredCategoryPlausibilityDetermination | null;
+  /**
+   * CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001: whether
+   * category-plausibility evaluation is APPLICABLE at all for the Search
+   * backing this Opportunity. Defaults to `true` — the pre-existing
+   * behavior for every historical Search and every caller that omits
+   * this — under which a missing/`UNKNOWN` `categoryPlausibility` means
+   * INSUFFICIENT_EVIDENCE exactly as before. `false` only ever changes
+   * the outcome when `categoryPlausibility` is also `null` (CF-SEARCH-
+   * INPUT-SERVICE-GEOGRAPHY-ONLY-PO-DEC-002 D2's deliberate absence): it
+   * lets the overall state reach QUALIFIED on the remaining criteria
+   * instead of being capped at INSUFFICIENT_EVIDENCE. It never changes
+   * what an actual MATCH/MISMATCH determination means.
+   */
+  categoryPlausibilityApplicable?: boolean;
 }
 
 /**
@@ -56,13 +70,22 @@ export function evaluateQualification(input: QualificationEvaluatorInput): Quali
   // already meaning "evidence exists but is not sufficient", the closer
   // fit per E6, since no new QualificationState is introduced).
   const fit = input.categoryPlausibility?.aggregateResult ?? 'UNKNOWN';
+  // CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001, Option A:
+  // only a MISSING determination (never an actual MATCH/MISMATCH/UNKNOWN
+  // one — those keep their exact existing meaning) can be reinterpreted
+  // as "not applicable" rather than "unknown", and only when the caller
+  // explicitly says so.
+  const categoryPlausibilityNotApplicable =
+    input.categoryPlausibility === null && input.categoryPlausibilityApplicable === false;
   const state: QualificationState = !evidencePresent.satisfied
     ? 'INSUFFICIENT_EVIDENCE'
-    : fit === 'MATCH'
+    : categoryPlausibilityNotApplicable
       ? 'QUALIFIED'
-      : fit === 'MISMATCH'
-        ? 'NOT_QUALIFIED'
-        : 'INSUFFICIENT_EVIDENCE';
+      : fit === 'MATCH'
+        ? 'QUALIFIED'
+        : fit === 'MISMATCH'
+          ? 'NOT_QUALIFIED'
+          : 'INSUFFICIENT_EVIDENCE';
 
   return { state, criteria, evidenceSignalIds };
 }

@@ -8,10 +8,11 @@ import { resolveSession, type IdentityRepository, type SessionResolution } from 
 // mechanism, activated for a second purpose).
 // -----------------------------------------------------------------------
 // This cookie carries a core-identity session token, minted by POST
-// /api/auth/session (Client Finder) or POST /api/auth/{signup,login}
-// (kit accounts) and resolved by @acos/core-identity's
+// /api/auth/login (Client Finder and kit accounts) or POST
+// /api/auth/signup (kit accounts) and resolved by @acos/core-identity's
 // resolveSession()/requireUser() — never verified or decoded in this
-// file, only carried.
+// file, only carried. POST /api/auth/session no longer mints sessions
+// (AUTH-PO-11); its GET handler still resolves the cookie for the UI.
 // -----------------------------------------------------------------------
 
 export const SESSION_COOKIE = 'acos_session';

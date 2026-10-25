@@ -1,4 +1,4 @@
-import { createPgCompanyRepository, createPgProspectRepository } from '@acos/core-discovery';
+import { createPgCompanyRepository, createPgEntityRepository, createPgProspectRepository } from '@acos/core-discovery';
 import { createPgFollowUpPreparationRepository } from '@acos/core-followup-preparation';
 import { createPgOpportunityRepository, createPgOpportunityScoreRepository } from '@acos/core-opportunity';
 import { createPgOutreachPreparationRepository } from '@acos/core-outreach-preparation';
@@ -36,6 +36,7 @@ function buildIntentIntakeDeps(): IntentIntakeDeps {
   return {
     searches: createPgSearchRepository(pool),
     companies: createPgCompanyRepository(pool),
+    entities: createPgEntityRepository(pool),
     prospects: createPgProspectRepository(pool),
     signals: createPgResearchSignalRepository(pool),
     signalTransaction: createPgResearchSignalTransactionRunner(pool),
