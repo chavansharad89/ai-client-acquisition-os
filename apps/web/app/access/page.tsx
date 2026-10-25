@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { getProduct, PRODUCT_LADDER } from '@acos/catalog';
+import { getProduct, isRetiredFromNewPurchases, PRODUCT_LADDER } from '@acos/catalog';
 
 import { LogoutButton } from '../../src/components/LogoutButton';
 import { formatInrDisplay } from '../../src/lib/format/inr';
@@ -57,10 +57,16 @@ export default async function AccessPage() {
       </div>
 
       <div className="pricing">
-        {PRODUCT_LADDER.map((id) => {
-          const product = getProduct(id);
-          const unlocked = funnel.accessible.includes(id);
-          return (
+        {PRODUCT_LADDER.map((id) => ({
+          id,
+          product: getProduct(id),
+          unlocked: funnel.accessible.includes(id),
+        }))
+          // Retired from new purchases (COMMERCIAL-PO-17): never offered
+          // here to someone who doesn't already own it. An existing
+          // owner's card is unaffected — `unlocked` short-circuits this.
+          .filter(({ id, unlocked }) => unlocked || !isRetiredFromNewPurchases(id))
+          .map(({ id, product, unlocked }) => (
             <article className="card" key={id}>
               <h2>{product.name}</h2>
               {unlocked ? (
@@ -82,8 +88,7 @@ export default async function AccessPage() {
                 </>
               )}
             </article>
-          );
-        })}
+          ))}
       </div>
     </main>
   );
