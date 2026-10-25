@@ -1,5 +1,5 @@
 
-import { getProduct, isValidProductId } from '@acos/catalog';
+import { getProduct, isRetiredFromNewPurchases, isValidProductId } from '@acos/catalog';
 import { isDuplicatePurchase } from '@acos/core-entitlements';
 import { recordFunnelEvent } from '@acos/core-funnel-events';
 import Link from 'next/link';
@@ -21,6 +21,12 @@ import { readVisitorIdFromServerComponent } from '../../../src/server/visitor';
 export default async function UpsellPage({ params }: { params: { productId: string } }) {
   if (!isValidProductId(params.productId)) notFound();
   const product = getProduct(params.productId);
+
+  // Retired from new purchases (COMMERCIAL-PO-05/17): this upsell must
+  // never offer the legacy SKU to a ₹499 buyer, even though the id
+  // still resolves (existing owners of it are unaffected elsewhere).
+  if (isRetiredFromNewPurchases(product.id)) notFound();
+
   const access = await currentAccess();
 
   // Duplicate purchase handling: never offer something already owned.

@@ -528,8 +528,8 @@ describe('Evidence persistence (ED-13) — production and validation snapshots f
   });
 });
 
-describe('All four blocker gates together — production vs. independent recomputation, same seeded data', () => {
-  it('diffGateResults reports a full match across PCG-1/2/3A/3B for a populated window', async () => {
+describe('All three blocker gates together — production vs. independent recomputation, same seeded data', () => {
+  it('diffGateResults reports a full match across PCG-1/2/3A for a populated window (PCG-3B retired, COMMERCIAL-PO-18)', async () => {
     const { db, context } = suite.require();
     const { now, window } = windowFor('2026-03-16T00:00:00.000Z');
 
@@ -552,7 +552,6 @@ describe('All four blocker gates together — production vs. independent recompu
       await evaluatePcg1(db.client, window, now),
       await evaluatePcg2(db.client, window, now),
       await evaluatePcg3a(db.client, window, now),
-      await evaluatePcg3b(db.client, window, now),
     ];
     const validation = await recomputeBlockerGates(db.client, now);
 
@@ -572,7 +571,8 @@ describe('Gate-evaluation worker wiring (PDEF4-GATE-EVAL-WIRING-IMPL-AUTH-DEC-00
 
     const outcome = await runGateEvaluationTick({ sql: db.client, now: () => now });
 
-    expect(outcome.evaluated).toEqual(['PCG-1', 'PCG-2', 'PCG-3A', 'PCG-3B', 'PCG-4', 'PCG-5', 'PCG-6']);
+    // PCG-3B is retired (COMMERCIAL-PO-18) — no longer an active launch-gate requirement.
+    expect(outcome.evaluated).toEqual(['PCG-1', 'PCG-2', 'PCG-3A', 'PCG-4', 'PCG-5', 'PCG-6']);
 
     const { rows } = await db.client.query(
       `SELECT gate, computation_path FROM gate_evaluation_snapshots
@@ -580,7 +580,7 @@ describe('Gate-evaluation worker wiring (PDEF4-GATE-EVAL-WIRING-IMPL-AUTH-DEC-00
         ORDER BY gate`,
       [window.start, window.end],
     );
-    expect(rows).toHaveLength(7);
+    expect(rows).toHaveLength(6);
 
     await db.client.query(
       `DELETE FROM gate_evaluation_snapshots WHERE window_start = $1 AND window_end = $2`,
@@ -602,7 +602,7 @@ describe('Gate-evaluation worker wiring (PDEF4-GATE-EVAL-WIRING-IMPL-AUTH-DEC-00
         WHERE window_start = $1 AND window_end = $2 AND computation_path = 'PRODUCTION'`,
       [window.start, window.end],
     );
-    expect((rows[0] as { n: number }).n).toBe(7);
+    expect((rows[0] as { n: number }).n).toBe(6);
 
     await db.client.query(
       `DELETE FROM gate_evaluation_snapshots WHERE window_start = $1 AND window_end = $2`,
@@ -635,7 +635,7 @@ describe('Gate-evaluation worker wiring (PDEF4-GATE-EVAL-WIRING-IMPL-AUTH-DEC-00
 
     // The next (simulated) tick, with no injected failure, succeeds normally — retry-on-next-tick.
     const outcome = await runGateEvaluationTick({ sql: db.client, now: () => now });
-    expect(outcome.evaluated).toHaveLength(7);
+    expect(outcome.evaluated).toHaveLength(6); // PCG-3B retired (COMMERCIAL-PO-18)
 
     await db.client.query(
       `DELETE FROM gate_evaluation_snapshots WHERE window_start = $1 AND window_end = $2`,

@@ -49,6 +49,9 @@ export function toCheckoutError(status: number, code?: string): CheckoutError {
   if (status === 400 && code === 'INVALID_PRODUCT') {
     return { kind: 'product', message: 'That product is no longer available.' };
   }
+  if (status === 410 && code === 'PRODUCT_RETIRED') {
+    return { kind: 'product', message: 'That product is no longer available.' };
+  }
   if (status === 400) {
     return {
       kind: 'validation',

@@ -44,7 +44,7 @@ const RAW_CATALOG = {
   // external to this catalog entry.
   ai_client_acquisition_1499_subscription: {
     id: 'ai_client_acquisition_1499_subscription',
-    name: 'AI Client Finder Subscription',
+    name: 'AI Client Finder — 30 Days',
     amountPaise: 149900,
     currency: 'INR',
     metaValueInr: 1499,
@@ -91,11 +91,39 @@ export const PRODUCT_IDS: readonly ProductId[] = Object.freeze(
 );
 
 /**
- * Read-only list of every product, for rendering the funnel/marketing
- * pages. This is safe to expose to the client for DISPLAY — the
- * prohibition is on the client dictating what gets *charged*, not on
- * the client knowing what things cost.
+ * Product ids retired from new purchases (COMMERCIAL-PO-05/17).
+ *
+ * A retired id is deliberately NOT removed from `PRODUCT_CATALOG` or
+ * `ProductId` — historical orders, payments, entitlements, and
+ * deliverables for it must keep resolving exactly as before (see
+ * `isRetiredFromNewPurchases` below for the one place this distinction
+ * is enforced). This set exists only to gate NEW purchases and public
+ * listings, never trusted lookups of an already-known id.
+ */
+const RETIRED_PRODUCT_IDS: ReadonlySet<ProductId> = new Set(['ai_client_acquisition_1499']);
+
+/**
+ * True for a product id that still resolves (via `getProduct`/
+ * `resolveProduct`) but may no longer be newly purchased or publicly
+ * listed. Callers resolving an id already tied to existing data
+ * (webhook replay, reconciliation, entitlement/ladder checks, historical
+ * downloads) must NOT call this — it only governs the new-purchase and
+ * listing surfaces.
+ */
+export function isRetiredFromNewPurchases(productId: ProductId): boolean {
+  return RETIRED_PRODUCT_IDS.has(productId);
+}
+
+/**
+ * Read-only list of every CURRENTLY PURCHASABLE product, for rendering
+ * the funnel/marketing pages. A retired id (see `isRetiredFromNewPurchases`)
+ * is excluded here so no listing page needs its own retirement check —
+ * its catalog entry still exists and still resolves for historical
+ * orders/entitlements, it simply is not offered to a new customer. This
+ * is safe to expose to the client for DISPLAY — the prohibition is on
+ * the client dictating what gets *charged*, not on the client knowing
+ * what things cost.
  */
 export function listProducts(): readonly Product[] {
-  return PRODUCT_IDS.map((id) => PRODUCT_CATALOG[id]);
+  return PRODUCT_IDS.filter((id) => !isRetiredFromNewPurchases(id)).map((id) => PRODUCT_CATALOG[id]);
 }

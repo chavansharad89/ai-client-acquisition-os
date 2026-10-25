@@ -96,7 +96,7 @@ describe('createSubscription', () => {
       razorpaySubscriptionId: 'sub_fake_1',
       razorpayKeyId: RAZORPAY_KEY_ID,
       productId: 'ai_client_acquisition_1499_subscription',
-      productName: 'AI Client Finder Subscription',
+      productName: 'AI Client Finder — 30 Days',
       shortUrl: 'https://rzp.io/i/fake',
       status: 'created',
     });

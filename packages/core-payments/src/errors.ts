@@ -11,6 +11,7 @@ import type { ZodError } from 'zod';
 export type CreateOrderErrorCode =
   | 'VALIDATION_ERROR'
   | 'INVALID_PRODUCT'
+  | 'PRODUCT_RETIRED'
   | 'RAZORPAY_ERROR'
   | 'DATABASE_ERROR'
   | 'IDEMPOTENCY_KEY_CONFLICT';
@@ -52,6 +53,25 @@ export class InvalidProductError extends CreateOrderError {
     super(`Unknown product id: ${JSON.stringify(receivedProductId)}`);
     this.name = 'InvalidProductError';
     this.receivedProductId = receivedProductId;
+  }
+}
+
+/**
+ * The `productId` exists in @acos/catalog and resolved successfully, but
+ * is retired from new purchases (COMMERCIAL-PO-05/17). Deliberately
+ * distinct from `InvalidProductError`: the product is not unknown, it is
+ * simply closed to new sales — existing orders/entitlements for it are
+ * unaffected. Maps to HTTP 410 (Gone): the resource existed and no longer
+ * accepts new purchases, which is a better fit than 400's "bad input."
+ */
+export class ProductRetiredError extends CreateOrderError {
+  readonly code = 'PRODUCT_RETIRED' as const;
+  readonly productId: string;
+
+  constructor(productId: string) {
+    super(`Product is retired from new purchases: ${JSON.stringify(productId)}`);
+    this.name = 'ProductRetiredError';
+    this.productId = productId;
   }
 }
 

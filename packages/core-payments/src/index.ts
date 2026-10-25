@@ -26,6 +26,7 @@ export {
   IdempotencyKeyConflictError,
   InvalidProductError,
   OrderPersistenceError,
+  ProductRetiredError,
   RazorpayApiError,
   RazorpayOrderCreationError,
   CreateSubscriptionError,

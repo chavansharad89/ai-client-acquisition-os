@@ -34,14 +34,22 @@ export {
 };
 export type { CombinedTierConversion } from './combined';
 
-/** One entry point: every named gate, evaluated against the most recent closed window. */
+/**
+ * One entry point: every named gate, evaluated against the most recent
+ * closed window.
+ *
+ * PCG-3B is deliberately NOT evaluated here (COMMERCIAL-PO-18): it was
+ * tied to the retired one-time `ai_client_acquisition_1499` product and
+ * is retired along with it, rather than redefined around the new
+ * subscription SKU. `evaluatePcg3b` itself still exists (unused here)
+ * so the underlying measurement is not deleted — see pcg3b.ts.
+ */
 export async function evaluateAllGates(sql: SqlExecutor, now: Date): Promise<GateResult[]> {
   const window = mostRecentClosedWindow(now);
   return Promise.all([
     evaluatePcg1(sql, window, now),
     evaluatePcg2(sql, window, now),
     evaluatePcg3a(sql, window, now),
-    evaluatePcg3b(sql, window, now),
     evaluatePcg4(sql, window, now),
     evaluatePcg5(sql, window, now),
     evaluatePcg6(sql, window, now),

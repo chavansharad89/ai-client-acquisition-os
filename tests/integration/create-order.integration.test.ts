@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createOrder } from '@acos/core-payments';
+import { createOrder, ProductRetiredError } from '@acos/core-payments';
 import type { RazorpayOrder, RazorpayOrdersClient } from '@acos/core-payments';
 
 import { createPgOrderRepository } from './support/pgOrderRepository';
@@ -104,6 +104,27 @@ describe('createOrder + real Postgres: happy path', () => {
   });
 });
 
+describe('createOrder + real Postgres: legacy SKU retired from new purchases (COMMERCIAL-PO-05/17)', () => {
+  it('rejects a new purchase of ai_client_acquisition_1499 with ProductRetiredError, without calling Razorpay or persisting an order', async () => {
+    const orders = createPgOrderRepository(pool);
+    const razorpay = makeFakeRazorpay();
+
+    await expect(
+      createOrder(
+        { productId: 'ai_client_acquisition_1499', customerEmail: 'new-customer@example.com' },
+        { razorpayKeyId: RAZORPAY_KEY_ID },
+        { razorpay, orders },
+      ),
+    ).rejects.toBeInstanceOf(ProductRetiredError);
+
+    expect(razorpay.calls).toHaveLength(0);
+    const { rows } = await pool.query('SELECT * FROM orders WHERE product_slug = $1', [
+      'ai_client_acquisition_1499',
+    ]);
+    expect(rows).toHaveLength(0);
+  });
+});
+
 describe('createOrder + real Postgres: the amount_paise CHECK constraint actually protects us', () => {
   it('the database itself rejects a zero/negative amount even if application code somehow tried to insert one', async () => {
     // This bypasses createOrder.ts entirely and hits the DB directly —
@@ -160,12 +181,12 @@ describe('createOrder + real Postgres: duplicate/retry requests', () => {
 
     const [resultA, resultB] = await Promise.all([
       createOrder(
-        { productId: 'ai_client_acquisition_1499', customerEmail: 'racer@example.com' },
+        { productId: 'ai_freelancing_499', customerEmail: 'racer@example.com' },
         { razorpayKeyId: RAZORPAY_KEY_ID, idempotencyKey },
         { razorpay: razorpayA, orders },
       ),
       createOrder(
-        { productId: 'ai_client_acquisition_1499', customerEmail: 'racer@example.com' },
+        { productId: 'ai_freelancing_499', customerEmail: 'racer@example.com' },
         { razorpayKeyId: RAZORPAY_KEY_ID, idempotencyKey },
         { razorpay: razorpayB, orders },
       ),

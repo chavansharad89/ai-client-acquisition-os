@@ -5,6 +5,7 @@ import {
   IdempotencyKeyConflictError,
   InvalidProductError,
   OrderPersistenceError,
+  ProductRetiredError,
   RazorpayOrderCreationError,
   createOrder,
   createPrismaOrderRepository,
@@ -166,6 +167,12 @@ export async function POST(request: NextRequest) {
     }
     if (err instanceof InvalidProductError) {
       return NextResponse.json({ error: err.message, code: err.code }, { status: 400 });
+    }
+    if (err instanceof ProductRetiredError) {
+      // 410, not 400: the product id is real and resolves fine (it still
+      // does for every existing order/entitlement) — it is simply closed
+      // to new sales, which is "Gone," not "invalid input."
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 410 });
     }
     if (err instanceof IdempotencyKeyConflictError) {
       // 409, not 400: the request is well-formed. It conflicts with what

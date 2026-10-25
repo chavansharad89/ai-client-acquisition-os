@@ -16,9 +16,13 @@ import { buildCountResult, buildRatioResult, mostRecentClosedWindow, type GateRe
 // computations must agree on by definition — not population logic,
 // which stays fully independent.
 //
-// Scope: only the four blocker gates requiring pre-launch independent
-// validation (PCG-1, PCG-2, PCG-3A, PCG-3B) — PCG-4/5/6 are monitoring
-// gates that do not require this.
+// Scope: only the blocker gates requiring pre-launch independent
+// validation (PCG-1, PCG-2, PCG-3A) — PCG-4/5/6 are monitoring gates that
+// do not require this. PCG-3B is deliberately excluded from
+// `recomputeBlockerGates` (COMMERCIAL-PO-18): it was tied to the retired
+// one-time `ai_client_acquisition_1499` product and is retired along
+// with it. `recomputePcg3b` itself still exists (unused below) so the
+// underlying measurement is not deleted.
 // -----------------------------------------------------------------------
 
 export interface SqlExecutor {
@@ -120,6 +124,5 @@ export async function recomputeBlockerGates(sql: SqlExecutor, now: Date): Promis
     recomputePcg1(sql, window, now),
     recomputePcg2(sql, window, now),
     recomputePcg3a(sql, window, now),
-    recomputePcg3b(sql, window, now),
   ]);
 }
