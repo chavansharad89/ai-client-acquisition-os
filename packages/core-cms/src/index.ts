@@ -51,3 +51,14 @@ export {
   getPublishedContentItemForPlans,
 } from './customerContentService';
 export type { CustomerContentServiceDeps } from './customerContentService';
+
+export { createPgCmsAdminRepository } from './cmsAdminRepository';
+export type {
+  CmsAdminRepository,
+  SqlClient as CmsAdminSqlClient,
+} from './cmsAdminRepository';
+export type { CmsAdmin } from './types';
+export { fakeCmsAdminRepository } from './testing/fakeCmsAdminRepository';
+
+export { requireCmsAdmin, NotCmsAdminError } from './cmsAdminAuthorization';
+export type { CmsAdminAuthorizationDeps } from './cmsAdminAuthorization';

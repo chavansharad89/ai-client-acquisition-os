@@ -16,6 +16,24 @@ export interface PlanDisplayName {
 }
 
 /**
+ * CMS administrator membership (migration 0065, CMS-PO-006(R3)). A
+ * user is a CMS administrator if and only if a row exists here for
+ * their `userId` -- there is no status/role value to read, only
+ * presence. This table has no relationship to entitlements,
+ * subscriptions, or payments: nothing a customer purchases can ever
+ * produce a row here. Rows are provisioned/revoked only by a trusted
+ * operator acting directly against the database -- there is
+ * deliberately no write path in `CmsAdminRepository` yet (see
+ * cmsAdminRepository.ts).
+ */
+export interface CmsAdmin {
+  userId: string;
+  createdAt: Date;
+  /** Free-text, operator-supplied; never populated from a client-controlled value. */
+  createdBy: string | null;
+}
+
+/**
  * `content_items` (migration 0062) models both hierarchy nodes
  * (`CONTAINER` -- chapter/topic/folder) and leaf content (`ASSET` --
  * file/video) in one self-referencing table; which shape a row has is

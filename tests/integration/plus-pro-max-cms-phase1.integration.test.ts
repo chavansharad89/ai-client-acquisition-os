@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createPgPlanDisplayNameRepository } from '@acos/core-cms';
+import {
+  createPgCmsAdminRepository,
+  createPgPlanDisplayNameRepository,
+  NotCmsAdminError,
+  requireCmsAdmin,
+} from '@acos/core-cms';
 import {
   convertLinkedCmsEntitlementsToSubscriptionPeriods,
   createPgSubscriptionPeriodRepository,
@@ -696,5 +701,64 @@ describe('retire_legacy_plus_pro_entitlements — migration 0064 cleanup (FINAL 
     const subscriptionPeriods = createPgSubscriptionPeriodRepository(db.client);
     const permitted = await permittedContentPlans({ subscriptionPeriods }, userId);
     expect(permitted.size).toBe(0);
+  });
+});
+
+describe('cms_admins (migration 0065, CMS-PO-006(R3)) — real Postgres-backed admin authorization', () => {
+  it('findByUserId returns null for a user with no membership row', async () => {
+    const db = await freshDb('cms1');
+    const userId = await seedUser(db, 'admin-none');
+    const cmsAdmins = createPgCmsAdminRepository(db.client);
+
+    expect(await cmsAdmins.findByUserId(userId)).toBeNull();
+    await expect(requireCmsAdmin({ cmsAdmins }, userId)).rejects.toBeInstanceOf(NotCmsAdminError);
+  });
+
+  it('a row inserted directly (modeling trusted-operator provisioning) grants requireCmsAdmin, and deleting it revokes it', async () => {
+    const db = await freshDb('cms1');
+    const userId = await seedUser(db, 'admin-granted');
+    const cmsAdmins = createPgCmsAdminRepository(db.client);
+
+    // This migration itself inserts no rows; provisioning is an
+    // operator's own direct database action, modeled here as a plain
+    // INSERT rather than through any application write path (none
+    // exists this phase).
+    await db.client.query(`INSERT INTO cms_admins (user_id, created_by) VALUES ($1, $2)`, [
+      userId,
+      'operator-test',
+    ]);
+
+    const admin = await requireCmsAdmin({ cmsAdmins }, userId);
+    expect(admin.userId).toBe(userId);
+    expect(admin.createdBy).toBe('operator-test');
+
+    await db.client.query(`DELETE FROM cms_admins WHERE user_id = $1`, [userId]);
+
+    await expect(requireCmsAdmin({ cmsAdmins }, userId)).rejects.toBeInstanceOf(NotCmsAdminError);
+  });
+
+  it('database uniqueness prevents duplicate membership for the same user', async () => {
+    const db = await freshDb('cms1');
+    const userId = await seedUser(db, 'admin-dup');
+
+    await db.client.query(`INSERT INTO cms_admins (user_id) VALUES ($1)`, [userId]);
+
+    await expect(db.client.query(`INSERT INTO cms_admins (user_id) VALUES ($1)`, [userId])).rejects.toThrow(
+      /duplicate key value violates unique constraint/,
+    );
+  });
+
+  it('an active Max subscription does not, by itself, satisfy requireCmsAdmin', async () => {
+    const db = await freshDb('cms1');
+    const userId = await seedUser(db, 'admin-max-subscriber');
+    await db.client.query(
+      `INSERT INTO subscription_periods
+            (id, user_id, product_slug, razorpay_subscription_id, razorpay_payment_id, activation_at, duration_days)
+       VALUES (gen_random_uuid()::text, $1, 'ai_client_acquisition_1499_subscription', 'sub_test', 'pay_test', now(), 30)`,
+      [userId],
+    );
+    const cmsAdmins = createPgCmsAdminRepository(db.client);
+
+    await expect(requireCmsAdmin({ cmsAdmins }, userId)).rejects.toBeInstanceOf(NotCmsAdminError);
   });
 });
