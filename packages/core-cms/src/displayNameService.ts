@@ -1,5 +1,6 @@
 import { isCmsEligibleProduct } from './cmsEligibility';
 import type { DisplayNameDeps } from './displayName';
+import { CmsValidationError } from './errors';
 import type { PlanDisplayName } from './types';
 
 // Admin-facing display-name service (PO-1), layered on top of
@@ -24,10 +25,14 @@ export async function setDisplayNameOverride(
   updatedBy: string | null,
 ): Promise<PlanDisplayName> {
   if (!isCmsEligibleProduct(productId)) {
-    throw new Error(`plan_display_names: '${productId}' is not a CMS-eligible product`);
+    throw new CmsValidationError(
+      'productId',
+      'not-cms-eligible',
+      `plan_display_names: '${productId}' is not a CMS-eligible product`,
+    );
   }
   if (displayName.trim().length === 0) {
-    throw new Error('plan_display_names: display_name must not be blank');
+    throw new CmsValidationError('displayName', 'blank', 'plan_display_names: display_name must not be blank');
   }
   return deps.planDisplayNames.upsert(productId, displayName, updatedBy);
 }

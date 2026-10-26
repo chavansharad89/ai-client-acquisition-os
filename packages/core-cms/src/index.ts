@@ -62,3 +62,6 @@ export { fakeCmsAdminRepository } from './testing/fakeCmsAdminRepository';
 
 export { requireCmsAdmin, NotCmsAdminError } from './cmsAdminAuthorization';
 export type { CmsAdminAuthorizationDeps } from './cmsAdminAuthorization';
+
+export { CmsValidationError } from './errors';
+export type { CmsValidationReason } from './errors';

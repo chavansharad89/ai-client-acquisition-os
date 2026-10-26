@@ -1,5 +1,6 @@
 import { isCmsEligibleProduct } from './cmsEligibility';
 import type { ContentItemRepository } from './contentItemRepository';
+import { CmsValidationError } from './errors';
 import type {
   ContentItem,
   ContentLifecycleStatus,
@@ -40,13 +41,23 @@ async function assertValidParent(
   if (parentId === null) return;
   const parent = await deps.contentItems.findById(parentId);
   if (!parent) {
-    throw new Error(`content_items: parent '${parentId}' does not exist`);
+    throw new CmsValidationError(
+      'parentId',
+      'invalid-parent',
+      `content_items: parent '${parentId}' does not exist`,
+    );
   }
   if (parent.nodeType !== 'CONTAINER') {
-    throw new Error(`content_items: parent '${parentId}' is an ASSET and cannot have children`);
+    throw new CmsValidationError(
+      'parentId',
+      'parent-not-container',
+      `content_items: parent '${parentId}' is an ASSET and cannot have children`,
+    );
   }
   if (parent.owningProductId !== owningProductId) {
-    throw new Error(
+    throw new CmsValidationError(
+      'owningProductId',
+      'cross-plan-parent',
       `content_items: child owning product (${owningProductId}) must match parent owning product (${parent.owningProductId})`,
     );
   }
@@ -57,7 +68,11 @@ export async function createContainer(
   input: Omit<NewContainerContentItem, 'nodeType'>,
 ): Promise<ContentItem> {
   if (!isCmsEligibleProduct(input.owningProductId)) {
-    throw new Error(`content_items: '${input.owningProductId}' is not a CMS-eligible product`);
+    throw new CmsValidationError(
+      'owningProductId',
+      'not-cms-eligible',
+      `content_items: '${input.owningProductId}' is not a CMS-eligible product`,
+    );
   }
   await assertValidParent(deps, input.owningProductId, input.parentId);
   return deps.contentItems.create({ ...input, nodeType: 'CONTAINER' });
@@ -68,13 +83,17 @@ export async function createAsset(
   input: Omit<NewAssetContentItem, 'nodeType'>,
 ): Promise<ContentItem> {
   if (!isCmsEligibleProduct(input.owningProductId)) {
-    throw new Error(`content_items: '${input.owningProductId}' is not a CMS-eligible product`);
+    throw new CmsValidationError(
+      'owningProductId',
+      'not-cms-eligible',
+      `content_items: '${input.owningProductId}' is not a CMS-eligible product`,
+    );
   }
   if (input.assetKind.trim().length === 0) {
-    throw new Error('content_items: assetKind must not be blank');
+    throw new CmsValidationError('assetKind', 'blank', 'content_items: assetKind must not be blank');
   }
   if (input.storageKey.trim().length === 0) {
-    throw new Error('content_items: storageKey must not be blank');
+    throw new CmsValidationError('storageKey', 'blank', 'content_items: storageKey must not be blank');
   }
   await assertValidParent(deps, input.owningProductId, input.parentId);
   return deps.contentItems.create({ ...input, nodeType: 'ASSET' });
@@ -112,7 +131,7 @@ export async function updateContentMetadata(
   changes: { title?: string; description?: string | null; orderIndex?: number },
 ): Promise<ContentItem> {
   if (changes.title !== undefined && changes.title.trim().length === 0) {
-    throw new Error('content_items: title must not be blank');
+    throw new CmsValidationError('title', 'blank', 'content_items: title must not be blank');
   }
   return deps.contentItems.updateMetadata(id, changes);
 }
