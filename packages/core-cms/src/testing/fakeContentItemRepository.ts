@@ -86,5 +86,19 @@ export function fakeContentItemRepository(seed: readonly ContentItem[] = []): Co
       rows.set(id, updated);
       return updated;
     },
+
+    async updateMetadata(id, changes) {
+      const row = rows.get(id);
+      if (!row) throw new Error(`content_items: no row with id ${id}`);
+      const updated: ContentItem = {
+        ...row,
+        title: changes.title !== undefined ? changes.title : row.title,
+        description: changes.description !== undefined ? changes.description : row.description,
+        orderIndex: changes.orderIndex !== undefined ? changes.orderIndex : row.orderIndex,
+        updatedAt: new Date(),
+      };
+      rows.set(id, updated);
+      return updated;
+    },
   };
 }

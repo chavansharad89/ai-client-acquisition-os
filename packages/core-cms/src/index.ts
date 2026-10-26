@@ -27,3 +27,27 @@ export type {
 } from './types';
 
 export { fakeContentItemRepository } from './testing/fakeContentItemRepository';
+
+export { isCmsEligibleProduct } from './cmsEligibility';
+
+export { setDisplayNameOverride } from './displayNameService';
+export type { DisplayNameServiceDeps } from './displayNameService';
+
+export {
+  createContainer,
+  createAsset,
+  getContentItem,
+  listChildren,
+  listRoots,
+  listByOwningProduct,
+  updateContentMetadata,
+  setLifecycleStatus,
+  archiveContentItem,
+} from './contentService';
+export type { ContentServiceDeps } from './contentService';
+
+export {
+  listPublishedContentForPlans,
+  getPublishedContentItemForPlans,
+} from './customerContentService';
+export type { CustomerContentServiceDeps } from './customerContentService';

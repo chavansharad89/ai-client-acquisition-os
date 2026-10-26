@@ -1,3 +1,4 @@
+import { createPgContentItemRepository } from '@acos/core-cms';
 import { createPgEntitlementRepository } from '@acos/core-entitlements';
 import { createPgIdentityRepository } from '@acos/core-identity';
 import { createPgSubscriptionPeriodRepository } from '@acos/core-subscriptions';
@@ -16,12 +17,18 @@ import { getPool } from './db';
 // alongside `entitlements` to correctly resolve Plus/Pro's 30-day,
 // subscription_periods-backed access instead of the old, non-expiring
 // entitlement existence check.
+//
+// `contentItems` was added for CMS Phase 3's customer content API
+// routes (cmsContentService.ts) — it's used alongside
+// `subscriptionPeriods` to resolve a user's permitted CMS plans and
+// then fetch that plan's PUBLISHED content_items rows.
 export function commerceRepositories() {
   const sql = getPool();
   return {
     entitlements: createPgEntitlementRepository(sql),
     identity: createPgIdentityRepository(sql),
     subscriptionPeriods: createPgSubscriptionPeriodRepository(sql),
+    contentItems: createPgContentItemRepository(sql),
   };
 }
 

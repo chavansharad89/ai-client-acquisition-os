@@ -11,7 +11,8 @@
     "test:integration": "echo 'integration tests live in /tests/integration' && exit 0"
   },
   "dependencies": {
-    "@acos/catalog": "workspace:*"
+    "@acos/catalog": "workspace:*",
+    "@acos/core-subscriptions": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

@@ -44,6 +44,9 @@ importers:
       '@acos/core-capi':
         specifier: workspace:*
         version: link:../../packages/core-capi
+      '@acos/core-cms':
+        specifier: workspace:*
+        version: link:../../packages/core-cms
       '@acos/core-discovery':
         specifier: workspace:*
         version: link:../../packages/core-discovery
@@ -283,6 +286,9 @@ importers:
       '@acos/catalog':
         specifier: workspace:*
         version: link:../catalog
+      '@acos/core-subscriptions':
+        specifier: workspace:*
+        version: link:../core-subscriptions
     devDependencies:
       typescript:
         specifier: ^5.6.0

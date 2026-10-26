@@ -54,6 +54,18 @@ export interface ContentItemRepository {
    * of those to hold. Archiving never deletes the row (PO-4/PO-6(R1)).
    */
   setStatus(id: string, status: ContentLifecycleStatus): Promise<ContentItem>;
+
+  /**
+   * Updates title/description/orderIndex in place. Never touches
+   * `owningProductId`, `parentId`, `nodeType`, or any asset field -- a
+   * node's plan, position in the hierarchy, and container/asset shape
+   * are fixed at creation; only its presentation metadata and ordering
+   * may change afterward. Omitted fields are left unchanged.
+   */
+  updateMetadata(
+    id: string,
+    changes: { title?: string; description?: string | null; orderIndex?: number },
+  ): Promise<ContentItem>;
 }
 
 interface ContentItemRow {
@@ -166,6 +178,33 @@ export function createPgContentItemRepository(sql: SqlClient): ContentItemReposi
           WHERE id = $1
          RETURNING ${COLUMNS}`,
         [id, status],
+      );
+      const row = rows[0] as ContentItemRow | undefined;
+      if (!row) throw new Error(`content_items: no row with id ${id}`);
+      return toContentItem(row);
+    },
+
+    async updateMetadata(id, changes) {
+      const sets: string[] = [];
+      const params: unknown[] = [id];
+      if (changes.title !== undefined) {
+        params.push(changes.title);
+        sets.push(`title = $${params.length}`);
+      }
+      if (changes.description !== undefined) {
+        params.push(changes.description);
+        sets.push(`description = $${params.length}`);
+      }
+      if (changes.orderIndex !== undefined) {
+        params.push(changes.orderIndex);
+        sets.push(`order_index = $${params.length}`);
+      }
+      const { rows } = await sql.query(
+        `UPDATE content_items
+            SET ${sets.length > 0 ? `${sets.join(', ')}, ` : ''}updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+         RETURNING ${COLUMNS}`,
+        params,
       );
       const row = rows[0] as ContentItemRow | undefined;
       if (!row) throw new Error(`content_items: no row with id ${id}`);
