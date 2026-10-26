@@ -281,4 +281,107 @@ describe('DEC-014 claim/setup flow — real routes, real database', () => {
     const validated = await env.validate(postJson({ claimToken: token }));
     expect(validated.status).toBe(200);
   });
+
+  // FINAL PRODUCT RULE (no non-expiring Plus/Pro purchase path): the real
+  // /api/auth/signup route is the one place a Plus/Pro entitlement first
+  // acquires a userId, so it's the one place that can convert it into a
+  // 30-day subscription_periods row -- see
+  // @acos/core-subscriptions/cmsEntitlementConversion.ts for why this
+  // cannot happen inside the Razorpay webhook instead.
+  describe('30-day CMS conversion on signup (FINAL PRODUCT RULE)', () => {
+    it('a new Plus purchase: signup creates a 30-day subscription_periods row, not just a perpetual entitlement', async () => {
+      const env = await freshRoutes('cms-new-plus');
+      const { orderId, email, repo } = await paidEntitlement(env, 'cms1', undefined, 'ai_income_99');
+      const token = await mintRealToken(repo, orderId, email);
+
+      const signed = await env.signup(postJson({ claimToken: token, password: 'correct-horse-battery' }));
+      expect(signed.status).toBe(201);
+      const userId = (await signed.json()).userId as string;
+
+      const { rows } = await env.db.client.query(
+        `SELECT product_slug, duration_days, razorpay_subscription_id,
+                activation_at + (duration_days * INTERVAL '1 day') > now() AS is_active
+           FROM subscription_periods WHERE user_id = $1`,
+        [userId],
+      );
+      expect(rows).toHaveLength(1);
+      expect((rows[0] as { product_slug: string }).product_slug).toBe('ai_income_99');
+      expect((rows[0] as { duration_days: number }).duration_days).toBe(30);
+      expect((rows[0] as { is_active: boolean }).is_active).toBe(true);
+      expect((rows[0] as { razorpay_subscription_id: string }).razorpay_subscription_id).toMatch(
+        /^onetime-order:/,
+      );
+    });
+
+    it('a new Pro purchase: signup creates a 30-day subscription_periods row', async () => {
+      const env = await freshRoutes('cms-new-pro');
+      const { orderId, email, repo } = await paidEntitlement(env, 'cms2', undefined, 'ai_freelancing_499' as ProductId);
+      const token = await mintRealToken(repo, orderId, email);
+
+      const signed = await env.signup(postJson({ claimToken: token, password: 'correct-horse-battery' }));
+      expect(signed.status).toBe(201);
+      const userId = (await signed.json()).userId as string;
+
+      const { rows } = await env.db.client.query(
+        `SELECT product_slug, duration_days FROM subscription_periods WHERE user_id = $1`,
+        [userId],
+      );
+      expect(rows).toHaveLength(1);
+      expect((rows[0] as { product_slug: string }).product_slug).toBe('ai_freelancing_499');
+      expect((rows[0] as { duration_days: number }).duration_days).toBe(30);
+    });
+
+    it('existing-account branch: linking a second product (Pro) to an already-signed-up account also converts it to 30-day', async () => {
+      const env = await freshRoutes('cms-existing-account-second-product');
+      const email = 'cms-repeat-buyer@example.test';
+      const first = await paidEntitlement(env, 'cms3a', email, 'ai_income_99');
+      const firstToken = await mintRealToken(first.repo, first.orderId, email);
+      const firstSignup = await env.signup(postJson({ claimToken: firstToken, password: 'first-password-1' }));
+      expect(firstSignup.status).toBe(201);
+      const userId = (await firstSignup.json()).userId as string;
+
+      const second = await paidEntitlement(env, 'cms3b', email, 'ai_freelancing_499' as ProductId);
+      const secondToken = await mintRealToken(second.repo, second.orderId, email);
+      const secondSignup = await env.signup(postJson({ claimToken: secondToken, password: 'ignored-password' }));
+      expect(secondSignup.status).toBe(200);
+      expect((await secondSignup.json()).status).toBe('existing-account');
+
+      const { rows } = await env.db.client.query(
+        `SELECT product_slug FROM subscription_periods WHERE user_id = $1 ORDER BY product_slug`,
+        [userId],
+      );
+      expect(rows.map((r) => (r as { product_slug: string }).product_slug)).toEqual([
+        'ai_freelancing_499',
+        'ai_income_99',
+      ]);
+    });
+
+    it('the old entitlements row still exists after conversion — historical purchase/payment records are not deleted', async () => {
+      const env = await freshRoutes('cms-history-preserved');
+      const { orderId, email, repo } = await paidEntitlement(env, 'cms4', undefined, 'ai_income_99');
+      const token = await mintRealToken(repo, orderId, email);
+
+      const signed = await env.signup(postJson({ claimToken: token, password: 'correct-horse-battery' }));
+      expect(signed.status).toBe(201);
+
+      const { rows: entitlementRows } = await env.db.client.query(
+        `SELECT revoked_at FROM entitlements WHERE customer_email = $1 AND product_slug = 'ai_income_99'`,
+        [email],
+      );
+      expect(entitlementRows).toHaveLength(1);
+      expect((entitlementRows[0] as { revoked_at: Date | null }).revoked_at).toBeNull();
+
+      const { rows: orderRows } = await env.db.client.query(`SELECT status FROM orders WHERE id = $1`, [
+        orderId,
+      ]);
+      expect(orderRows).toHaveLength(1);
+
+      const { rows: paymentRows } = await env.db.client.query(
+        `SELECT status FROM payments WHERE order_id = $1`,
+        [orderId],
+      );
+      expect(paymentRows).toHaveLength(1);
+      expect((paymentRows[0] as { status: string }).status).toBe('CAPTURED');
+    });
+  });
 });

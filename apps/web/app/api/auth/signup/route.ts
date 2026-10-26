@@ -1,9 +1,11 @@
 import { evaluateClaimToken, hashAccessToken } from '@acos/core-entitlements';
 import { hashPassword, mintUserSession, validatePassword } from '@acos/core-identity';
+import { convertLinkedCmsEntitlementsToSubscriptionPeriods } from '@acos/core-subscriptions';
 import { CLAIM_TOKEN_IP_POLICY } from '@acos/rate-limit';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { commerceRepositories } from '../../../../src/server/commerceRepositories';
+import { getPool } from '../../../../src/server/db';
 import { checkLimits } from '../../../../src/server/rateLimit';
 import { SESSION_COOKIE, SESSION_COOKIE_OPTIONS } from '../../../../src/server/session';
 
@@ -32,6 +34,16 @@ import { SESSION_COOKIE, SESSION_COOKIE_OPTIONS } from '../../../../src/server/s
 // obtainable via the emailed claim link (/claim/[token]) — this endpoint
 // itself has not changed, but the claim token it consumes can no longer
 // be self-served from a razorpayOrderId in the browser.
+//
+// Plus/Pro 30-day access (FINAL PRODUCT RULE — no non-expiring Plus/Pro
+// purchase path): this is the one and only point a Plus/Pro entitlement
+// first acquires a `userId` (Plus/Pro checkout is deliberately
+// anonymous — the account is created HERE, after purchase). Right after
+// each `linkEntitlementsToUser` call below, this route also converts
+// whatever CMS-eligible (ai_income_99/ai_freelancing_499) entitlements
+// just got linked into 30-day `subscription_periods` rows — see
+// @acos/core-subscriptions' cmsEntitlementConversion.ts for exactly why
+// this cannot happen inside the Razorpay webhook handler instead.
 // -----------------------------------------------------------------------
 
 export const dynamic = 'force-dynamic';
@@ -134,6 +146,7 @@ export async function POST(request: NextRequest) {
     const existing = await identity.findUserByEmail(email);
     if (existing) {
       await entitlements.linkEntitlementsToUser(email, existing.id, now);
+      await convertLinkedCmsEntitlementsToSubscriptionPeriods(getPool(), existing.id, now);
       return NextResponse.json(
         {
           status: 'existing-account',
@@ -146,6 +159,7 @@ export async function POST(request: NextRequest) {
     const passwordHash = await hashPassword(password);
     const user = await identity.createUser({ email, passwordHash }, now);
     await entitlements.linkEntitlementsToUser(email, user.id, now);
+    await convertLinkedCmsEntitlementsToSubscriptionPeriods(getPool(), user.id, now);
 
     const minted = await mintUserSession(identity, { id: user.id, email: user.email });
     const response = NextResponse.json(

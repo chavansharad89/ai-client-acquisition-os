@@ -1,0 +1,84 @@
+import type { ProductId } from '@acos/catalog';
+
+/**
+ * CMS-configurable display name for a plan (migration 0061), kept
+ * strictly separate from the underlying `ProductId` (@acos/catalog).
+ * This row is an override only -- its absence for a given `productId`
+ * means "use that product's hardcoded `PRODUCT_CATALOG[productId].name`
+ * as the display name," resolved by `resolveDisplayName` in
+ * `displayName.ts`, never assumed by this type itself.
+ */
+export interface PlanDisplayName {
+  productId: string;
+  displayName: string;
+  updatedAt: Date;
+  updatedBy: string | null;
+}
+
+/**
+ * `content_items` (migration 0062) models both hierarchy nodes
+ * (`CONTAINER` -- chapter/topic/folder) and leaf content (`ASSET` --
+ * file/video) in one self-referencing table; which shape a row has is
+ * determined by `nodeType`, mirroring the DB's `content_items_node_shape`
+ * CHECK constraint.
+ */
+export type ContentNodeType = 'CONTAINER' | 'ASSET';
+
+/** DRAFT -> PUBLISHED -> ARCHIVED (PO-4/PO-6(R1)); archived rows are retained, never deleted. */
+export type ContentLifecycleStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+
+/**
+ * `owningProductId` is restricted at the application layer to the three
+ * CMS-eligible plans (`CMS_PLAN_PRODUCT_IDS` in
+ * `@acos/core-subscriptions`'s `cmsAccess.ts`) -- this package depends
+ * only on `@acos/catalog`, so the type here is the broader `ProductId`,
+ * same as the DB's plain-TEXT column (see migration 0062's comment).
+ */
+export interface ContentItem {
+  id: string;
+  owningProductId: ProductId;
+  parentId: string | null;
+  nodeType: ContentNodeType;
+  /** Non-null only when `nodeType` is `ASSET` (e.g. `'FILE'`, `'VIDEO'`). */
+  assetKind: string | null;
+  title: string;
+  description: string | null;
+  /** Non-null only when `nodeType` is `ASSET`. */
+  storageKey: string | null;
+  /**
+   * Non-null only when `nodeType` is `ASSET`. A string, not `number` --
+   * the underlying column is `BIGINT` and this repo's `pg` driver returns
+   * `BIGINT` values as strings by default to avoid precision loss.
+   */
+  bytes: string | null;
+  orderIndex: number;
+  status: ContentLifecycleStatus;
+  archivedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Input for creating a hierarchy node (chapter/topic/folder) -- no asset fields. */
+export interface NewContainerContentItem {
+  nodeType: 'CONTAINER';
+  owningProductId: ProductId;
+  parentId: string | null;
+  title: string;
+  description?: string | null;
+  orderIndex?: number;
+}
+
+/** Input for creating a leaf asset (file/video) -- asset fields required. */
+export interface NewAssetContentItem {
+  nodeType: 'ASSET';
+  owningProductId: ProductId;
+  parentId: string | null;
+  title: string;
+  description?: string | null;
+  assetKind: string;
+  storageKey: string;
+  bytes: string;
+  orderIndex?: number;
+}
+
+export type NewContentItem = NewContainerContentItem | NewAssetContentItem;

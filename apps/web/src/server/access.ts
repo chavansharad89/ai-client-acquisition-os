@@ -1,6 +1,7 @@
 import { funnelStateFor, purchasedFrom, type AccessResolution } from '@acos/core-entitlements';
 import { resolveSession } from '@acos/core-identity';
 
+import { resolveCmsAwarePurchased } from './cmsAccessGate';
 import { commerceRepositories } from './commerceRepositories';
 import { readSessionTokenFromServerComponent } from './session';
 
@@ -35,7 +36,7 @@ const ANONYMOUS: AccessResolution = {
  * checkout/login rather than opening up.
  */
 export async function currentAccess(): Promise<AccessResolution> {
-  const { identity, entitlements } = commerceRepositories();
+  const { identity, entitlements, subscriptionPeriods } = commerceRepositories();
   const resolution = await resolveSession(identity, readSessionTokenFromServerComponent());
   if (!resolution.authenticated) return ANONYMOUS;
 
@@ -45,7 +46,14 @@ export async function currentAccess(): Promise<AccessResolution> {
   ]);
   if (!user) return ANONYMOUS;
 
-  const purchased = purchasedFrom(active);
+  // FINAL PRODUCT RULE: ai_income_99/ai_freelancing_499 access must come
+  // from an active subscription_periods row, never from the mere
+  // existence of an old, non-expiring entitlement — see cmsAccessGate.ts.
+  const purchased = await resolveCmsAwarePurchased(
+    { subscriptionPeriods },
+    resolution.userId,
+    purchasedFrom(active),
+  );
   return {
     granted: true,
     context: { customerEmail: user.email, purchased },

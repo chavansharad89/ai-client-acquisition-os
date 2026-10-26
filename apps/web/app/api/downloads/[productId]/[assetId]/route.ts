@@ -9,6 +9,7 @@ import {
 import { resolveSession } from '@acos/core-identity';
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { resolveCmsAwarePurchased } from '../../../../../src/server/cmsAccessGate';
 import { commerceRepositories } from '../../../../../src/server/commerceRepositories';
 import { contentTypeFor, readDeliverableFile } from '../../../../../src/server/contentStore';
 import { readSessionToken } from '../../../../../src/server/session';
@@ -76,7 +77,7 @@ export async function GET(
   }
 
   try {
-    const { identity, entitlements } = commerceRepositories();
+    const { identity, entitlements, subscriptionPeriods } = commerceRepositories();
 
     const session = await resolveSession(identity, readSessionToken(request));
     if (!session.authenticated) {
@@ -93,7 +94,14 @@ export async function GET(
       return NextResponse.json({ error: message }, { status });
     }
 
-    const purchased = purchasedFrom(active);
+    // FINAL PRODUCT RULE: see cmsAccessGate.ts — ai_income_99/
+    // ai_freelancing_499 access must come from an active
+    // subscription_periods row, not merely an old entitlement's existence.
+    const purchased = await resolveCmsAwarePurchased(
+      { subscriptionPeriods },
+      session.userId,
+      purchasedFrom(active),
+    );
     if (!canAccessProduct(purchased, productId)) {
       const { status, message } = denialResponse('not-entitled');
       return NextResponse.json({ error: message }, { status });
