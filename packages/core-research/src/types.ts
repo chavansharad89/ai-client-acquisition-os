@@ -1,3 +1,4 @@
+import type { AuthorizationEvidence } from './intentSignal';
 import type { ResearchSourceKind } from './persist';
 import type { Classification } from './schema';
 
@@ -35,6 +36,11 @@ export interface NewResearchSignalInput {
   basis: string | null;
   /** Empty for INFERRED/UNKNOWN; one or more for OBSERVED. */
   sources: readonly ResearchSignalSourceInput[];
+  /**
+   * FIRST_PARTY intake only (OD-7): written in the signal row's own INSERT
+   * and never updated (OD-8; migration 0030 trigger). Absent everywhere else.
+   */
+  authorizationEvidence?: AuthorizationEvidence;
 }
 
 export interface StoredResearchSignalSource extends ResearchSignalSourceInput {
@@ -53,6 +59,16 @@ export interface StoredResearchSignal {
   observedAt: Date;
   /** Never deleted — a re-research run supersedes prior rows instead. */
   supersededAt: Date | null;
+  /**
+   * Row-insertion time (DB column `created_at`, distinct from the
+   * business-meaning `observedAt`). Optional here because almost every
+   * caller of this shared type has no reason to care about it; it
+   * exists only so Q5-C's historical/new boundary
+   * (./signalAuthorization.ts) can be derived from an actual row
+   * timestamp instead of an invented one. Populated by the real
+   * Postgres repository; omitted by callers/fakes that don't need it.
+   */
+  createdAt?: Date;
   sources: readonly StoredResearchSignalSource[];
 }
 

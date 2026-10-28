@@ -100,4 +100,31 @@ export interface SearchRepository {
     error: string;
     maxAttempts: number;
   }): Promise<'PENDING' | 'FAILED' | null>;
+
+  /**
+   * Phase 5: atomically consumes exactly one AI-escalation budget unit
+   * against this claimed Search's durable, per-Search-lifecycle counter
+   * (migration 0046). Fenced on `lease_owner`/`status='RUNNING'`, the same
+   * idiom `completeClaimed`/`recordAttemptFailure` use — returns `fenced`
+   * (nothing written) if this worker no longer holds the lease. Returns
+   * `exhausted` (nothing written) when the counter is already at `budget`
+   * — the caller falls back to deterministic-only presentation for that
+   * candidate; this never fails the Search by itself. Never decrements —
+   * there is no "refund" operation, including for a candidate whose AI
+   * call later fails: the unit is spent at admission, not at success.
+   * Safe against concurrent/stale workers: the increment and the
+   * `< budget` check happen in the same statement, so two concurrent
+   * callers can never together push `consumed` above `budget`.
+   */
+  consumeAiEscalationUnit(input: {
+    id: string;
+    workerId: string;
+    now: Date;
+    budget: number;
+  }): Promise<ConsumeAiEscalationUnitResult>;
 }
+
+export type ConsumeAiEscalationUnitResult =
+  | { outcome: 'admitted'; consumed: number }
+  | { outcome: 'exhausted'; consumed: number }
+  | { outcome: 'fenced' };

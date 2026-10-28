@@ -1,6 +1,12 @@
 import { isValidProductId } from '@acos/catalog';
 
-import type { CheckoutError, CreateOrderRequest, OrderPaymentInfo } from './types';
+import type {
+  CheckoutError,
+  CreateOrderRequest,
+  CreateSubscriptionRequest,
+  OrderPaymentInfo,
+  SubscriptionPaymentInfo,
+} from './types';
 
 // The one place the browser talks to the order API.
 // -----------------------------------------------------------------------
@@ -41,6 +47,9 @@ export function buildCreateOrderRequest(input: BuildRequestInput): CreateOrderRe
 /** Maps a failed response to a message a person can act on. */
 export function toCheckoutError(status: number, code?: string): CheckoutError {
   if (status === 400 && code === 'INVALID_PRODUCT') {
+    return { kind: 'product', message: 'That product is no longer available.' };
+  }
+  if (status === 410 && code === 'PRODUCT_RETIRED') {
     return { kind: 'product', message: 'That product is no longer available.' };
   }
   if (status === 400) {
@@ -108,4 +117,96 @@ export async function createOrderRequest(
     return { ok: false, error: toCheckoutError(response.status, code) };
   }
   return { ok: true, order: payload as OrderPaymentInfo };
+}
+
+// -----------------------------------------------------------------------
+// The subscription equivalent, for the one recurring SKU
+// (`ai_client_acquisition_1499_subscription`). Mirrors createOrderRequest
+// above; kept separate rather than unified because the two endpoints
+// have different auth requirements (this one needs a session) and
+// different success shapes (no amount/currency on the wire — see
+// SubscriptionPaymentInfo's own doc comment).
+// -----------------------------------------------------------------------
+
+export const CREATE_SUBSCRIPTION_ENDPOINT = '/api/payments/create-subscription';
+
+export interface BuildSubscriptionRequestInput {
+  customerEmail: string;
+  customerPhone?: string;
+}
+
+export function buildCreateSubscriptionRequest(
+  input: BuildSubscriptionRequestInput,
+): CreateSubscriptionRequest {
+  const phone = input.customerPhone?.trim();
+  return {
+    customerEmail: input.customerEmail.trim(),
+    ...(phone ? { customerPhone: phone } : {}),
+  };
+}
+
+/** Maps a failed create-subscription response to a message a person can act on. */
+export function toSubscriptionCheckoutError(status: number, code?: string): CheckoutError {
+  if (status === 401) {
+    return { kind: 'auth', message: 'Please log in to start your Client Finder subscription.' };
+  }
+  if (status === 503) {
+    return {
+      kind: 'server',
+      message: 'Subscriptions are not available right now. Please try again shortly.',
+    };
+  }
+  if (status === 400) {
+    return {
+      kind: 'validation',
+      message: 'Check the email address and phone number, then try again.',
+    };
+  }
+  if (status === 502) {
+    return {
+      kind: 'provider',
+      message: 'Our payment provider is not responding. Try again in a moment.',
+    };
+  }
+  void code;
+  return { kind: 'server', message: 'Something went wrong on our side. Try again in a moment.' };
+}
+
+export interface CreateSubscriptionResult {
+  ok: true;
+  subscription: SubscriptionPaymentInfo;
+}
+export interface CreateSubscriptionFailure {
+  ok: false;
+  error: CheckoutError;
+}
+
+export async function createSubscriptionRequest(
+  body: CreateSubscriptionRequest,
+  idempotencyKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<CreateSubscriptionResult | CreateSubscriptionFailure> {
+  let response: Response;
+  try {
+    response = await fetchImpl(CREATE_SUBSCRIPTION_ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return { ok: false, error: NETWORK_ERROR };
+  }
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    return { ok: false, error: toSubscriptionCheckoutError(response.status) };
+  }
+
+  if (!response.ok) {
+    const code = (payload as { code?: string } | null)?.code;
+    return { ok: false, error: toSubscriptionCheckoutError(response.status, code) };
+  }
+  return { ok: true, subscription: payload as SubscriptionPaymentInfo };
 }

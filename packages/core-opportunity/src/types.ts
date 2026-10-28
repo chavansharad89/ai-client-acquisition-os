@@ -1,8 +1,7 @@
 import type {
-  FactorScore,
   OpportunityStage,
   OpportunityStaleness,
-  ScoreBand,
+  UniversalRankingProfile,
 } from '@acos/core-acquisition';
 
 /**
@@ -36,6 +35,20 @@ export interface CreateOpportunityInput {
   prospectId: string;
 }
 
+/**
+ * Candidate-level AI enrichment provenance (Phase 6, migration 0047):
+ * whether this Opportunity's current evidence came from a successful
+ * Research/TCM run (or a fresh reusable cache hit of one), or only from
+ * deterministic signals.
+ */
+export type AiEnrichment = 'AI_ENRICHED' | 'DETERMINISTIC_ONLY';
+
+/**
+ * Why `aiEnrichment` is 'DETERMINISTIC_ONLY'. Always `null` for
+ * 'AI_ENRICHED' — see {@link StoredOpportunity.aiEnrichmentReason}.
+ */
+export type AiEnrichmentReason = 'NOT_ESCALATED' | 'ESCALATION_FAILED' | 'PROVIDER_EXHAUSTED';
+
 /** A row as persisted. `userId` is always server-derived (DEC-003) — never accepted as input. */
 export interface StoredOpportunity {
   id: string;
@@ -54,33 +67,63 @@ export interface StoredOpportunity {
   staleness: OpportunityStaleness;
   /** When `staleness` was last computed. `null` until first classified. */
   stalenessComputedAt: Date | null;
+  /**
+   * Candidate-level AI enrichment provenance (Phase 6). Defaults to
+   * 'DETERMINISTIC_ONLY' at creation; recordAiEnrichmentForOwner() is
+   * what sets the real outcome, same "explicit step" convention as
+   * `staleness`.
+   */
+  aiEnrichment: AiEnrichment;
+  /** Why `aiEnrichment` is 'DETERMINISTIC_ONLY'. `null` when 'AI_ENRICHED'. */
+  aiEnrichmentReason: AiEnrichmentReason | null;
+  /**
+   * Phase 7B (MULR item 6, migration 0048): the selected top-level
+   * service's catalogue sub-services (`@acos/core-opportunity`'s
+   * serviceCatalog.ts) found relevant to this Opportunity by
+   * `matchRelevantSubservices()` at creation time. Internal metadata
+   * only (CF-SERVICE-CATALOG-PO-DEC-001) — never a separate result
+   * category, never re-derived at render time. Empty when none matched.
+   */
+  relevantSubservices: readonly string[];
   createdAt: Date;
   updatedAt: Date;
 }
 
 /**
- * A persisted OpportunityScore row (migration 0018). Maps
- * @acos/core-acquisition's `ProspectScore` (unmodified — PRD V2.1
- * "SEVEN-FACTOR SCORING — AUTHORITATIVE MODEL") onto columns rather than
- * reducing it to a single total: every factor's weight/raw/points/basis/
- * reason must remain independently retrievable (AC-16). Ownership is
- * inherited through `opportunityId` -> `opportunities.user_id` (DEC-008,
- * the second named exception alongside `research_signals`) — no
- * `userId` field of its own. One current score per Opportunity, not an
- * append-only history — re-scoring replaces this row.
+ * A persisted OpportunityScore row (migration 0018, qualitative shape
+ * since migration 0044 / Phase 3 of the deterministic architecture plan
+ * — CLIENT_FINDER_UNIVERSAL_RANKING_FRAMEWORK_PO_DECISION.md). Holds the
+ * caller's own, already-computed {@link UniversalRankingProfile} — a
+ * tier (STRONG/MODERATE/WEAK/UNKNOWN) per dimension, never a composite
+ * number. Ownership is inherited through `opportunityId` ->
+ * `opportunities.user_id` (DEC-008, the second named exception alongside
+ * `research_signals`) — no `userId` field of its own. One current score
+ * per Opportunity, not an append-only history — re-scoring replaces this
+ * row.
+ *
+ * The legacy seven-factor numeric score (`total`/`band`/`observedShare`/
+ * `cap`) is formally superseded as a ranking source
+ * (CLIENT_FINDER_UNIVERSAL_RANKING_SUPERSEDES_MVP_SCORING_PO_DECISION.md)
+ * and deliberately absent from this type — migration 0044 made the
+ * underlying columns nullable rather than dropping them, so historical
+ * rows survive at the database layer, but the application never reads
+ * them back into a value a caller could see.
  */
 export interface StoredOpportunityScore {
   id: string;
   opportunityId: string;
-  total: number;
-  band: ScoreBand;
-  factors: readonly FactorScore[];
+  /**
+   * `null` only for a row written before migration 0044 (scorer_version
+   * 'prospectScore-v1') — its `factors` column still holds the legacy
+   * seven-factor array, never reinterpreted as a UniversalRankingProfile
+   * (see scorePgRepository.ts's mapRow()). A row from the current
+   * scorer always carries a real profile here.
+   */
+  ranking: UniversalRankingProfile | null;
+  /** Ordered, human-readable explanation of each dimension's tier. Every row carries at least one. */
   reasons: readonly string[];
-  observedShare: number;
-  /** Set only when a rule (e.g. the inference-heavy HIGH cap) overrode the arithmetic. */
-  cap: string | undefined;
-  /** Identifies the scorer build that produced this row (PRD V2.1: "allows a ranking to be reproduced after weights change"). */
-  scorerVersion: string;
+  /** Identifies the ranking-formula build that produced this row (so an order can be reproduced or distinguished after the formula changes). */
+  rankerVersion: string;
   scoredAt: Date;
   createdAt: Date;
 }

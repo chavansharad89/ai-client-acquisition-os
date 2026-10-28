@@ -23,6 +23,36 @@ import type { ServiceProfileFields, ServiceProfileInput } from './types';
 // VALID_TRIGGER_KINDS, same pattern, same source of truth).
 const VALID_TRIGGER_KINDS = new Set<string>(Object.keys(SOURCE_WEIGHT));
 
+// D6 (CF-SERVICE-CATALOG-PO-DEC-001): a freelancer's `service` must be
+// exactly one of the 17 canonical top-level service families — never a
+// subservice, alias, or free text. This is a local, literal transcription
+// of that decision's 17 family names (NOT the full catalogue with
+// subservices — see @acos/core-opportunity's serviceCatalog.ts for that).
+// Deliberately duplicated rather than imported: core-service-profile must
+// not depend on core-opportunity (see that package's own Phase 7B
+// boundary notes). Do not add, rename, merge, split, remove, or reorder
+// any entry here without a new PO decision — and the canonical taxonomy
+// itself must never be changed in this file.
+const CANONICAL_SERVICE_FAMILIES = new Set<string>([
+  'Web & Software Development',
+  'AI & Automation',
+  'Video & Reels',
+  'Graphic & Visual Design',
+  'Branding',
+  'Digital Marketing',
+  'Content & Copywriting',
+  'Photography',
+  'Audio',
+  'E-commerce Services',
+  'Business & Operations',
+  'Sales & Lead Generation',
+  'Translation & Language',
+  'Architecture / Engineering / 3D',
+  'Finance / Professional Services',
+  'Education & Expertise',
+  'Specialized Professional Services',
+]);
+
 export const SERVICE_MAX_LENGTH = 200;
 export const TARGET_CUSTOMER_MAX_LENGTH = 200;
 export const GEOGRAPHY_MAX_LENGTH = 200;
@@ -101,6 +131,13 @@ function requireStringList(
  */
 export function validateServiceProfileInput(input: ServiceProfileInput): ServiceProfileFields {
   const service = requireNonEmptyString(input.service, 'service', SERVICE_MAX_LENGTH);
+  if (!CANONICAL_SERVICE_FAMILIES.has(service)) {
+    throw new ServiceProfileValidationError(
+      'service',
+      'not-in-vocabulary',
+      `service must be one of: ${[...CANONICAL_SERVICE_FAMILIES].join(', ')} (got "${service}")`,
+    );
+  }
   const targetCustomer = requireNonEmptyString(
     input.targetCustomer,
     'targetCustomer',

@@ -271,6 +271,7 @@ describe('PostgreSQL rate limiter (real database)', () => {
           transaction,
           buildMetaEventId: (paymentId) => buildPurchaseEventId({ paymentId }),
           eventId: `evt_${randomUUID()}`,
+          clientFinderSubscriptionDurationDays: 30,
         });
         expect(outcome.status, `webhook ${i}`).toBe('processed');
       }

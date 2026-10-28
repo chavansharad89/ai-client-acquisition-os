@@ -9,6 +9,7 @@ import {
 } from '@acos/core-ai-usage';
 import {
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   type DiscoveryCandidate,
@@ -41,6 +42,7 @@ import {
   type ServiceProfileInput,
 } from '@acos/core-service-profile';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { Pool } from 'pg';
 
 import { suiteDatabase } from './support/suiteDb';
 
@@ -59,10 +61,17 @@ import { suiteDatabase } from './support/suiteDb';
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('ai_usage');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 function repos() {
   const { db } = suite.require();
@@ -72,6 +81,7 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     usageEvents: createPgAiUsageEventRepository(db.client),
   };
 }
@@ -83,7 +93,7 @@ function usageDeps(base: ReturnType<typeof repos>): AiUsageDeps {
 function discoveryProvider(candidates: readonly DiscoveryCandidate[]): DiscoveryProvider {
   return {
     async discover() {
-      return candidates;
+      return { candidates, actualQuery: 'test query', provider: 'TEST_PROVIDER' };
     },
   };
 }
@@ -97,7 +107,7 @@ function discoveryDeps(
 
 function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'Website development',
+    service: 'Web & Software Development',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 3_000_000,
@@ -157,6 +167,7 @@ const HOMEPAGE = {
 const researchInput: ResearchInput = {
   companyName: 'Acme Robotics',
   websiteUrl: 'https://acme.test',
+  targetSegments: [],
   sourceDocuments: [HOMEPAGE],
 };
 
@@ -228,6 +239,46 @@ describe('ai_usage_events schema (migration 0021)', () => {
           AND indexname = 'ai_usage_events_provider_provider_message_id_key'`,
     );
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe('ai_usage_events request_kind (migration 0026, Multi-Model Research Provider fallback)', () => {
+  it("accepts 'fallback' at the database level, proving the widened CHECK constraint applies", async () => {
+    const a = await createUserAndSession('fallback-schema');
+    const base = repos();
+    const { prospectId } = await createProspect(base, a.token);
+
+    const stored = await recordAiUsageEvent(
+      usageDeps(base),
+      a.token,
+      prospectId,
+      sampleUsage({ provider: 'openai', model: 'gpt-test', providerMessageId: `msg_${randomUUID()}` }),
+      'fallback',
+    );
+
+    expect(stored.requestKind).toBe('fallback');
+
+    const { rows } = await suite
+      .require()
+      .db.client.query(`SELECT request_kind FROM ai_usage_events WHERE id = $1`, [stored.id]);
+    expect((rows[0] as { request_kind: string }).request_kind).toBe('fallback');
+  });
+
+  it('still rejects a request_kind outside the three allowed values — the constraint was widened, not removed', async () => {
+    const a = await createUserAndSession('fallback-invalid');
+    const base = repos();
+    const { prospectId } = await createProspect(base, a.token);
+    const { db } = suite.require();
+
+    await expect(
+      db.client.query(
+        `INSERT INTO ai_usage_events
+           (id, user_id, prospect_id, provider, model, request_kind, provider_message_id,
+            input_tokens, output_tokens, created_at)
+         VALUES (gen_random_uuid()::text, $1, $2, 'anthropic', 'claude-opus-5', 'bogus', $3, 1, 1, now())`,
+        [a.userId, prospectId, `msg_${randomUUID()}`],
+      ),
+    ).rejects.toThrow(/ai_usage_events_request_kind_check/);
   });
 });
 

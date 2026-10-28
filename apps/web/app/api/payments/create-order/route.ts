@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 
 import { loadEnv } from '@acos/config';
 import {
@@ -6,6 +5,7 @@ import {
   IdempotencyKeyConflictError,
   InvalidProductError,
   OrderPersistenceError,
+  ProductRetiredError,
   RazorpayOrderCreationError,
   createOrder,
   createPrismaOrderRepository,
@@ -13,8 +13,11 @@ import {
 } from '@acos/core-payments';
 import { prisma } from '@acos/db';
 import { CREATE_ORDER_EMAIL_POLICY, CREATE_ORDER_IP_POLICY } from '@acos/rate-limit';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 
 import { checkCreateOrderLimits } from '../../../../src/server/rateLimit';
+import { readVisitorIdFromRequest } from '../../../../src/server/visitor';
 
 // POST /api/payments/create-order
 // -----------------------------------------------------------------------
@@ -104,8 +107,9 @@ function tooManyRequests(retryAfterSeconds: number): NextResponse {
   );
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const { env, razorpay, orders } = getDeps();
+  const visitorId = readVisitorIdFromRequest(request);
 
   // The IP check runs FIRST, before the body is even read: an obvious
   // flood should cost us a counter increment, not a JSON parse.
@@ -148,6 +152,7 @@ export async function POST(request: Request) {
       body,
       {
         razorpayKeyId: env.RAZORPAY_KEY_ID,
+        visitorId,
         ...(idempotencyKeyHeader ? { idempotencyKey: idempotencyKeyHeader } : {}),
       },
       { razorpay, orders },
@@ -162,6 +167,12 @@ export async function POST(request: Request) {
     }
     if (err instanceof InvalidProductError) {
       return NextResponse.json({ error: err.message, code: err.code }, { status: 400 });
+    }
+    if (err instanceof ProductRetiredError) {
+      // 410, not 400: the product id is real and resolves fine (it still
+      // does for every existing order/entitlement) — it is simply closed
+      // to new sales, which is "Gone," not "invalid input."
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 410 });
     }
     if (err instanceof IdempotencyKeyConflictError) {
       // 409, not 400: the request is well-formed. It conflicts with what

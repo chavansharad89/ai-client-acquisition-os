@@ -3,9 +3,18 @@ import { describe, expect, it } from 'vitest';
 import { PRODUCT_IDS } from './products';
 import { ENTRY_PRODUCT_ID, impliedProductIds, nextRung, PRODUCT_LADDER, tierOf } from './ladder';
 
+// The ₹1,499 Client Finder SUBSCRIPTION is deliberately NOT a rung on
+// this one-time-purchase containment ladder (plan §K: "recommend
+// orthogonal, since PO-D2 governs Client Finder feature access, not
+// kit-deliverable downloads") -- it has no deliverables to imply or be
+// implied by (see deliverables.ts's own carve-out for this id).
+const LADDER_PRODUCT_IDS = PRODUCT_IDS.filter(
+  (id) => id !== 'ai_client_acquisition_1499_subscription',
+);
+
 describe('the ladder covers the catalog', () => {
-  it('every sellable product is on exactly one rung', () => {
-    expect([...PRODUCT_LADDER].sort()).toEqual([...PRODUCT_IDS].sort());
+  it('every one-time, deliverable-bearing product is on exactly one rung', () => {
+    expect([...PRODUCT_LADDER].sort()).toEqual([...LADDER_PRODUCT_IDS].sort());
     expect(new Set(PRODUCT_LADDER).size).toBe(PRODUCT_LADDER.length);
   });
 

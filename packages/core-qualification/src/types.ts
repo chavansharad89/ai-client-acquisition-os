@@ -9,7 +9,15 @@
 export const QUALIFICATION_STATES = ['QUALIFIED', 'NOT_QUALIFIED', 'INSUFFICIENT_EVIDENCE'] as const;
 export type QualificationState = (typeof QUALIFICATION_STATES)[number];
 
-export const QUALIFICATION_CRITERIA = ['NEED_DETECTED', 'EVIDENCE_PRESENT'] as const;
+/**
+ * CATEGORY_PLAUSIBLE (Path 2 D4): whether the participant's target
+ * customer plausibly matches this business, per the Search-scoped
+ * category-plausibility determination (@acos/core-research, D1/D6/D7) —
+ * a distinct concern from NEED_DETECTED, never routed through it or
+ * through R-71 (TOPICAL_FIELDS/suggestOffers()/toOfferSignals()). See
+ * ./rules.ts's evaluateCategoryPlausible() and ./evaluator.ts.
+ */
+export const QUALIFICATION_CRITERIA = ['NEED_DETECTED', 'EVIDENCE_PRESENT', 'CATEGORY_PLAUSIBLE'] as const;
 export type QualificationCriterionId = (typeof QUALIFICATION_CRITERIA)[number];
 
 /**

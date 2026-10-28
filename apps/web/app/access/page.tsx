@@ -1,13 +1,15 @@
 import Link from 'next/link';
 
-import { getProduct, PRODUCT_LADDER } from '@acos/catalog';
+import { getProduct, isRetiredFromNewPurchases, PRODUCT_LADDER } from '@acos/catalog';
 
+import { LogoutButton } from '../../src/components/LogoutButton';
 import { formatInrDisplay } from '../../src/lib/format/inr';
 import { currentAccess } from '../../src/server/access';
 
 // The library. Server-gated.
 // -----------------------------------------------------------------------
-// Entitlements are read on the server from the access-token cookie. There
+// Entitlements are read on the server from the authenticated session
+// cookie (DEC-010 item 2/5: account login, not an emailed link). There
 // is no client-side purchase state anywhere in this page, so clearing or
 // forging localStorage changes nothing about what opens.
 // -----------------------------------------------------------------------
@@ -24,15 +26,13 @@ export default async function AccessPage() {
         <div className="stack" style={{ maxWidth: '56ch' }}>
           <h1 className="page-title">Open your library</h1>
           <p className="lede">
-            We emailed you an access link when your payment cleared. Open that link on this device
-            and your kits will appear here.
+            Log in to the account you created after your purchase to see your kits here.
           </p>
-          <div className="status status-pending" role="status">
-            <p style={{ margin: 0 }}>
-              <strong>Can&rsquo;t find the email?</strong> Check spam first. If it still isn&rsquo;t
-              there, contact support with the email address you paid with.
-            </p>
-          </div>
+          <p>
+            <Link className="btn btn-primary" href="/access/login">
+              Log in
+            </Link>
+          </p>
           <p>
             <Link className="btn btn-secondary" href="/">
               Back to the starter kit
@@ -53,13 +53,20 @@ export default async function AccessPage() {
           Signed in as {access.context.customerEmail}. {funnel.accessible.length} of{' '}
           {PRODUCT_LADDER.length} kits unlocked.
         </p>
+        <LogoutButton />
       </div>
 
       <div className="pricing">
-        {PRODUCT_LADDER.map((id) => {
-          const product = getProduct(id);
-          const unlocked = funnel.accessible.includes(id);
-          return (
+        {PRODUCT_LADDER.map((id) => ({
+          id,
+          product: getProduct(id),
+          unlocked: funnel.accessible.includes(id),
+        }))
+          // Retired from new purchases (COMMERCIAL-PO-17): never offered
+          // here to someone who doesn't already own it. An existing
+          // owner's card is unaffected — `unlocked` short-circuits this.
+          .filter(({ id, unlocked }) => unlocked || !isRetiredFromNewPurchases(id))
+          .map(({ id, product, unlocked }) => (
             <article className="card" key={id}>
               <h2>{product.name}</h2>
               {unlocked ? (
@@ -81,8 +88,7 @@ export default async function AccessPage() {
                 </>
               )}
             </article>
-          );
-        })}
+          ))}
       </div>
     </main>
   );

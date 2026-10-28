@@ -32,6 +32,7 @@ export interface TestRunIds {
   paymentIds: string[];
   webhookEventIds: string[];
   metaEventIds: string[];
+  searchIds: string[];
 }
 
 /**
@@ -49,10 +50,30 @@ export interface TestRunIds {
  *   "entitlements_order_id_fkey" on table "entitlements"
  *
  * — twenty times. A broken migration was hiding a broken teardown.
+ *
+ * refund_events is the same shape as entitlements for this purpose:
+ * @acos/core-payments' insertRefundEvent() mints its own id
+ * (crypto.randomUUID()), so a test cannot register it the way it
+ * registers a row it inserted itself with a run-tagged id. Deleted by
+ * order_id instead (§idsFor), which IS this run's — and it must go
+ * before orders, since refund_events references orders ON DELETE
+ * RESTRICT (migration 0034, B-6).
+ */
+/**
+ * `searches` (migration 0014) is unrelated to the payments domain below —
+ * added so Client Finder suites can scope cleanup of PENDING Search rows
+ * between tests. Safe to delete directly: every table that references
+ * searches.id (prospects, category_plausibility_determinations,
+ * target_customer_match_determinations) does so ON DELETE CASCADE, so
+ * there is no RESTRICT to order around. Placed first, ahead of the
+ * payments tables, so `orders` (last, by ON DELETE RESTRICT) stays last —
+ * no FK crosses the two domains either way.
  */
 export const CLEANUP_ORDER = [
+  'searches',
   'meta_events',
   'webhook_events',
+  'refund_events',
   'payments',
   'entitlements',
   'orders',
@@ -79,6 +100,7 @@ export interface TestRunContext extends TestRunIds {
   trackPayment(id: string): string;
   trackWebhookEvent(id: string): string;
   trackMetaEvent(id: string): string;
+  trackSearch(id: string): string;
   /** Every id this run created, newest table first. */
   idsFor(table: CleanupTable): string[];
   totalTracked(): number;
@@ -105,6 +127,7 @@ export function createTestRunContext(seed?: string): TestRunContext {
   const paymentIds: string[] = [];
   const webhookEventIds: string[] = [];
   const metaEventIds: string[] = [];
+  const searchIds: string[] = [];
 
   const track = (bucket: string[]) => (id: string) => {
     if (!id.includes(runId)) {
@@ -116,25 +139,38 @@ export function createTestRunContext(seed?: string): TestRunContext {
     return id;
   };
 
+  // Search ids are minted by @acos/core-search itself (crypto.randomUUID()
+  // inside the repository), never constructed via this context's id() —
+  // unlike orders/payments/etc., a test has no way to pre-tag one with
+  // runId. The caller supplies the id *after* creation instead, so the
+  // only invariant left to enforce is "don't double-track."
+  const trackUntagged = (bucket: string[]) => (id: string) => {
+    if (!bucket.includes(id)) bucket.push(id);
+    return id;
+  };
+
   return {
     runId,
     orderIds,
     paymentIds,
     webhookEventIds,
     metaEventIds,
+    searchIds,
     id: (prefix, suffix) => `${prefix}_${runId}_${suffix}`,
     trackOrder: track(orderIds),
     trackPayment: track(paymentIds),
     trackWebhookEvent: track(webhookEventIds),
     trackMetaEvent: track(metaEventIds),
+    trackSearch: trackUntagged(searchIds),
     idsFor(table) {
       switch (table) {
         case 'entitlements':
-          // Entitlements are created THROUGH the repository, which mints
-          // its own ids, so a test cannot register them the way it
-          // registers an order it inserted itself. They are deleted by
-          // order_id instead — still strictly scoped to rows this run
-          // created, because the order ids are this run's.
+        case 'refund_events':
+          // Both are created THROUGH a repository that mints its own id,
+          // so a test cannot register them the way it registers an order
+          // it inserted itself. Deleted by order_id instead — still
+          // strictly scoped to rows this run created, because the order
+          // ids are this run's.
           return orderIds;
         case 'meta_events':
           return metaEventIds;
@@ -144,10 +180,16 @@ export function createTestRunContext(seed?: string): TestRunContext {
           return paymentIds;
         case 'orders':
           return orderIds;
+        case 'searches':
+          return searchIds;
       }
     },
     totalTracked: () =>
-      orderIds.length + paymentIds.length + webhookEventIds.length + metaEventIds.length,
+      orderIds.length +
+      paymentIds.length +
+      webhookEventIds.length +
+      metaEventIds.length +
+      searchIds.length,
   };
 }
 
@@ -167,9 +209,11 @@ export async function cleanupTestRun(
   const leftover: Record<CleanupTable, string[]> = {
     meta_events: [],
     webhook_events: [],
+    refund_events: [],
     payments: [],
     entitlements: [],
     orders: [],
+    searches: [],
   };
 
   for (const table of CLEANUP_ORDER) {
@@ -181,7 +225,7 @@ export async function cleanupTestRun(
     // run did not create.
     // Always a run-scoped id list. Never a predicate that could match a
     // row this run did not create.
-    const column = table === 'entitlements' ? 'order_id' : 'id';
+    const column = table === 'entitlements' || table === 'refund_events' ? 'order_id' : 'id';
     const result = await db.query(`DELETE FROM "${table}" WHERE ${column} = ANY($1::text[])`, [
       ids,
     ]);
@@ -192,7 +236,7 @@ export async function cleanupTestRun(
   for (const table of CLEANUP_ORDER) {
     const ids = context.idsFor(table);
     if (ids.length === 0) continue;
-    const verifyColumn = table === 'entitlements' ? 'order_id' : 'id';
+    const verifyColumn = table === 'entitlements' || table === 'refund_events' ? 'order_id' : 'id';
     const { rows } = await db.query(
       `SELECT id FROM "${table}" WHERE ${verifyColumn} = ANY($1::text[]) ORDER BY id`,
       [ids],
@@ -235,7 +279,7 @@ export async function countRunRows(
   for (const table of CLEANUP_ORDER) {
     const ids = context.idsFor(table);
     if (ids.length === 0) continue;
-    const countColumn = table === 'entitlements' ? 'order_id' : 'id';
+    const countColumn = table === 'entitlements' || table === 'refund_events' ? 'order_id' : 'id';
     const { rows } = await db.query(
       `SELECT count(*)::int AS n FROM "${table}" WHERE ${countColumn} = ANY($1::text[])`,
       [ids],
@@ -246,5 +290,13 @@ export async function countRunRows(
 }
 
 function emptyCounts(): Record<CleanupTable, number> {
-  return { meta_events: 0, webhook_events: 0, payments: 0, entitlements: 0, orders: 0 };
+  return {
+    meta_events: 0,
+    webhook_events: 0,
+    refund_events: 0,
+    payments: 0,
+    entitlements: 0,
+    orders: 0,
+    searches: 0,
+  };
 }

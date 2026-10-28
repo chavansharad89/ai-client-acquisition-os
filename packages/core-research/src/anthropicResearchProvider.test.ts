@@ -26,6 +26,7 @@ function sampleLeadResearch(): LeadResearch {
     companySummary: unknownField(),
     businessModel: unknownField(),
     targetCustomers: unknownField(),
+    categoryPlausibility: [],
     visibleProblems: [],
     growthOpportunities: [],
     aiOpportunities: [],
@@ -87,6 +88,39 @@ describe('createAnthropicResearchProvider', () => {
     expect(result).toEqual(sampleLeadResearch());
     expect(model).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(seenSourceDocuments)).toContain('acme.example.com');
+  });
+
+  it('passes targetSegments through to the model, unchanged and in the supplied order (D8 pass-through — GAP 1)', async () => {
+    let seenMessage = '';
+    const model: ResearchModel = vi.fn(async (request) => {
+      seenMessage = JSON.stringify(request.messages);
+      return { kind: 'json', value: sampleLeadResearch(), usage: fakeUsage() } satisfies ModelResult;
+    });
+
+    const provider = createAnthropicResearchProvider({
+      model,
+      sourceDocuments: fakeSourceDocuments(ONE_DOC),
+    });
+
+    const targetSegments = ['Restaurants', 'Boutique Hotels', 'Event Venues'];
+
+    await provider.research({
+      prospectId: 'prospect_1',
+      companyId: 'company_1',
+      companyName: 'Acme',
+      normalizedDomain: 'acme.example.com',
+      targetSegments,
+    });
+
+    // Pass-through, not reinterpretation: every supplied segment reaches
+    // the model, in the same order supplied. Exact prompt wording/
+    // formatting is covered separately (research.test.ts's "target
+    // customer segments" suite) — this test only proves the VALUES
+    // survive this provider's ResearchProviderInput -> ResearchInput
+    // construction (anthropicResearchProvider.ts:71) unchanged.
+    const positions = targetSegments.map((segment) => seenMessage.indexOf(segment));
+    expect(positions.every((position) => position !== -1)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
 
   it('throws InsufficientEvidenceError without invoking the model when no source documents are found', async () => {

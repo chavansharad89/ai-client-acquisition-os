@@ -605,3 +605,61 @@ body {
     white-space: normal;
   }
 }
+
+/* ---------- Client Finder MVP surface ---------- */
+.opportunity-list {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.opportunity-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+
+.opportunity-rank {
+  font-weight: 700;
+  color: var(--ink-2);
+  min-width: 2.5em;
+}
+
+.opportunity-summary {
+  flex: 1;
+}
+
+.opportunity-summary h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+
+.opportunity-summary p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.evidence-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.evidence-item {
+  border-left: 3px solid var(--line);
+  padding-left: 12px;
+}
+
+.checkbox-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 12px 4px 0;
+  font-weight: 400;
+}

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   type DiscoveryCandidate,
@@ -37,6 +38,7 @@ import {
   type QualificationDeps,
 } from '@acos/core-qualification';
 import {
+  createPgCategoryPlausibilityRepository,
   createPgResearchSignalRepository,
   runResearch,
   type LeadResearch,
@@ -56,6 +58,7 @@ import {
   type ServiceProfileInput,
 } from '@acos/core-service-profile';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
 import { suiteDatabase } from './support/suiteDb';
 
@@ -75,10 +78,17 @@ import { suiteDatabase } from './support/suiteDb';
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('outreach-preparation');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 const WEBSITE = { url: 'https://acme.test', label: 'homepage' };
 
@@ -93,6 +103,18 @@ function matchingResearch(): LeadResearch {
     },
     businessModel: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     targetCustomers: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
+    // One entry: sampleProfileInput()'s targetCustomer ('Restaurants',
+    // line 184) has no ';' and parses to exactly one segment (Path 2,
+    // D2). MATCH is what keeps this fixture's pre-existing QUALIFIED
+    // assertions true now that CATEGORY_PLAUSIBLE also gates state.
+    categoryPlausibility: [
+      {
+        fit: 'MATCH',
+        rationale: 'the homepage says they serve restaurants',
+        evidence: [{ quote: 'we cater to restaurants across the city', sourceUrl: WEBSITE.url, sourceLabel: WEBSITE.label }],
+        confidence: 90,
+      },
+    ],
     visibleProblems: [],
     growthOpportunities: [],
     aiOpportunities: [],
@@ -116,7 +138,7 @@ function testProvider(result: LeadResearch): ResearchProvider {
 function discoveryProvider(candidates: readonly DiscoveryCandidate[]): DiscoveryProvider {
   return {
     async discover() {
-      return candidates;
+      return { candidates, actualQuery: 'test query', provider: 'TEST_PROVIDER' };
     },
   };
 }
@@ -129,7 +151,9 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     signals: createPgResearchSignalRepository(db.client),
+    categoryPlausibility: createPgCategoryPlausibilityRepository(db.client),
     opportunities: createPgOpportunityRepository(db.client),
     qualifications: createPgQualificationRepository(db.client),
     personalizations: createPgPersonalizationRepository(db.client),
@@ -180,7 +204,7 @@ async function createUserAndSession(label: string): Promise<{ userId: string; to
 
 function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'Website development',
+    service: 'Web & Software Development',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 15_000_000,
@@ -282,7 +306,7 @@ describe('prepareOpportunityOutreach', () => {
     expect(stored!.state).toBe('READY_FOR_REVIEW');
     expect(stored!.generatorVersion).toBe(GENERATOR_VERSION);
     expect(stored!.generatedAt).toEqual(now);
-    expect(stored!.subjectLine).toContain('Website development');
+    expect(stored!.subjectLine).toContain('Web & Software Development');
     expect(stored!.messageBody).toContain('Acme Co');
 
     const fetched = await getOpportunityOutreachPreparation(

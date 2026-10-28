@@ -29,6 +29,8 @@ export interface PersistedOrder {
   currency: string;
   status: OrderStatus;
   createdAt: Date;
+  /** PCG-1 demonstrated-intent evidence's visitor bridge (B-10) — the first-party `acos_visitor` cookie, not `_fbp`. Null for a request that carried no cookie. */
+  visitorId: string | null;
 }
 
 export interface CreateOrderRecordInput {
@@ -40,6 +42,7 @@ export interface CreateOrderRecordInput {
   productName: string;
   amountPaise: number;
   currency: string;
+  visitorId: string | null;
 }
 
 /**
@@ -66,6 +69,8 @@ export class UniqueConstraintViolationError extends Error {
 export interface OrderRepository {
   findByIdempotencyKey(key: string): Promise<PersistedOrder | null>;
   create(input: CreateOrderRecordInput): Promise<PersistedOrder>;
+  /** For the browser's post-checkout status poll and for reconciliation eligibility — read-only, never a grant path. */
+  findByRazorpayOrderId(razorpayOrderId: string): Promise<PersistedOrder | null>;
 }
 
 /**
@@ -99,7 +104,9 @@ export interface OrderRepository {
  */
 export interface MinimalPrismaOrderClient {
   order: {
-    findUnique(args: { where: { idempotencyKey: string } }): Promise<{
+    findUnique(args: {
+      where: { idempotencyKey: string } | { razorpayOrderId: string };
+    }): Promise<{
       id: string;
       razorpayOrderId: string;
       idempotencyKey: string | null;
@@ -111,6 +118,7 @@ export interface MinimalPrismaOrderClient {
       currency: string;
       status: string;
       createdAt: Date;
+      visitorId: string | null;
     } | null>;
     create(args: {
       data: {
@@ -123,6 +131,7 @@ export interface MinimalPrismaOrderClient {
         amountPaise: number;
         currency: string;
         status: 'PENDING';
+        visitorId: string | null;
       };
     }): Promise<{
       id: string;
@@ -136,6 +145,7 @@ export interface MinimalPrismaOrderClient {
       currency: string;
       status: string;
       createdAt: Date;
+      visitorId: string | null;
     }>;
   };
 }
@@ -162,6 +172,11 @@ export function createPrismaOrderRepository(db: MinimalPrismaOrderClient): Order
       return row ? toPersistedOrder(row) : null;
     },
 
+    async findByRazorpayOrderId(razorpayOrderId: string): Promise<PersistedOrder | null> {
+      const row = await db.order.findUnique({ where: { razorpayOrderId } });
+      return row ? toPersistedOrder(row) : null;
+    },
+
     async create(input: CreateOrderRecordInput): Promise<PersistedOrder> {
       try {
         const row = await db.order.create({
@@ -178,6 +193,7 @@ export function createPrismaOrderRepository(db: MinimalPrismaOrderClient): Order
             // default) so the "create as PENDING" requirement is visible
             // at the call site, not just implied by a schema default.
             status: 'PENDING',
+            visitorId: input.visitorId,
           },
         });
         return toPersistedOrder(row);
@@ -208,6 +224,7 @@ function toPersistedOrder(row: {
   currency: string;
   status: string;
   createdAt: Date;
+  visitorId: string | null;
 }): PersistedOrder {
   return {
     id: row.id,
@@ -221,5 +238,6 @@ function toPersistedOrder(row: {
     currency: row.currency,
     status: row.status as OrderStatus,
     createdAt: row.createdAt,
+    visitorId: row.visitorId,
   };
 }

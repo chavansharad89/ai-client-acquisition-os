@@ -8,6 +8,8 @@ export interface Entitlement {
   orderId: string;
   grantedAt: Date;
   revokedAt: Date | null;
+  /** Set once a buyer claims this entitlement into an account (migration 0038). Null until then. */
+  userId: string | null;
 }
 
 export interface GrantEntitlementInput {

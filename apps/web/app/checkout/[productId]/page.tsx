@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { isValidProductId, getProduct, PRODUCT_IDS } from '@acos/catalog';
+import { isRetiredFromNewPurchases, isValidProductId, getProduct, PRODUCT_IDS } from '@acos/catalog';
 
 import { CheckoutPanel } from '../../../src/components/CheckoutPanel';
 
@@ -10,11 +10,17 @@ import { CheckoutPanel } from '../../../src/components/CheckoutPanel';
 // a server component — only CheckoutPanel ships JavaScript.
 
 export function generateStaticParams() {
-  return PRODUCT_IDS.map((productId) => ({ productId }));
+  return PRODUCT_IDS.filter((productId) => !isRetiredFromNewPurchases(productId)).map(
+    (productId) => ({ productId }),
+  );
 }
 
 export default function CheckoutPage({ params }: { params: { productId: string } }) {
   if (!isValidProductId(params.productId)) notFound();
+  // Retired from new purchases (COMMERCIAL-PO-05/17): the id still
+  // resolves for historical orders elsewhere, but this checkout entry
+  // point must not offer it to a new customer.
+  if (isRetiredFromNewPurchases(params.productId)) notFound();
   const product = getProduct(params.productId);
 
   return (

@@ -5,6 +5,13 @@ export { claimAndProcessNextSearch, DEFAULT_SEARCH_LEASE_DURATION_MS } from './w
 export type { SearchAttemptOutcome, SearchWorkerDeps } from './worker';
 
 export {
+  IntentIntakeSearchNotFoundError,
+  recordIntentIntakeForOwner,
+  recordIntentSignalForOwner,
+} from './intentIntake';
+export type { IntentIntakeDeps, IntentIntakeResult, SingleIntentIntakeResult } from './intentIntake';
+
+export {
   notConfiguredDiscoveryProvider,
   notConfiguredResearchProviderFactory,
   ProviderNotConfiguredError,

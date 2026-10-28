@@ -82,8 +82,15 @@ export function normaliseForMatch(text: string): string {
     .trim();
 }
 
-/** Trailing slashes are not meaningful; the rest of a URL is. */
-function normaliseUrl(url: string): string {
+/**
+ * Trailing slashes are not meaningful; the rest of a URL is.
+ *
+ * Exported for ./categoryPlausibility.ts's evidence check — the same
+ * quote/URL matching rules apply there against the same source
+ * documents, so the two verifications share this rather than each
+ * re-deriving their own normalisation.
+ */
+export function normaliseUrl(url: string): string {
   return url.trim().replace(/\/+$/, '');
 }
 

@@ -68,6 +68,9 @@ function fakeOpportunityRepository(seed: StoredOpportunity[] = []): OpportunityR
     async updateStaleness() {
       throw new Error('not used by these tests');
     },
+    async updateAiEnrichment() {
+      throw new Error('not used by these tests');
+    },
   };
 }
 
@@ -104,6 +107,9 @@ function seedOpportunity(overrides: Partial<StoredOpportunity> = {}): StoredOppo
     },
     staleness: 'FRESH',
     stalenessComputedAt: null,
+    aiEnrichment: 'DETERMINISTIC_ONLY',
+    aiEnrichmentReason: null,
+    relevantSubservices: [],
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,

@@ -39,6 +39,22 @@ const envSchema = z.object({
   RAZORPAY_KEY_SECRET: z.string().trim().min(1),
   RAZORPAY_WEBHOOK_SECRET: z.string().trim().min(1),
 
+  // ₹1,499 Client Finder SUBSCRIPTION (requirement/
+  // CLIENT_FINDER_1499_ENGINEERING_IMPLEMENTATION_PLAN.md Revision 5,
+  // §H.3 item 1). The Razorpay Plan representing the recurring charge is
+  // created externally (dashboard or a one-time API call), not by this
+  // application — this is that Plan's id. OPTIONAL, like
+  // RESEARCH_PROVIDER's sibling provider keys: a deployment that has not
+  // yet created the Plan still boots; POST /api/payments/create-subscription
+  // fails deterministically only when actually called without it.
+  RAZORPAY_SUBSCRIPTION_PLAN_ID: z.string().trim().min(1).optional(),
+
+  // Subscription period length (PO-D10/IRL-P: "configurable at the
+  // engineering/configuration level"). Snapshotted onto each
+  // subscription_periods row AT ACTIVATION (migration 0040) — changing
+  // this value never retroactively alters an already-granted period.
+  CLIENT_FINDER_SUBSCRIPTION_DURATION_DAYS: z.coerce.number().int().positive().default(30),
+
   META_PIXEL_ID: z.string().trim().min(1),
   META_CAPI_ACCESS_TOKEN: z.string().trim().min(1),
   // Graph API versions are part of the request path. Restrict this to
@@ -49,11 +65,42 @@ const envSchema = z.object({
     .regex(/^v\d+\.\d+$/)
     .default('v20.0'),
 
-  // Required by @acos/core-research, @acos/core-outreach and
+  // Used by @acos/core-research, @acos/core-outreach and
   // @acos/core-proposal. Previously read implicitly by the Anthropic SDK
   // constructor, which meant a deployment could boot cleanly and then
-  // fail on the first research call instead of at startup.
-  ANTHROPIC_API_KEY: z.string().trim().min(1),
+  // fail on the first research call instead of at startup — this schema
+  // still validates it at load time whenever it IS supplied.
+  //
+  // OPTIONAL (Global Entity Architecture, C-3B / zero-AI requirement):
+  // Anthropic is no longer the one provider a deployment cannot do
+  // without. A deployment with no AI provider credential at all
+  // (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY all absent) must
+  // still boot and run the deterministic search pipeline — AI remains
+  // optional at runtime, never mandatory at boot. apps/worker/src/index.ts
+  // is the one place that turns "this provider's credential is absent"
+  // into "skip this attempt," never into a boot-time crash.
+  ANTHROPIC_API_KEY: z.string().trim().min(1).optional(),
+
+  // Multi-Model Research Provider (requirement/
+  // MULTI_MODEL_RESEARCH_PROVIDER_*.md) — OPTIONAL, unlike every other
+  // provider key above. Anthropic remains the required, always-supported
+  // provider; these are deliberately `.optional()` so an Anthropic-only
+  // deployment keeps booting without them. A provider selected via
+  // RESEARCH_PROVIDER/RESEARCH_FALLBACK_PROVIDER without its matching
+  // credential fails deterministically only when @acos/core-research's
+  // createResearchModel() actually instantiates that provider — never at
+  // boot for a provider nobody selected.
+  OPENAI_API_KEY: z.string().trim().min(1).optional(),
+  GEMINI_API_KEY: z.string().trim().min(1).optional(),
+
+  // Provider + model selection primitive (system-wide default only —
+  // per-user selection is a deferred, separately-tracked open decision).
+  RESEARCH_PROVIDER: z.enum(['anthropic', 'openai', 'gemini']).default('anthropic'),
+  RESEARCH_MODEL: z.string().trim().min(1).optional(),
+  // A single optional fallback — not a routing/strategy engine. Absent
+  // by default: no fallback occurs unless explicitly configured.
+  RESEARCH_FALLBACK_PROVIDER: z.enum(['anthropic', 'openai', 'gemini']).optional(),
+  RESEARCH_FALLBACK_MODEL: z.string().trim().min(1).optional(),
 
   // HMAC key for signed download grants (@acos/core-entitlements). This
   // one is ours to generate rather than a provider's, so a real minimum
@@ -94,6 +141,62 @@ const envSchema = z.object({
   WEBHOOK_PAYLOAD_RETENTION_DAYS: z.coerce.number().int().min(30).max(400).default(180),
 
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+
+  // Absolute origin this deployment is served from — needed to build an
+  // absolute claim-link URL (DEC-014) for an email, which has no request
+  // object to read a Host header from. Defaulted for local dev only;
+  // every real deployment must set its own.
+  APP_BASE_URL: z.string().url().default('http://localhost:3000'),
+
+  // DEC-014's claim/setup link is delivered by email. No transactional
+  // email provider is wired up yet (see @acos/core-entitlements'
+  // createClaimEmailSender) — this stays OPTIONAL and unenumerated on
+  // purpose: setting it to an unimplemented provider name fails
+  // deterministically only when createClaimEmailSender actually resolves
+  // it, the same "optional provider selector" shape RESEARCH_PROVIDER's
+  // sibling keys already use above.
+  EMAIL_PROVIDER: z.string().trim().min(1).optional(),
+
+  // Development-only Gmail SMTP sender, selected by EMAIL_PROVIDER=
+  // gmail-dev (see @acos/core-entitlements' createClaimEmailSender,
+  // which refuses this provider name outright in production regardless
+  // of whether these are set). Both stay optional here for the same
+  // reason EMAIL_PROVIDER does: an unset value is a normal, working
+  // non-production state (claim links just log to the console), not a
+  // validation failure.
+  GMAIL_DEV_USER: z.string().trim().email().optional(),
+  GMAIL_DEV_APP_PASSWORD: z.string().trim().min(1).optional(),
+
+  // Production transactional email, selected by EMAIL_PROVIDER=resend
+  // (AUTH-PO-12 — see @acos/core-identity's createActivationEmailSender).
+  // Both stay optional here for the same reason GMAIL_DEV_USER/
+  // GMAIL_DEV_APP_PASSWORD do: unset is a normal, working non-production
+  // state. createActivationEmailSender itself refuses EMAIL_PROVIDER=
+  // resend without both of these set, in any environment.
+  RESEND_API_KEY: z.string().trim().min(1).optional(),
+  RESEND_FROM_EMAIL: z.string().trim().email().optional(),
+
+  // CMS-PO-010(R2) asset storage. OPTIONAL at this phase, like
+  // RAZORPAY_SUBSCRIPTION_PLAN_ID above: no admin upload or customer
+  // download HTTP endpoint exists yet to call createR2AssetStorage()
+  // (@acos/core-cms), so a deployment without these still boots. They
+  // become load-bearing only when that HTTP layer is built and wired up.
+  //
+  // R2_ACCOUNT_ID: the Cloudflare account id (not a secret by itself —
+  // it appears in the R2 S3-compatible endpoint URL) used to build
+  // https://<accountId>.r2.cloudflarestorage.com.
+  //
+  // R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY: an R2 API token's S3
+  // credentials (Cloudflare dashboard -> R2 -> Manage API Tokens).
+  // R2_SECRET_ACCESS_KEY is secret.
+  //
+  // R2_BUCKET_NAME: the bucket CMS assets are stored in. Not a secret,
+  // but not defaulted either — createR2AssetStorage() refuses to start
+  // without a real value rather than guessing one.
+  R2_ACCOUNT_ID: z.string().trim().min(1).optional(),
+  R2_ACCESS_KEY_ID: z.string().trim().min(1).optional(),
+  R2_SECRET_ACCESS_KEY: z.string().trim().min(1).optional(),
+  R2_BUCKET_NAME: z.string().trim().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -113,8 +216,14 @@ export const SECRET_KEYS = [
   'RAZORPAY_WEBHOOK_SECRET',
   'META_CAPI_ACCESS_TOKEN',
   'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'GEMINI_API_KEY',
   'DOWNLOAD_GRANT_SECRET',
   'GOOGLE_PLACES_API_KEY',
+  'GMAIL_DEV_APP_PASSWORD',
+  'RESEND_API_KEY',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
 ] as const satisfies readonly EnvKey[];
 
 export type SecretKey = (typeof SECRET_KEYS)[number];
@@ -180,7 +289,13 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
  */
 export function redactedEnv(env: Env): Record<string, string | number> {
   const out: Record<string, string | number> = {};
-  for (const [key, value] of Object.entries(env)) {
+  // Iterate the SCHEMA's keys, not Object.entries(env): Zod v3 omits an
+  // absent `.optional()` field from the parsed object entirely rather
+  // than setting it to `undefined`, so an unset optional secret (e.g.
+  // OPENAI_API_KEY on an Anthropic-only deployment) would otherwise never
+  // reach this loop at all and silently fall out of the summary.
+  for (const key of Object.keys(envSchema.shape) as EnvKey[]) {
+    const value = env[key];
     if (value === undefined) {
       out[key] = '[unset]';
     } else if (isSecretKey(key)) {

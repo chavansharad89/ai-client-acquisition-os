@@ -46,6 +46,55 @@ const MANIFEST = {
       storageKey: 'ai_income_99/outreach-templates.pdf',
       bytes: 310_000,
     },
+    {
+      id: 'starter-prospect-sources',
+      title: 'Where to find your first 20 clients — prospect-source checklist',
+      kind: 'pdf',
+      storageKey: 'ai_income_99/prospect-sources-checklist.pdf',
+      bytes: 8_398,
+    },
+    {
+      id: 'starter-prospect-research',
+      title: 'Prospect research worksheet',
+      kind: 'sheet',
+      storageKey: 'ai_income_99/prospect-research-worksheet.xlsx',
+      bytes: 8_985,
+    },
+    {
+      id: 'starter-opportunity-qualification',
+      title: 'Opportunity qualification checklist',
+      kind: 'pdf',
+      storageKey: 'ai_income_99/opportunity-qualification-checklist.pdf',
+      bytes: 3_819,
+    },
+    {
+      id: 'starter-prospect-scorecard',
+      title: 'Simple prospect scorecard',
+      kind: 'sheet',
+      storageKey: 'ai_income_99/prospect-scorecard.xlsx',
+      bytes: 8_154,
+    },
+    {
+      id: 'starter-first-ai-service',
+      title: 'Your first AI service — offer-framing worksheet',
+      kind: 'pdf',
+      storageKey: 'ai_income_99/first-ai-service-worksheet.pdf',
+      bytes: 5_248,
+    },
+    {
+      id: 'starter-discovery-call-questions',
+      title: 'Discovery-call question list',
+      kind: 'pdf',
+      storageKey: 'ai_income_99/discovery-call-questions.pdf',
+      bytes: 5_744,
+    },
+    {
+      id: 'starter-acquisition-tracker',
+      title: 'Acquisition tracker',
+      kind: 'sheet',
+      storageKey: 'ai_income_99/acquisition-tracker.xlsx',
+      bytes: 8_982,
+    },
   ],
   ai_freelancing_499: [
     {
@@ -100,11 +149,22 @@ const MANIFEST = {
       bytes: 412_000_000,
     },
   ],
+  // The ONE deliberate exception to "empty is never correct" below: the
+  // ₹1,499 Client Finder SUBSCRIPTION is pure time-bounded feature
+  // access (@acos/core-subscriptions), not a downloadable kit — there is
+  // no file manifest for it to have, by product design, not by
+  // omission. See ladder.test.ts's matching carve-out.
+  ai_client_acquisition_1499_subscription: [],
 } as const satisfies Record<ProductId, readonly Deliverable[]>;
 
 export const DELIVERABLES: Record<ProductId, readonly Deliverable[]> = MANIFEST;
 
-/** Everything a product ships. Empty array is never correct — every kit has content. */
+/**
+ * Everything a product ships. Empty array is never correct for a
+ * one-time kit — every kit has content — EXCEPT for
+ * `ai_client_acquisition_1499_subscription`, whose product IS access,
+ * not a file bundle (see that entry above).
+ */
 export function deliverablesFor(productId: ProductId): readonly Deliverable[] {
   return DELIVERABLES[productId];
 }

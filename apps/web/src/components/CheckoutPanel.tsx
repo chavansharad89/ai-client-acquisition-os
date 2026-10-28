@@ -1,18 +1,28 @@
 'use client';
 
-import { useCallback, useId, useReducer, useRef, useState } from 'react';
-
 import type { Product } from '@acos/catalog';
+import Link from 'next/link';
+import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 
+
+import { trackFunnel } from '../analytics/track';
 import { loadRazorpay } from '../checkout/loadRazorpay';
 import { canSubmit, checkoutReducer, initialCheckoutState, isBusy } from '../checkout/machine';
 import {
   buildCreateOrderRequest,
+  buildCreateSubscriptionRequest,
   createOrderRequest,
+  createSubscriptionRequest,
   newIdempotencyKey,
 } from '../checkout/request';
-import { trackFunnel } from '../analytics/track';
+import { SUBSCRIPTION_PENDING_ACTIVATION } from '../checkout/statusCopy';
+import {
+  isSubscriptionPaymentInfo,
+  isSubscriptionProduct,
+  type CheckoutPaymentInfo,
+} from '../checkout/types';
 import { formatInrDisplay } from '../lib/format/inr';
+
 import { StatusMessage } from './StatusMessage';
 
 // The checkout form and its states.
@@ -54,6 +64,8 @@ export function CheckoutPanel({ product }: { product: Product }) {
     return Object.keys(next).length === 0;
   }, [email, phone]);
 
+  const isSubscription = isSubscriptionProduct(product.id);
+
   const start = useCallback(async () => {
     if (!validate()) return;
     dispatch({ type: 'SUBMIT' });
@@ -62,26 +74,44 @@ export function CheckoutPanel({ product }: { product: Product }) {
       value: product.amountPaise / 100,
     });
 
-    const body = buildCreateOrderRequest({
-      productId: product.id,
-      customerEmail: email,
-      customerPhone: phone,
-    });
-    const result = await createOrderRequest(body, newIdempotencyKey());
-
-    if (!result.ok) {
-      dispatch({ type: 'ORDER_FAILED', error: result.error });
-      return;
+    // The subscription SKU and every one-time SKU go through different
+    // APIs with different auth requirements and different success shapes
+    // (see SubscriptionPaymentInfo's doc comment) — branched fully here
+    // rather than forced into one shared code path.
+    let payment: CheckoutPaymentInfo;
+    if (isSubscription) {
+      const body = buildCreateSubscriptionRequest({ customerEmail: email, customerPhone: phone });
+      const result = await createSubscriptionRequest(body, newIdempotencyKey());
+      if (!result.ok) {
+        dispatch({ type: 'ORDER_FAILED', error: result.error });
+        return;
+      }
+      payment = result.subscription;
+      void trackFunnel('RazorpayOrderCreated', {
+        productId: product.id,
+        value: product.amountPaise / 100,
+      });
+    } else {
+      const body = buildCreateOrderRequest({
+        productId: product.id,
+        customerEmail: email,
+        customerPhone: phone,
+      });
+      const result = await createOrderRequest(body, newIdempotencyKey());
+      if (!result.ok) {
+        dispatch({ type: 'ORDER_FAILED', error: result.error });
+        return;
+      }
+      payment = result.order;
+      void trackFunnel('RazorpayOrderCreated', {
+        productId: product.id,
+        value: payment.amountPaise / 100,
+        currency: payment.currency,
+        orderId: payment.orderId,
+        razorpayOrderId: payment.razorpayOrderId,
+      });
     }
-    const order = result.order;
-    dispatch({ type: 'ORDER_CREATED', order });
-    void trackFunnel('RazorpayOrderCreated', {
-      productId: product.id,
-      value: order.amountPaise / 100,
-      currency: order.currency,
-      orderId: order.orderId,
-      razorpayOrderId: order.razorpayOrderId,
-    });
+    dispatch({ type: 'ORDER_CREATED', order: payment });
 
     let Razorpay;
     try {
@@ -97,34 +127,52 @@ export function CheckoutPanel({ product }: { product: Product }) {
       return;
     }
 
+    const prefill = { email: email.trim(), ...(phone.trim() ? { contact: phone.trim() } : {}) };
+    const handlePaymentSuccess = (response: { razorpay_payment_id: string }) => {
+      dispatch({ type: 'PAYMENT_SUBMITTED' });
+      // The browser half of Meta deduplication: the event id is derived
+      // from this payment id, and the server's CAPI call derives the
+      // identical id from the same value in the webhook.
+      const shared = {
+        productId: product.id,
+        value: product.amountPaise / 100,
+        currency: product.currency,
+        razorpayPaymentId: response.razorpay_payment_id,
+        ...(!isSubscriptionPaymentInfo(payment) ? { orderId: payment.orderId } : {}),
+      };
+      void trackFunnel('PaymentCaptured', shared);
+      void trackFunnel('Purchase', shared);
+    };
+
     // Every figure below comes from the server's response, never from the
     // catalog constant rendered above — so what is charged is what the
-    // server decided, and a tampered client cannot alter it.
-    const instance = new Razorpay({
-      key: order.razorpayKeyId,
-      order_id: order.razorpayOrderId,
-      amount: order.amountPaise,
-      currency: order.currency,
-      name: 'AI Client Acquisition OS',
-      description: order.productName,
-      prefill: { email: email.trim(), ...(phone.trim() ? { contact: phone.trim() } : {}) },
-      handler: (response) => {
-        dispatch({ type: 'PAYMENT_SUBMITTED' });
-        // The browser half of Meta deduplication: the event id is derived
-        // from this payment id, and the server's CAPI call derives the
-        // identical id from the same value in the webhook.
-        const shared = {
-          productId: product.id,
-          value: order.amountPaise / 100,
-          currency: order.currency,
-          orderId: order.orderId,
-          razorpayPaymentId: response.razorpay_payment_id,
-        };
-        void trackFunnel('PaymentCaptured', shared);
-        void trackFunnel('Purchase', shared);
-      },
-      modal: { ondismiss: () => dispatch({ type: 'CHECKOUT_DISMISSED' }) },
-    });
+    // server decided, and a tampered client cannot alter it. The
+    // subscription branch omits amount/currency/order_id entirely:
+    // Razorpay reads the recurring charge from the Plan attached to
+    // `subscription_id`, not from this options object.
+    const instance = new Razorpay(
+      isSubscriptionPaymentInfo(payment)
+        ? {
+            key: payment.razorpayKeyId,
+            subscription_id: payment.razorpaySubscriptionId,
+            name: 'AI Client Acquisition OS',
+            description: payment.productName,
+            prefill,
+            handler: handlePaymentSuccess,
+            modal: { ondismiss: () => dispatch({ type: 'CHECKOUT_DISMISSED' }) },
+          }
+        : {
+            key: payment.razorpayKeyId,
+            order_id: payment.razorpayOrderId,
+            amount: payment.amountPaise,
+            currency: payment.currency,
+            name: 'AI Client Acquisition OS',
+            description: payment.productName,
+            prefill,
+            handler: handlePaymentSuccess,
+            modal: { ondismiss: () => dispatch({ type: 'CHECKOUT_DISMISSED' }) },
+          },
+    );
 
     instance.on('payment.failed', () =>
       dispatch({
@@ -138,7 +186,80 @@ export function CheckoutPanel({ product }: { product: Product }) {
 
     dispatch({ type: 'CHECKOUT_OPENED' });
     instance.open();
-  }, [email, phone, product.id, validate]);
+  }, [email, phone, product, isSubscription, validate]);
+
+  // While Razorpay has told the browser it succeeded but the webhook
+  // (or reconciliation, if the webhook is late) has not yet landed, poll
+  // the server for its own truth. This never claims success itself — it
+  // only asks whether the server already has — so it does not weaken
+  // isPurchaseConfirmed()'s invariant that the browser's own belief is
+  // never trusted.
+  //
+  // DEC-014 D1: for a one-time order, once the server confirms an
+  // entitlement exists, this no longer redirects to a claim page the
+  // browser can reach on its own — the webhook handler (or
+  // reconciliation) has already emailed a claim link to the purchase
+  // address, and that email is the only way to reach account setup.
+  //
+  // For the subscription SKU there is no claim link at all — the buyer
+  // was already signed in to reach create-subscription (see
+  // createSubscription.ts's own header) — so this instead polls the
+  // authoritative subscription status (GET /api/subscriptions/status,
+  // backed by the subscription_periods row the webhook creates) and,
+  // once active, surfaces a link into the product rather than an email
+  // promise.
+  const [confirmed, setConfirmed] = useState(false);
+  useEffect(() => {
+    if (state.phase !== 'confirming') return;
+    const payment = state.order;
+    let stopped = false;
+
+    const poll = async () => {
+      try {
+        const response = isSubscriptionPaymentInfo(payment)
+          ? await fetch('/api/subscriptions/status')
+          : await fetch(
+              `/api/payments/status?razorpayOrderId=${encodeURIComponent(payment.razorpayOrderId)}`,
+            );
+        if (!response.ok) return;
+        const body = (await response.json()) as {
+          entitlementExists?: boolean;
+          active?: boolean;
+        };
+        const ready = isSubscriptionPaymentInfo(payment) ? body.active : body.entitlementExists;
+        if (!stopped && ready) {
+          setConfirmed(true);
+        }
+      } catch {
+        // Transient network error — the next tick tries again.
+      }
+    };
+
+    void poll();
+    const interval = window.setInterval(() => {
+      if (!confirmed) void poll();
+    }, 3000);
+    return () => {
+      stopped = true;
+      window.clearInterval(interval);
+    };
+  }, [state, confirmed]);
+
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const resendClaimEmail = useCallback(async () => {
+    if (!('order' in state) || !state.order || isSubscriptionPaymentInfo(state.order)) return;
+    setResendState('sending');
+    try {
+      const response = await fetch('/api/payments/claim-link/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ razorpayOrderId: state.order.razorpayOrderId }),
+      });
+      setResendState(response.ok ? 'sent' : 'error');
+    } catch {
+      setResendState('error');
+    }
+  }, [state]);
 
   const busy = isBusy(state);
   const submittable = canSubmit(state);
@@ -212,7 +333,13 @@ export function CheckoutPanel({ product }: { product: Product }) {
           </button>
         </form>
 
-        <CheckoutStatus state={state} onRetry={() => dispatch({ type: 'RETRY' })} />
+        <CheckoutStatus
+          state={state}
+          onRetry={() => dispatch({ type: 'RETRY' })}
+          confirmed={confirmed}
+          resendState={resendState}
+          onResend={() => void resendClaimEmail()}
+        />
       </section>
 
       <aside className="summary" aria-label="Order summary">
@@ -230,7 +357,11 @@ export function CheckoutPanel({ product }: { product: Product }) {
         <ul className="trust">
           <li>Secure payment by Razorpay</li>
           <li>UPI, cards, netbanking</li>
-          <li>Instant delivery by email</li>
+          <li>
+            {isSubscription
+              ? 'Access unlocks automatically once payment settles'
+              : 'Account setup link emailed after payment'}
+          </li>
         </ul>
       </aside>
     </div>
@@ -240,9 +371,15 @@ export function CheckoutPanel({ product }: { product: Product }) {
 function CheckoutStatus({
   state,
   onRetry,
+  confirmed,
+  resendState,
+  onResend,
 }: {
   state: ReturnType<typeof checkoutReducer>;
   onRetry: () => void;
+  confirmed: boolean;
+  resendState: 'idle' | 'sending' | 'sent' | 'error';
+  onResend: () => void;
 }) {
   switch (state.phase) {
     case 'creating':
@@ -251,16 +388,81 @@ function CheckoutStatus({
     case 'opening':
       return <StatusMessage tone="busy" title="Opening secure checkout…" />;
 
-    case 'confirming':
+    case 'confirming': {
       // Deliberately does NOT say "payment successful". Razorpay told the
-      // browser; only the signed webhook tells us.
+      // browser; only the signed webhook tells us — and even once it
+      // has, this still never claims the browser itself can finish
+      // setup on its own for a one-time order. DEC-014 D1: that only
+      // happens via the claim link we email to the purchase address.
+      //
+      // The subscription branch needs no claim link — the buyer was
+      // already signed in to reach create-subscription — so once the
+      // server confirms the subscription_periods row exists (not before:
+      // see the polling effect above), it links straight into the
+      // product instead.
+      const subscription = isSubscriptionPaymentInfo(state.order);
+
+      if (confirmed && subscription) {
+        return (
+          <div className="stack">
+            <StatusMessage tone="good" title="Subscription active.">
+              {' '}
+              Your Client Finder subscription is confirmed and ready to use.
+            </StatusMessage>
+            <Link className="btn btn-primary" href="/opportunities">
+              Go to Client Finder
+            </Link>
+          </div>
+        );
+      }
+
+      if (subscription) {
+        // AUTH-PO-14/25: checkout no longer assumes an authenticated
+        // buyer, so this can no longer promise an automatic flip to
+        // "confirmed" — that only happens for a buyer who already holds
+        // a session (GET /api/subscriptions/status is auth-only and is
+        // never weakened to answer this for a guest checkout). The
+        // copy lives in checkout/statusCopy.ts so it stays correct on
+        // its own, independent of whether that poll ever resolves.
+        return (
+          <StatusMessage tone="pending" title={SUBSCRIPTION_PENDING_ACTIVATION.title}>
+            {' '}
+            {SUBSCRIPTION_PENDING_ACTIVATION.body}
+          </StatusMessage>
+        );
+      }
+
+      if (confirmed) {
+        return (
+          <div className="stack">
+            <StatusMessage tone="good" title="Payment confirmed — check your email.">
+              {' '}
+              We&rsquo;ve emailed a secure link to set up your account and access your library.
+              It&rsquo;s valid for 24 hours.
+            </StatusMessage>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={onResend}
+              disabled={resendState === 'sending'}
+            >
+              {resendState === 'sending' ? 'Resending…' : 'Resend email'}
+            </button>
+            {resendState === 'sent' ? <p className="hint">Sent — check your inbox again shortly.</p> : null}
+            {resendState === 'error' ? (
+              <p className="field-error">Could not resend right now. Please try again.</p>
+            ) : null}
+          </div>
+        );
+      }
       return (
         <StatusMessage tone="pending" title="Payment received — confirming it now.">
           {' '}
-          We confirm every payment with our provider before releasing access. Your kit arrives by
-          email within a few minutes; you can close this page.
+          We confirm every payment with our provider before releasing access. We&rsquo;ll email
+          you a link to set up your account as soon as that&rsquo;s done — usually a few seconds.
         </StatusMessage>
       );
+    }
 
     case 'dismissed':
       return (

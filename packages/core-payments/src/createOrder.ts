@@ -1,4 +1,4 @@
-import { InvalidProductIdError, resolveProduct } from '@acos/catalog';
+import { InvalidProductIdError, isRetiredFromNewPurchases, resolveProduct } from '@acos/catalog';
 import type { Product } from '@acos/catalog';
 
 import {
@@ -6,6 +6,7 @@ import {
   IdempotencyKeyConflictError,
   InvalidProductError,
   OrderPersistenceError,
+  ProductRetiredError,
 } from './errors';
 import type { OrderRepository, PersistedOrder } from './orderRepository';
 import { UniqueConstraintViolationError } from './orderRepository';
@@ -53,6 +54,8 @@ export interface CreateOrderOptions {
    */
   idempotencyKey?: string;
   razorpayKeyId: string;
+  /** The first-party `acos_visitor` cookie (B-10) — PCG-1's visitor bridge. Null for a request that carried no cookie; never `_fbp`. */
+  visitorId?: string | null;
 }
 
 function defaultGenerateOrderId(): string {
@@ -87,6 +90,16 @@ export async function createOrder(
       throw new InvalidProductError(input.productId);
     }
     throw err;
+  }
+
+  // Handles: a NEW purchase attempt for a product retired from new sales
+  // (COMMERCIAL-PO-05/17). The id is real and still resolves above — this
+  // is distinct from "unknown product" and must never be reported as one
+  // (an existing customer's historical order for this same id resolves
+  // fine via `resolveProduct`/`getProduct` elsewhere; this check runs
+  // only on the new-purchase path).
+  if (isRetiredFromNewPurchases(product.id)) {
+    throw new ProductRetiredError(product.id);
   }
 
   // --- 3. Idempotency: has this exact request already been processed? ---
@@ -134,6 +147,7 @@ export async function createOrder(
       productName: product.name,
       amountPaise: product.amountPaise,
       currency: product.currency,
+      visitorId: options.visitorId ?? null,
     });
     return toSafeOrderPaymentInfo(created, options.razorpayKeyId);
   } catch (err) {

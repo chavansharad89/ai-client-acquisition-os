@@ -1,8 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
-import { type ProspectScore } from '@acos/core-acquisition';
+import {
+  rankByUniversalProfile,
+  unknownRankingProfile,
+  type UniversalRankingProfile,
+} from '@acos/core-acquisition';
 import {
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   type DiscoveryCandidate,
@@ -43,28 +48,38 @@ import {
   type ServiceProfileInput,
 } from '@acos/core-service-profile';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
 import { suiteDatabase } from './support/suiteDb';
 
-// Opportunity ranking (Phase 11, R-15/AC-17) — real PostgreSQL.
+// Opportunity ranking (Phase 11, R-15/AC-17; qualitative since Phase 3) —
+// real PostgreSQL.
 // -----------------------------------------------------------------------
 // Proves @acos/core-opportunity's rankOpportunities() orders real,
-// persisted OpportunityScore rows (migration 0018) deterministically,
-// enforces ownership at the SQL boundary (JOIN opportunities, same
-// pattern as scorePgRepository.ts's getByOpportunityId), and is a pure
-// read — no migration, no schema change, no mutation of any existing
-// row. Mirrors tests/integration/opportunity-score.integration.test.ts.
-// Most scenarios seed scores directly via scores.upsert() with hand-
-// built ProspectScore values (the same technique service.test.ts's unit
-// tests use) so ordering is precisely controllable; one test exercises
+// persisted OpportunityScore rows (migration 0018/0044) lexicographically
+// by dimension tier, enforces ownership at the SQL boundary (JOIN
+// opportunities, same pattern as scorePgRepository.ts's
+// getByOpportunityId), and is a pure read — no schema change of its own,
+// no mutation of any existing row. Mirrors
+// tests/integration/opportunity-score.integration.test.ts. Most
+// scenarios seed scores directly via scores.upsert() with hand-built
+// UniversalRankingProfile values (the same technique service.test.ts's
+// unit tests use) so ordering is precisely controllable; one test exercises
 // the full realistic chain via a real scoreOpportunity() call.
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('opportunity_ranking');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 const CAREERS = { url: 'https://acme.test/careers', label: 'careers' };
 
@@ -91,6 +106,7 @@ function matchingResearch(): LeadResearch {
       basis: null,
       confidence: 0,
     },
+    categoryPlausibility: [],
     visibleProblems: [
       {
         classification: 'OBSERVED',
@@ -124,7 +140,7 @@ function testProvider(result: LeadResearch): ResearchProvider {
 function discoveryProvider(candidates: readonly DiscoveryCandidate[]): DiscoveryProvider {
   return {
     async discover() {
-      return candidates;
+      return { candidates, actualQuery: 'test query', provider: 'TEST_PROVIDER' };
     },
   };
 }
@@ -137,6 +153,7 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     signals: createPgResearchSignalRepository(db.client),
     opportunities: createPgOpportunityRepository(db.client),
     scores: createPgOpportunityScoreRepository(db.client),
@@ -178,7 +195,7 @@ async function createUserAndSession(label: string): Promise<{ userId: string; to
 
 function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'AI content system',
+    service: 'AI & Automation',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 15_000_000,
@@ -203,29 +220,13 @@ async function createProspects(
   return { search: running, prospectIds: result.prospects.map((p) => p.id) };
 }
 
-/** A minimal, valid ProspectScore for seeding — only `score`/`observedShare`/id drive ranking order. */
-function sampleScore(overrides: Partial<ProspectScore> = {}): ProspectScore {
-  const base: ProspectScore = {
-    score: 50,
-    band: 'MEDIUM',
-    factors: [
-      {
-        factor: 'icpFit',
-        weight: 20,
-        raw: 0.5,
-        points: 10,
-        basis: 'OBSERVED',
-        reason: 'Observed: sample signal',
-      },
-    ],
-    reasons: ['Observed: sample signal (+10)'],
-    observedShare: 0.5,
-  };
-  return { ...base, ...overrides };
+/** A ranking profile for seeding, overriding only the dimension(s) a test cares about. */
+function sampleRanking(overrides: Partial<UniversalRankingProfile> = {}): UniversalRankingProfile {
+  return { ...unknownRankingProfile(), needOpportunity: 'MODERATE', ...overrides };
 }
 
 describe('rankOpportunities', () => {
-  it('orders real, persisted OpportunityScores by total score, descending (R-15/AC-17)', async () => {
+  it('orders real, persisted OpportunityScores by Primary-dimension tier, descending (R-15/AC-17)', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
     const { prospectIds } = await createProspects(base, a.token, [
@@ -244,9 +245,9 @@ describe('rankOpportunities', () => {
       prospectId: prospectIds[2]!,
     });
 
-    await base.scores.upsert(opp1.id, sampleScore({ score: 80 }), 'v1', new Date());
-    await base.scores.upsert(opp2.id, sampleScore({ score: 50 }), 'v1', new Date());
-    await base.scores.upsert(opp3.id, sampleScore({ score: 90 }), 'v1', new Date());
+    await base.scores.upsert(opp1.id, sampleRanking({ needOpportunity: 'MODERATE' }), [], 'v1', new Date());
+    await base.scores.upsert(opp2.id, sampleRanking({ needOpportunity: 'WEAK' }), [], 'v1', new Date());
+    await base.scores.upsert(opp3.id, sampleRanking({ needOpportunity: 'STRONG' }), [], 'v1', new Date());
 
     const ranked = await rankOpportunities(opportunityScoreDeps(base), a.token);
 
@@ -254,7 +255,7 @@ describe('rankOpportunities', () => {
     expect(ranked.map((r) => r.rank)).toEqual([1, 2, 3]);
   });
 
-  it('enforces ownership at the SQL boundary — a different user never sees these rows, even when scored higher', async () => {
+  it('enforces ownership at the SQL boundary — a different user never sees these rows, even when ranked higher', async () => {
     const a = await createUserAndSession('a');
     const b = await createUserAndSession('b');
     const base = repos();
@@ -273,8 +274,8 @@ describe('rankOpportunities', () => {
       prospectId: forB.prospectIds[0]!,
     });
 
-    await base.scores.upsert(oppA.id, sampleScore({ score: 40 }), 'v1', new Date());
-    await base.scores.upsert(oppB.id, sampleScore({ score: 99 }), 'v1', new Date());
+    await base.scores.upsert(oppA.id, sampleRanking({ needOpportunity: 'WEAK' }), [], 'v1', new Date());
+    await base.scores.upsert(oppB.id, sampleRanking({ needOpportunity: 'STRONG' }), [], 'v1', new Date());
 
     const rankedForA = await rankOpportunities(opportunityScoreDeps(base), a.token);
 
@@ -295,8 +296,8 @@ describe('rankOpportunities', () => {
     const opp2 = await createOpportunity(opportunityDeps(base), a.token, {
       prospectId: prospectIds[1]!,
     });
-    await base.scores.upsert(opp1.id, sampleScore({ score: 70 }), 'v1', new Date());
-    await base.scores.upsert(opp2.id, sampleScore({ score: 45 }), 'v1', new Date());
+    await base.scores.upsert(opp1.id, sampleRanking({ needOpportunity: 'STRONG' }), [], 'v1', new Date());
+    await base.scores.upsert(opp2.id, sampleRanking({ needOpportunity: 'WEAK' }), [], 'v1', new Date());
 
     const first = await rankOpportunities(opportunityScoreDeps(base), a.token);
     const second = await rankOpportunities(opportunityScoreDeps(base), a.token);
@@ -317,13 +318,35 @@ describe('rankOpportunities', () => {
     const unscored = await createOpportunity(opportunityDeps(base), a.token, {
       prospectId: prospectIds[1]!,
     });
-    await base.scores.upsert(scored.id, sampleScore(), 'v1', new Date());
+    await base.scores.upsert(scored.id, sampleRanking(), [], 'v1', new Date());
 
     const ranked = await rankOpportunities(opportunityScoreDeps(base), a.token);
 
     expect(ranked).toHaveLength(1);
     expect(ranked[0]!.opportunityId).toBe(scored.id);
     expect(ranked.some((r) => r.opportunityId === unscored.id)).toBe(false);
+  });
+
+  it('never eliminates a candidate — an UNKNOWN-on-every-dimension Opportunity still appears, ranked, not removed', async () => {
+    const a = await createUserAndSession('a');
+    const base = repos();
+    const { prospectIds } = await createProspects(base, a.token, [
+      { name: 'Acme Co', website: 'https://acme.example.com' },
+      { name: 'Beta Co', website: 'https://beta.example.com' },
+    ]);
+    const strong = await createOpportunity(opportunityDeps(base), a.token, {
+      prospectId: prospectIds[0]!,
+    });
+    const noEvidence = await createOpportunity(opportunityDeps(base), a.token, {
+      prospectId: prospectIds[1]!,
+    });
+    await base.scores.upsert(strong.id, sampleRanking({ needOpportunity: 'STRONG' }), [], 'v1', new Date());
+    await base.scores.upsert(noEvidence.id, unknownRankingProfile(), [], 'v1', new Date());
+
+    const ranked = await rankOpportunities(opportunityScoreDeps(base), a.token);
+
+    expect(ranked.map((r) => r.opportunityId)).toEqual([strong.id, noEvidence.id]);
+    expect(ranked).toHaveLength(2);
   });
 
   it('rejects an unauthenticated request before touching the repository', async () => {
@@ -349,14 +372,14 @@ describe('rankOpportunities', () => {
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, {
       prospectId: prospectIds[0]!,
     });
-    const stored = await base.scores.upsert(opportunity.id, sampleScore(), 'v1', new Date());
+    const stored = await base.scores.upsert(opportunity.id, sampleRanking(), [], 'v1', new Date());
 
     await rankOpportunities(opportunityScoreDeps(base), a.token);
 
     const { rows } = await suite
       .require()
       .db.client.query(
-        `SELECT total, band, observed_share, scorer_version FROM opportunity_scores WHERE opportunity_id = $1`,
+        `SELECT factors, scorer_version FROM opportunity_scores WHERE opportunity_id = $1`,
         [opportunity.id],
       );
     // Scoped to this test's own Opportunity, not a table-wide count — the
@@ -364,10 +387,8 @@ describe('rankOpportunities', () => {
     // database per suite, not per test; see suiteDb.ts), so other tests'
     // rows are legitimately still present here.
     expect(rows).toHaveLength(1);
-    expect((rows[0] as { total: number }).total).toBe(stored.total);
-    expect((rows[0] as { band: string }).band).toBe(stored.band);
-    expect((rows[0] as { observed_share: number }).observed_share).toBe(stored.observedShare);
-    expect((rows[0] as { scorer_version: string }).scorer_version).toBe(stored.scorerVersion);
+    expect((rows[0] as { factors: UniversalRankingProfile }).factors).toEqual(stored.ranking);
+    expect((rows[0] as { scorer_version: string }).scorer_version).toBe(stored.rankerVersion);
   });
 
   it('full chain: Search → Prospect → ResearchSignal → Opportunity → OpportunityScore → Rank', async () => {

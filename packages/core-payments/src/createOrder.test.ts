@@ -5,6 +5,7 @@ import {
   IdempotencyKeyConflictError,
   InvalidProductError,
   OrderPersistenceError,
+  ProductRetiredError,
   RazorpayOrderCreationError,
 } from './errors';
 import { createOrder, idempotencyConflicts } from './createOrder';
@@ -39,6 +40,7 @@ function makeFakeRazorpay(overrides?: Partial<RazorpayOrdersClient>): RazorpayOr
         status: 'created',
       };
     }),
+    fetchPayments: vi.fn(async () => []),
     ...overrides,
   };
 }
@@ -52,6 +54,9 @@ function makeFakeOrderRepository(
     rows,
     async findByIdempotencyKey(key: string) {
       return rows.find((r) => r.idempotencyKey === key) ?? null;
+    },
+    async findByRazorpayOrderId(razorpayOrderId: string) {
+      return rows.find((r) => r.razorpayOrderId === razorpayOrderId) ?? null;
     },
     async create(input: CreateOrderRecordInput) {
       if (input.idempotencyKey && rows.some((r) => r.idempotencyKey === input.idempotencyKey)) {
@@ -69,6 +74,7 @@ function makeFakeOrderRepository(
         currency: input.currency,
         status: 'PENDING',
         createdAt: new Date(),
+        visitorId: input.visitorId,
       };
       rows.push(row);
       return row;
@@ -206,6 +212,59 @@ describe('createOrder — invalid product', () => {
       expect((err as InvalidProductError).receivedProductId).toBe('nonexistent');
       expect((err as InvalidProductError).code).toBe('INVALID_PRODUCT');
     }
+  });
+});
+
+describe('createOrder — retired product (COMMERCIAL-PO-05/17)', () => {
+  it('rejects a NEW purchase of the retired legacy SKU with ProductRetiredError, not InvalidProductError, without calling Razorpay', async () => {
+    const razorpay = makeFakeRazorpay();
+    const orders = makeFakeOrderRepository();
+
+    await expect(
+      createOrder(
+        { ...VALID_BODY, productId: 'ai_client_acquisition_1499' },
+        { razorpayKeyId: RAZORPAY_KEY_ID },
+        { razorpay, orders },
+      ),
+    ).rejects.toBeInstanceOf(ProductRetiredError);
+
+    expect(razorpay.calls).toHaveLength(0);
+    expect(orders.rows).toHaveLength(0);
+  });
+
+  it('ProductRetiredError carries the retired productId and the PRODUCT_RETIRED code', async () => {
+    const razorpay = makeFakeRazorpay();
+    const orders = makeFakeOrderRepository();
+
+    try {
+      await createOrder(
+        { ...VALID_BODY, productId: 'ai_client_acquisition_1499' },
+        { razorpayKeyId: RAZORPAY_KEY_ID },
+        { razorpay, orders },
+      );
+      expect.unreachable('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ProductRetiredError);
+      expect((err as ProductRetiredError).productId).toBe('ai_client_acquisition_1499');
+      expect((err as ProductRetiredError).code).toBe('PRODUCT_RETIRED');
+    }
+  });
+
+  it('does not affect the active ai_client_acquisition_1499_subscription id — it is a distinct product, not retired', async () => {
+    // This SKU checks out via create-subscription, not create-order, in
+    // production — but createOrder.ts's retirement check must not treat
+    // it as retired either way, since it is the active ₹1,499 product.
+    const razorpay = makeFakeRazorpay();
+    const orders = makeFakeOrderRepository();
+
+    const result = await createOrder(
+      { ...VALID_BODY, productId: 'ai_client_acquisition_1499_subscription' },
+      { razorpayKeyId: RAZORPAY_KEY_ID },
+      { razorpay, orders },
+    );
+
+    expect(result.productId).toBe('ai_client_acquisition_1499_subscription');
+    expect(result.productName).toBe('AI Client Finder — 30 Days');
   });
 });
 
@@ -377,6 +436,7 @@ describe('createOrder — duplicate/retry requests (idempotency)', () => {
       currency: 'INR',
       status: 'PENDING',
       createdAt: new Date(),
+      visitorId: null,
     };
 
     // First call to findByIdempotencyKey (the pre-check) returns null —
@@ -439,7 +499,10 @@ describe('createOrder — duplicate/retry requests (idempotency)', () => {
 
 const KEY = 'idem_11111111-2222-3333-4444-555555555555';
 const STARTER = 'ai_income_99';
-const SYSTEM = 'ai_client_acquisition_1499';
+// Not the retired ai_client_acquisition_1499 (COMMERCIAL-PO-05/17) — this
+// suite is testing idempotency-key binding, not SKU retirement, so it
+// uses an active ₹1,499 product id instead.
+const SYSTEM = 'ai_client_acquisition_1499_subscription';
 
 async function create(
   body: Record<string, unknown>,

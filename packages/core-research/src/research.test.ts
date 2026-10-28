@@ -109,6 +109,7 @@ const input: ResearchInput = {
   websiteUrl: 'https://acme.test',
   industry: 'Logistics',
   location: 'Pune',
+  targetSegments: [],
   sourceDocuments: [HOMEPAGE, CAREERS],
 };
 
@@ -199,6 +200,64 @@ describe('the prompt', () => {
 
   it('labels every document with its URL so quotes can be traced', () => {
     expect(buildUserMessage(input)).toContain('https://acme.test/about');
+  });
+
+  // D8 test-coverage gap audit (GAP 2, REQUIRED): buildUserMessage() is the
+  // one point at which targetSegments — the value D8/D9's Option-B/Candidate-2
+  // mechanism carries from Search context into the provider-facing prompt —
+  // actually becomes visible to a provider. These tests establish the
+  // already-implemented rendering behaviour (prompt.ts:43-50), not new
+  // semantics.
+  describe('target customer segments (D2/D8/D9)', () => {
+    it('renders multiple segments under the header, in the exact supplied order, numbered from 1', () => {
+      const message = buildUserMessage({
+        ...input,
+        targetSegments: ['Restaurants', 'Boutique Hotels', 'Event Venues'],
+      });
+
+      expect(message).toContain('TARGET CUSTOMER SEGMENTS TO EVALUATE (in this exact order):');
+
+      const segmentBlock = message.slice(message.indexOf('TARGET CUSTOMER SEGMENTS TO EVALUATE'));
+      const first = segmentBlock.indexOf('1. Restaurants');
+      const second = segmentBlock.indexOf('2. Boutique Hotels');
+      const third = segmentBlock.indexOf('3. Event Venues');
+
+      // deterministic ordering/numbering: each segment present, and in the
+      // same order it was supplied — not merely present anywhere in the text
+      expect(first).toBeGreaterThan(-1);
+      expect(second).toBeGreaterThan(first);
+      expect(third).toBeGreaterThan(second);
+    });
+
+    it('represents a single segment verbatim, immediately after the header, with no injected wording', () => {
+      const message = buildUserMessage({ ...input, targetSegments: ['Independent Bookstores'] });
+
+      expect(message).toContain(
+        'TARGET CUSTOMER SEGMENTS TO EVALUATE (in this exact order):\n1. Independent Bookstores',
+      );
+    });
+
+    it('omits the segments block entirely when no segments are supplied — no fabricated category', () => {
+      const message = buildUserMessage({ ...input, targetSegments: [] });
+
+      // this is the same input.targetSegments: [] fixture the other tests
+      // in this describe block already use for the non-segment assertions
+      expect(message).not.toContain('TARGET CUSTOMER SEGMENTS TO EVALUATE');
+      // construction still succeeds and produces the rest of the message
+      expect(message).toContain('SUPPLIED FACTS');
+      expect(message).toContain('SOURCE DOCUMENTS');
+    });
+
+    it('renders identically for the same input every time — pure and provider-independent', () => {
+      // buildUserMessage() takes only a ResearchInput and returns a string;
+      // it has no provider parameter and no provider branches at all (that
+      // branching happens later, in researchModelFactory.ts, on the
+      // already-rendered {system, messages} — see D9). Determinism here is
+      // the observable proxy for "the same for whichever provider consumes
+      // it": nothing about this function's output can vary by caller.
+      const withSegments = { ...input, targetSegments: ['Restaurants', 'Cafes'] };
+      expect(buildUserMessage(withSegments)).toBe(buildUserMessage(withSegments));
+    });
   });
 });
 

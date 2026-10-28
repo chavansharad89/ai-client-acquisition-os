@@ -1,4 +1,5 @@
 import { abortableSleep, Deadline } from './abortable';
+import { verifyCategoryPlausibility } from './categoryPlausibility';
 import {
   ResearchAbortedError,
   ResearchProviderError,
@@ -116,6 +117,16 @@ export interface ResearchOptions {
     usage: ModelInvocationUsage,
     requestKind: 'initial' | 'repair',
   ) => void | Promise<void>;
+  /**
+   * A11-P1 M-2 source capture (requirement/
+   * PATH_2_CATEGORY_PLAUSIBILITY_A11_P1_SOURCE_CAPTURE_PRODUCT_DECISION.md).
+   * Fired once, before the first model() call, with the source documents
+   * exactly as the prompt is built from them — i.e. AFTER
+   * researchInputSchema.parse() (which trims label/url/text), never the
+   * caller's pre-parse value. Purely a propagation hook: nothing is
+   * persisted here.
+   */
+  onSourceDocuments?: (documents: ResearchInput['sourceDocuments']) => void | Promise<void>;
 }
 
 export interface ResearchOutcome {
@@ -176,6 +187,9 @@ export async function researchLead(
     content: buildUserMessage(input),
   };
   let messages: { role: 'user' | 'assistant'; content: string }[] = [brief];
+  // Same `input` object buildUserMessage() just rendered — the model-seen
+  // representation, not a re-derivation of it.
+  await options.onSourceDocuments?.(input.sourceDocuments);
   /** Non-empty once a repair is in flight; names what may be replaced. */
   let repairRoots: readonly string[] = [];
 
@@ -251,7 +265,13 @@ export async function researchLead(
       // the schema, so without this an OBSERVED claim means only that the
       // model said "OBSERVED".
       const provenance = verifyProvenance(parsed.data, input.sourceDocuments);
-      if (provenance.length === 0) {
+      const categoryIssues = verifyCategoryPlausibility(
+        parsed.data,
+        input.sourceDocuments,
+        input.targetSegments,
+      );
+      const issues = [...provenance, ...categoryIssues];
+      if (issues.length === 0) {
         const ratio = observedRatio(parsed.data);
         return {
           research: parsed.data,
@@ -267,9 +287,10 @@ export async function researchLead(
             : {}),
         };
       }
-      // Fabricated citations are a repairable mistake, not a provider
-      // failure — same loop, same feedback, no backoff.
-      lastIssues = fromProvenanceIssues(provenance);
+      // Fabricated citations, or a categoryPlausibility count/evidence
+      // mismatch, are repairable mistakes, not a provider failure — same
+      // loop, same feedback, no backoff.
+      lastIssues = fromProvenanceIssues(issues);
       // Provenance ran on the PARSED value, so that is what the next
       // round merges into.
       priorValue = parsed.data;

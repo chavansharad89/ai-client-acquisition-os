@@ -8,8 +8,18 @@ export interface StoredCompany {
   id: string;
   userId: string;
   name: string;
-  /** Deterministic identity key (PFR-10) — see ./normalize. */
-  normalizedDomain: string;
+  /**
+   * Deterministic identity key (PFR-10) — see ./normalize. Nullable
+   * (Global Entity Architecture, C-1): a website-less Company has no
+   * domain identity key at all, never a guessed or sentinel value.
+   */
+  normalizedDomain: string | null;
+  /**
+   * Global Entity Architecture (CF-GLOBAL-ENTITY-ARCH-PO-DEC-001 D1/D8).
+   * Null for every historical row and never backfilled by inference
+   * (D14) — populated going forward by the resolver at discovery time.
+   */
+  entityId: string | null;
   createdAt: Date;
 }
 
