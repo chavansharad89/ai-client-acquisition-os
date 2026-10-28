@@ -19,7 +19,16 @@ export type CmsValidationReason =
   | 'not-cms-eligible'
   | 'invalid-parent'
   | 'parent-not-container'
-  | 'cross-plan-parent';
+  | 'cross-plan-parent'
+  // CMS-PO-010(R2) Phase 2 (asset ingestion) additions below -- same
+  // {field, reason, message} shape, no new error class.
+  | 'unsupported-extension'
+  | 'mime-mismatch'
+  | 'invalid-size'
+  | 'invalid-storage-key'
+  | 'object-not-found'
+  | 'invalid-replacement-target'
+  | 'wrong-pending-replacement';
 
 export class CmsValidationError extends Error {
   readonly field: string;

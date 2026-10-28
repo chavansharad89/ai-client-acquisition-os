@@ -66,6 +66,8 @@ describe('all required secrets present', () => {
       'GOOGLE_PLACES_API_KEY',
       'META_CAPI_ACCESS_TOKEN',
       'OPENAI_API_KEY',
+      'R2_ACCESS_KEY_ID',
+      'R2_SECRET_ACCESS_KEY',
       'RAZORPAY_KEY_SECRET',
       'RAZORPAY_WEBHOOK_SECRET',
       'RESEND_API_KEY',
@@ -146,11 +148,12 @@ describe('no secret value is ever emitted', () => {
     'gm-not-real',
     'gmail-app-pw-not-real',
     'resend-key-not-real',
+    'r2-secret-not-real',
   ];
-  // OPENAI_API_KEY/GEMINI_API_KEY/GMAIL_DEV_APP_PASSWORD/RESEND_API_KEY are
-  // all OPTIONAL (unlike every other secret in COMPLETE) — set explicitly
-  // here so this suite still proves every secret this system CAN hold is
-  // redacted, not just the required ones.
+  // OPENAI_API_KEY/GEMINI_API_KEY/GMAIL_DEV_APP_PASSWORD/RESEND_API_KEY/
+  // R2_SECRET_ACCESS_KEY are all OPTIONAL (unlike every other secret in
+  // COMPLETE) — set explicitly here so this suite still proves every
+  // secret this system CAN hold is redacted, not just the required ones.
   const COMPLETE_WITH_OPTIONAL_PROVIDERS: NodeJS.ProcessEnv = {
     ...COMPLETE,
     OPENAI_API_KEY: 'sk-openai-not-real',
@@ -159,6 +162,10 @@ describe('no secret value is ever emitted', () => {
     GMAIL_DEV_APP_PASSWORD: 'gmail-app-pw-not-real',
     RESEND_API_KEY: 'resend-key-not-real',
     RESEND_FROM_EMAIL: 'no-reply@example.com',
+    R2_ACCOUNT_ID: 'r2-account-not-real',
+    R2_ACCESS_KEY_ID: 'r2-access-key-not-real',
+    R2_SECRET_ACCESS_KEY: 'r2-secret-not-real',
+    R2_BUCKET_NAME: 'cms-assets-not-real',
   };
 
   it('keeps values out of the error when a variable is missing', () => {

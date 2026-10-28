@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fakeContentItemRepository } from './testing/fakeContentItemRepository';
+import { FakeUniqueViolationError, fakeContentItemRepository } from './testing/fakeContentItemRepository';
 
 describe('ContentItemRepository (content hierarchy)', () => {
   it('creates a valid parent/child hierarchy, ordered by orderIndex', async () => {
@@ -145,5 +145,104 @@ describe('ContentItemRepository (content hierarchy)', () => {
     const found = await repo.findById(item.id);
     expect(found).not.toBeNull();
     expect(found?.status).toBe('ARCHIVED');
+  });
+
+  describe('replacement methods (migration 0066, CMS-PO-010(R2) Phase 2)', () => {
+    async function seedLiveAsset(repo: ReturnType<typeof fakeContentItemRepository>) {
+      return repo.create({
+        nodeType: 'ASSET',
+        owningProductId: 'ai_income_99',
+        parentId: null,
+        title: 'Live Asset',
+        assetKind: 'pdf',
+        storageKey: 'cms/ai_income_99/assets/live.pdf',
+        bytes: '1000',
+      });
+    }
+
+    it('findPendingReplacement returns null when none exists', async () => {
+      const repo = fakeContentItemRepository();
+      const live = await seedLiveAsset(repo);
+      expect(await repo.findPendingReplacement(live.id)).toBeNull();
+    });
+
+    it('createReplacementAsset creates a DRAFT ASSET linked via replacesContentItemId', async () => {
+      const repo = fakeContentItemRepository();
+      const live = await seedLiveAsset(repo);
+
+      const replacement = await repo.createReplacementAsset({
+        owningProductId: live.owningProductId,
+        parentId: live.parentId,
+        title: live.title,
+        assetKind: 'pdf',
+        storageKey: 'cms/ai_income_99/assets/replacement.pdf',
+        bytes: '2000',
+        replacesContentItemId: live.id,
+      });
+
+      expect(replacement.nodeType).toBe('ASSET');
+      expect(replacement.status).toBe('DRAFT');
+      expect(replacement.replacesContentItemId).toBe(live.id);
+      expect(await repo.findPendingReplacement(live.id)).toMatchObject({ id: replacement.id });
+    });
+
+    it('createReplacementAsset refuses a second pending replacement for the same asset', async () => {
+      const repo = fakeContentItemRepository();
+      const live = await seedLiveAsset(repo);
+      await repo.createReplacementAsset({
+        owningProductId: live.owningProductId,
+        parentId: live.parentId,
+        title: live.title,
+        assetKind: 'pdf',
+        storageKey: 'cms/ai_income_99/assets/r1.pdf',
+        bytes: '2000',
+        replacesContentItemId: live.id,
+      });
+
+      await expect(
+        repo.createReplacementAsset({
+          owningProductId: live.owningProductId,
+          parentId: live.parentId,
+          title: live.title,
+          assetKind: 'pdf',
+          storageKey: 'cms/ai_income_99/assets/r2.pdf',
+          bytes: '3000',
+          replacesContentItemId: live.id,
+        }),
+      ).rejects.toBeInstanceOf(FakeUniqueViolationError);
+    });
+
+    it('updatePendingReplacement overwrites the physical fields of an existing pending DRAFT in place', async () => {
+      const repo = fakeContentItemRepository();
+      const live = await seedLiveAsset(repo);
+      const replacement = await repo.createReplacementAsset({
+        owningProductId: live.owningProductId,
+        parentId: live.parentId,
+        title: live.title,
+        assetKind: 'pdf',
+        storageKey: 'cms/ai_income_99/assets/r1.pdf',
+        bytes: '2000',
+        replacesContentItemId: live.id,
+      });
+
+      const updated = await repo.updatePendingReplacement(replacement.id, {
+        storageKey: 'cms/ai_income_99/assets/r2.pdf',
+        assetKind: 'pdf',
+        bytes: '3000',
+      });
+
+      expect(updated.id).toBe(replacement.id); // same row
+      expect(updated.storageKey).toBe('cms/ai_income_99/assets/r2.pdf');
+      expect(updated.bytes).toBe('3000');
+      expect(updated.replacesContentItemId).toBe(live.id); // linkage preserved
+    });
+
+    it('updatePendingReplacement rejects a target that is not a pending DRAFT replacement', async () => {
+      const repo = fakeContentItemRepository();
+      const live = await seedLiveAsset(repo);
+      await expect(
+        repo.updatePendingReplacement(live.id, { storageKey: 'x', assetKind: 'pdf', bytes: '1' }),
+      ).rejects.toThrow(/not a pending DRAFT replacement/);
+    });
   });
 });

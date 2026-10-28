@@ -3,6 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { loadEnv } from '@acos/config';
 import { createPgAiUsageEventRepository, toNewAiUsageEventInput } from '@acos/core-ai-usage';
 import {
+  createPgObsoleteObjectRepository,
+  createPgUploadSessionRepository,
+  createR2AssetStorage,
+  R2ConfigError,
+  type AssetStorage,
+} from '@acos/core-cms';
+import {
   createGooglePlacesClient,
   createGooglePlacesDiscoveryProvider,
   createPgCompanyRepository,
@@ -36,6 +43,16 @@ import { Pool } from 'pg';
 
 import { buildPurchaseEventId } from '@acos/core-capi';
 
+import {
+  DEFAULT_CMS_ABANDONED_UPLOAD_CLEANUP_BATCH_SIZE,
+  DEFAULT_CMS_ABANDONED_UPLOAD_CLEANUP_POLL_INTERVAL_MS,
+  DEFAULT_CMS_OBSOLETE_OBJECT_CLEANUP_BATCH_SIZE,
+  DEFAULT_CMS_OBSOLETE_OBJECT_CLEANUP_POLL_INTERVAL_MS,
+  runCmsAbandonedUploadCleanupPollLoop,
+  runCmsObsoleteObjectCleanupPollLoop,
+  type CmsAbandonedUploadCleanupPollLoopDeps,
+  type CmsObsoleteObjectCleanupPollLoopDeps,
+} from './cmsCleanup';
 import {
   DEFAULT_GATE_EVALUATION_POLL_INTERVAL_MS,
   runGateEvaluationPollLoop,
@@ -132,6 +149,31 @@ function tryCreateResearchModel(
     ) {
       return undefined;
     }
+    throw error;
+  }
+}
+
+/**
+ * Builds the R2 AssetStorage adapter WITHOUT crashing the process when
+ * R2 isn't configured (R2_ACCOUNT_ID/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/
+ * R2_BUCKET_NAME stay optional in @acos/config's schema -- see env.ts --
+ * because no admin upload/customer download route exists yet in every
+ * deployment). Mirrors tryCreateResearchModel's "missing optional
+ * provider credential means skip this capability, not fail to boot"
+ * shape: a deployment with no R2 configured simply runs without the CMS
+ * obsolete-object cleanup loop, exactly as a zero-AI deployment runs
+ * without target-customer matching.
+ */
+function tryCreateCmsAssetStorage(env: ReturnType<typeof loadEnv>): AssetStorage | undefined {
+  try {
+    return createR2AssetStorage({
+      bucketName: env.R2_BUCKET_NAME ?? '',
+      ...(env.R2_ACCOUNT_ID !== undefined ? { accountId: env.R2_ACCOUNT_ID } : {}),
+      ...(env.R2_ACCESS_KEY_ID !== undefined ? { accessKeyId: env.R2_ACCESS_KEY_ID } : {}),
+      ...(env.R2_SECRET_ACCESS_KEY !== undefined ? { secretAccessKey: env.R2_SECRET_ACCESS_KEY } : {}),
+    });
+  } catch (error) {
+    if (error instanceof R2ConfigError) return undefined;
     throw error;
   }
 }
@@ -278,6 +320,30 @@ async function main(): Promise<void> {
     },
   };
 
+  // CMS-PO-010(R2)-G physical-object cleanup -- Part B (obsolete
+  // objects) and Part A (abandoned uploads, migration 0068), two
+  // independent poll loops over two independent bookkeeping tables (see
+  // ./cmsCleanup/index.ts). Both optional, like targetCustomerMatch
+  // above: absent entirely when R2 isn't configured, rather than
+  // failing to boot.
+  const cmsAssetStorage = tryCreateCmsAssetStorage(env);
+  const cmsObsoleteObjectCleanupDeps: CmsObsoleteObjectCleanupPollLoopDeps | undefined = cmsAssetStorage
+    ? {
+        obsoleteObjects: createPgObsoleteObjectRepository(pool),
+        storage: cmsAssetStorage,
+        batchSize: DEFAULT_CMS_OBSOLETE_OBJECT_CLEANUP_BATCH_SIZE,
+        pollIntervalMs: DEFAULT_CMS_OBSOLETE_OBJECT_CLEANUP_POLL_INTERVAL_MS,
+      }
+    : undefined;
+  const cmsAbandonedUploadCleanupDeps: CmsAbandonedUploadCleanupPollLoopDeps | undefined = cmsAssetStorage
+    ? {
+        uploadSessions: createPgUploadSessionRepository(pool),
+        storage: cmsAssetStorage,
+        batchSize: DEFAULT_CMS_ABANDONED_UPLOAD_CLEANUP_BATCH_SIZE,
+        pollIntervalMs: DEFAULT_CMS_ABANDONED_UPLOAD_CLEANUP_POLL_INTERVAL_MS,
+      }
+    : undefined;
+
   const shutdown = new AbortController();
   const onSignal = (): void => shutdown.abort();
   process.once('SIGTERM', onSignal);
@@ -296,6 +362,12 @@ async function main(): Promise<void> {
       runSearchWorkerPollLoop(deps, shutdown.signal),
       runGateEvaluationPollLoop(gateEvaluationDeps, shutdown.signal),
       runReconciliationPollLoop(reconciliationDeps, shutdown.signal),
+      ...(cmsObsoleteObjectCleanupDeps
+        ? [runCmsObsoleteObjectCleanupPollLoop(cmsObsoleteObjectCleanupDeps, shutdown.signal)]
+        : []),
+      ...(cmsAbandonedUploadCleanupDeps
+        ? [runCmsAbandonedUploadCleanupPollLoop(cmsAbandonedUploadCleanupDeps, shutdown.signal)]
+        : []),
     ]);
   } finally {
     process.removeListener('SIGTERM', onSignal);

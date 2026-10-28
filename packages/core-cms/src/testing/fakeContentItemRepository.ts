@@ -1,5 +1,14 @@
 import type { ContentItemRepository } from '../contentItemRepository';
-import type { ContentItem, NewContentItem } from '../types';
+import type { ContentItem, NewContentItem, NewReplacementAssetItem } from '../types';
+
+/** Thrown by `createReplacementAsset` when a pending replacement already exists for the target, mirroring the real DB's `content_items_one_pending_replacement` partial-unique-index violation (Postgres error code 23505) closely enough for a caller's generic `(error as {code?:string}).code === '23505'` recovery check to behave the same against the fake as against real Postgres. */
+export class FakeUniqueViolationError extends Error {
+  readonly code = '23505';
+  constructor(message: string) {
+    super(message);
+    this.name = 'FakeUniqueViolationError';
+  }
+}
 
 // In-memory ContentItemRepository fake, mirroring
 // fakePlanDisplayNameRepository.ts's shape: a seedable, mutable in-memory
@@ -69,6 +78,9 @@ export function fakeContentItemRepository(seed: readonly ContentItem[] = []): Co
         archivedAt: null,
         createdAt: now,
         updatedAt: now,
+        replacesContentItemId: null,
+        previousStorageKey: null,
+        previousStorageRetentionUntil: null,
       };
       rows.set(row.id, row);
       return row;
@@ -95,6 +107,62 @@ export function fakeContentItemRepository(seed: readonly ContentItem[] = []): Co
         title: changes.title !== undefined ? changes.title : row.title,
         description: changes.description !== undefined ? changes.description : row.description,
         orderIndex: changes.orderIndex !== undefined ? changes.orderIndex : row.orderIndex,
+        updatedAt: new Date(),
+      };
+      rows.set(id, updated);
+      return updated;
+    },
+
+    async findPendingReplacement(contentItemId) {
+      return [...rows.values()].find((row) => row.replacesContentItemId === contentItemId) ?? null;
+    },
+
+    async createReplacementAsset(input: NewReplacementAssetItem) {
+      const existing = [...rows.values()].find(
+        (row) => row.replacesContentItemId === input.replacesContentItemId,
+      );
+      if (existing) {
+        throw new FakeUniqueViolationError(
+          `content_items: a pending replacement already exists for '${input.replacesContentItemId}'`,
+        );
+      }
+
+      const now = new Date();
+      const row: ContentItem = {
+        id: nextId(),
+        owningProductId: input.owningProductId,
+        parentId: input.parentId,
+        nodeType: 'ASSET',
+        assetKind: input.assetKind,
+        title: input.title,
+        description: input.description ?? null,
+        storageKey: input.storageKey,
+        bytes: input.bytes,
+        orderIndex: input.orderIndex ?? 0,
+        status: 'DRAFT',
+        archivedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        replacesContentItemId: input.replacesContentItemId,
+        previousStorageKey: null,
+        previousStorageRetentionUntil: null,
+      };
+      rows.set(row.id, row);
+      return row;
+    },
+
+    async updatePendingReplacement(id, changes) {
+      const row = rows.get(id);
+      if (!row || row.status !== 'DRAFT' || row.replacesContentItemId === null) {
+        throw new Error(
+          `content_items: '${id}' is not a pending DRAFT replacement (it may already have been published, or never was one)`,
+        );
+      }
+      const updated: ContentItem = {
+        ...row,
+        storageKey: changes.storageKey,
+        assetKind: changes.assetKind,
+        bytes: changes.bytes,
         updatedAt: new Date(),
       };
       rows.set(id, updated);

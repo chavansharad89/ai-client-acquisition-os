@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@acos/catalog": "workspace:*",
-    "@acos/core-subscriptions": "workspace:*"
+    "@acos/core-subscriptions": "workspace:*",
+    "@aws-sdk/client-s3": "^3.1157.0",
+    "@aws-sdk/s3-request-presigner": "^3.1157.0"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

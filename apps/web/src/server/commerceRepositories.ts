@@ -1,8 +1,14 @@
-import { createPgCmsAdminRepository, createPgContentItemRepository, createPgPlanDisplayNameRepository } from '@acos/core-cms';
+import {
+  createPgCmsAdminRepository,
+  createPgContentItemRepository,
+  createPgPlanDisplayNameRepository,
+  createPgUploadSessionRepository,
+} from '@acos/core-cms';
 import { createPgEntitlementRepository } from '@acos/core-entitlements';
 import { createPgIdentityRepository } from '@acos/core-identity';
 import { createPgSubscriptionPeriodRepository } from '@acos/core-subscriptions';
 
+import { getAssetStorage } from './assetStorage';
 import { getPool } from './db';
 
 // One repository set for the ₹99-and-up claim/account/library surface,
@@ -30,6 +36,24 @@ import { getPool } from './db';
 // `contentItems`/`subscriptionPeriods` (admin authorization and
 // customer content access are two separate systems; see
 // requirement/CMS_PO_006_ADMINISTRATOR_AUTHORIZATION_PO_DECISION.md).
+//
+// `storage` was added for CMS-PO-010(R2)'s admin asset-upload routes
+// (apps/web/app/api/cms/admin/assets/**) — the R2-backed AssetStorage
+// singleton (assetStorage.ts), passed straight to
+// @acos/core-cms's requestAssetUploadAuthorization()/completeAssetUpload().
+//
+// `uploadSessions` was added for CMS-PO-010(R2)-G's upload-session
+// persistence (migration 0068) — requestAssetUploadAuthorization() now
+// requires it; completeAssetUpload() uses it, when present, to consume
+// the matching session row on success.
+//
+// `pool` was added for the publish-replacement route
+// (apps/web/app/api/cms/admin/assets/publish-replacement) — the only
+// caller that needs it. `publishReplacement`/`publishReplacementTransaction`
+// (@acos/core-cms) takes a raw `SqlPool` (its own pinned-connection,
+// `FOR UPDATE` transaction), not a repository, so there is nothing to
+// wrap here -- the same shared pool every other entry in this object is
+// already built from.
 export function commerceRepositories() {
   const sql = getPool();
   return {
@@ -39,6 +63,9 @@ export function commerceRepositories() {
     contentItems: createPgContentItemRepository(sql),
     cmsAdmins: createPgCmsAdminRepository(sql),
     planDisplayNames: createPgPlanDisplayNameRepository(sql),
+    storage: getAssetStorage(),
+    uploadSessions: createPgUploadSessionRepository(sql),
+    pool: sql,
   };
 }
 

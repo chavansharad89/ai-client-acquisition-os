@@ -1,3 +1,4 @@
+import { toPublicContentItem } from '@acos/core-cms';
 import { UnauthenticatedError, requireUser } from '@acos/core-identity';
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -17,6 +18,10 @@ import { readSessionToken } from '../../../../src/server/session';
 // plan the caller doesn't hold, and an expired user gets an empty list,
 // never an error that would distinguish "expired" from "never
 // subscribed."
+//
+// `toPublicContentItem` strips `storageKey`/`previousStorageKey` (CMS-
+// PO-010(R2)) — the raw R2 object key is an internal provider detail,
+// never something a customer response should carry.
 // -----------------------------------------------------------------------
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +32,7 @@ export async function GET(request: NextRequest) {
     const userId = await requireUser(identity, readSessionToken(request));
 
     const items = await listAccessibleCmsContent({ subscriptionPeriods, contentItems }, userId);
-    return NextResponse.json(items, { status: 200 });
+    return NextResponse.json(items.map(toPublicContentItem), { status: 200 });
   } catch (err) {
     if (err instanceof UnauthenticatedError) {
       return NextResponse.json({ error: 'Unauthenticated', code: err.reason }, { status: 401 });

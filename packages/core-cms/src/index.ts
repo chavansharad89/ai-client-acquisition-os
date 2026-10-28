@@ -24,9 +24,68 @@ export type {
   NewContentItem,
   NewContainerContentItem,
   NewAssetContentItem,
+  NewReplacementAssetItem,
 } from './types';
 
 export { fakeContentItemRepository } from './testing/fakeContentItemRepository';
+export { FakeUniqueViolationError } from './testing/fakeContentItemRepository';
+
+export { publishReplacementTransaction } from './contentReplacementTransaction';
+export type { SqlPool, PublishReplacementInput } from './contentReplacementTransaction';
+
+export { createPgObsoleteObjectRepository } from './obsoleteObjectRepository';
+export type {
+  ObsoleteObjectRepository,
+  ObsoleteContentObject,
+  NewObsoleteContentObject,
+} from './obsoleteObjectRepository';
+
+export { createPgUploadSessionRepository } from './uploadSessionRepository';
+export type {
+  UploadSessionRepository,
+  UploadSession,
+  NewUploadSession,
+} from './uploadSessionRepository';
+export { fakeUploadSessionRepository } from './testing/fakeUploadSessionRepository';
+
+export type { AssetStorage, UploadAuthorization, DownloadAuthorization, StoredObjectMetadata } from './assetStorage';
+export { fakeAssetStorage } from './testing/fakeAssetStorage';
+export type { FakeAssetStorage } from './testing/fakeAssetStorage';
+
+export {
+  createR2AssetStorage,
+  R2ConfigError,
+  UPLOAD_AUTHORIZATION_TTL_SECONDS,
+  DOWNLOAD_AUTHORIZATION_TTL_SECONDS,
+} from './r2AssetStorage';
+export type { R2AssetStorageConfig } from './r2AssetStorage';
+
+export {
+  MAX_ASSET_BYTES,
+  validateAssetCandidate,
+  buildAssetStorageKey,
+  parseAssetStorageKey,
+  assetKindForExtension,
+  normalizeAssetExtension,
+} from './assetValidation';
+export type { AssetCandidate, ParsedAssetStorageKey } from './assetValidation';
+
+export { toPublicContentItem } from './contentItemDto';
+export type { PublicContentItem } from './contentItemDto';
+
+export {
+  requestAssetUploadAuthorization,
+  completeAssetUpload,
+  publishReplacement,
+} from './assetIngestionService';
+export type {
+  AssetIngestionServiceDeps,
+  RequestAssetUploadAuthorizationInput,
+  AssetUploadAuthorization,
+  CompleteAssetUploadInput,
+  CompleteNewAssetInput,
+  CompleteReplacementAssetInput,
+} from './assetIngestionService';
 
 export { isCmsEligibleProduct } from './cmsEligibility';
 

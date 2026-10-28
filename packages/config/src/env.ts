@@ -175,6 +175,28 @@ const envSchema = z.object({
   // resend without both of these set, in any environment.
   RESEND_API_KEY: z.string().trim().min(1).optional(),
   RESEND_FROM_EMAIL: z.string().trim().email().optional(),
+
+  // CMS-PO-010(R2) asset storage. OPTIONAL at this phase, like
+  // RAZORPAY_SUBSCRIPTION_PLAN_ID above: no admin upload or customer
+  // download HTTP endpoint exists yet to call createR2AssetStorage()
+  // (@acos/core-cms), so a deployment without these still boots. They
+  // become load-bearing only when that HTTP layer is built and wired up.
+  //
+  // R2_ACCOUNT_ID: the Cloudflare account id (not a secret by itself —
+  // it appears in the R2 S3-compatible endpoint URL) used to build
+  // https://<accountId>.r2.cloudflarestorage.com.
+  //
+  // R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY: an R2 API token's S3
+  // credentials (Cloudflare dashboard -> R2 -> Manage API Tokens).
+  // R2_SECRET_ACCESS_KEY is secret.
+  //
+  // R2_BUCKET_NAME: the bucket CMS assets are stored in. Not a secret,
+  // but not defaulted either — createR2AssetStorage() refuses to start
+  // without a real value rather than guessing one.
+  R2_ACCOUNT_ID: z.string().trim().min(1).optional(),
+  R2_ACCESS_KEY_ID: z.string().trim().min(1).optional(),
+  R2_SECRET_ACCESS_KEY: z.string().trim().min(1).optional(),
+  R2_BUCKET_NAME: z.string().trim().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -200,6 +222,8 @@ export const SECRET_KEYS = [
   'GOOGLE_PLACES_API_KEY',
   'GMAIL_DEV_APP_PASSWORD',
   'RESEND_API_KEY',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
 ] as const satisfies readonly EnvKey[];
 
 export type SecretKey = (typeof SECRET_KEYS)[number];

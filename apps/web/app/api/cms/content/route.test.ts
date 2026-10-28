@@ -10,7 +10,7 @@ process.env.ANTHROPIC_API_KEY ??= 'sk-ant-placeholder-not-real';
 process.env.DOWNLOAD_GRANT_SECRET ??= 'e'.repeat(48);
 process.env.GOOGLE_PLACES_API_KEY ??= 'places-key-placeholder-not-real';
 
-import { createContainer, fakeContentItemRepository } from '@acos/core-cms';
+import { createAsset, createContainer, fakeContentItemRepository } from '@acos/core-cms';
 import { hashAccessToken } from '@acos/core-entitlements';
 import { fakeSubscriptionPeriodRepository } from '@acos/core-subscriptions';
 import type { SubscriptionPeriod } from '@acos/core-subscriptions';
@@ -153,5 +153,32 @@ describe('GET /api/cms/content', () => {
     const response = await getRequest('tok-max');
     const body = (await response.json()) as Array<{ id: string }>;
     expect(body.map((i) => i.id).sort()).toEqual([plus.id, pro.id, max.id].sort());
+  });
+
+  it('SECURITY (CMS-PO-010(R2)): a PUBLISHED asset\'s storageKey is never exposed in the response', async () => {
+    identity = fakeIdentityByToken({ 'tok-plus': 'user-plus' });
+    subscriptionPeriods = fakeSubscriptionPeriodRepository([
+      subscriptionPeriod({ userId: 'user-plus', productSlug: 'ai_income_99' }),
+    ]);
+    contentItems = fakeContentItemRepository();
+    const asset = await createAsset(
+      { contentItems },
+      {
+        owningProductId: 'ai_income_99',
+        parentId: null,
+        title: 'Worksheet',
+        assetKind: 'pdf',
+        storageKey: 'cms/ai_income_99/assets/seg-1.pdf',
+        bytes: '1024',
+      },
+    );
+    await contentItems.setStatus(asset.id, 'PUBLISHED');
+
+    const response = await getRequest('tok-plus');
+    const body = (await response.json()) as Array<Record<string, unknown>>;
+    expect(body).toHaveLength(1);
+    expect(body[0]).not.toHaveProperty('storageKey');
+    expect(body[0]).not.toHaveProperty('previousStorageKey');
+    expect(JSON.stringify(body)).not.toContain('cms/ai_income_99/assets/seg-1.pdf');
   });
 });

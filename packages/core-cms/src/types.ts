@@ -74,6 +74,24 @@ export interface ContentItem {
   archivedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * Non-null only on a pending-replacement row (`node_type = 'ASSET'`,
+   * `status = 'DRAFT'`) -- the logical asset it would replace (migration
+   * 0066, CMS-PO-010(R2) Phase 1). At most one row may carry a given
+   * value here (DB partial-unique index); a row carrying one is itself
+   * consumed (deleted) when `publishReplacementTransaction` succeeds.
+   */
+  replacesContentItemId: string | null;
+  /**
+   * The obsolete physical key a row's CURRENT `storageKey` superseded,
+   * once a pending replacement is published onto it -- set together with
+   * `previousStorageRetentionUntil`, never independently (migration
+   * 0066). Null means "no obsolete object is pending retention for this
+   * row."
+   */
+  previousStorageKey: string | null;
+  /** When `previousStorageKey`'s physical object becomes eligible for deletion (30 days from the publish that obsoleted it, CMS-PO-010(R2)-G). Null iff `previousStorageKey` is null. */
+  previousStorageRetentionUntil: Date | null;
 }
 
 /** Input for creating a hierarchy node (chapter/topic/folder) -- no asset fields. */
@@ -100,3 +118,25 @@ export interface NewAssetContentItem {
 }
 
 export type NewContentItem = NewContainerContentItem | NewAssetContentItem;
+
+/**
+ * Input for creating a pending-replacement row (CMS-PO-010(R2) Phase 2):
+ * an ordinary ASSET/DRAFT leaf that additionally carries
+ * `replacesContentItemId`. Deliberately a separate type from
+ * {@link NewAssetContentItem} rather than an optional field on it --
+ * every other `content_items` write path (container/asset creation,
+ * metadata updates) has nothing to do with replacement, and this keeps
+ * that type's existing callers/tests completely unaffected.
+ */
+export interface NewReplacementAssetItem {
+  owningProductId: ProductId;
+  parentId: string | null;
+  title: string;
+  description?: string | null;
+  assetKind: string;
+  storageKey: string;
+  bytes: string;
+  orderIndex?: number;
+  /** The logical asset this row is a pending replacement for. Must identify an existing ASSET row that is not itself a pending replacement -- enforced by the service layer and, as the final backstop, by migration 0066's constraints/trigger. */
+  replacesContentItemId: string;
+}
