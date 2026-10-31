@@ -5,6 +5,7 @@ import { getProduct, isRetiredFromNewPurchases, PRODUCT_LADDER } from '@acos/cat
 import { LogoutButton } from '../../src/components/LogoutButton';
 import { formatInrDisplay } from '../../src/lib/format/inr';
 import { currentAccess } from '../../src/server/access';
+import { getCustomerDisplayName } from '../../src/server/customerDisplayName';
 
 // The library. Server-gated.
 // -----------------------------------------------------------------------
@@ -44,6 +45,9 @@ export default async function AccessPage() {
   }
 
   const { funnel } = access;
+  const displayNames = Object.fromEntries(
+    await Promise.all(PRODUCT_LADDER.map(async (id) => [id, await getCustomerDisplayName(id)] as const)),
+  );
 
   return (
     <main id="main" className="shell">
@@ -68,12 +72,12 @@ export default async function AccessPage() {
           .filter(({ id, unlocked }) => unlocked || !isRetiredFromNewPurchases(id))
           .map(({ id, product, unlocked }) => (
             <article className="card" key={id}>
-              <h2>{product.name}</h2>
+              <h2>{displayNames[id]}</h2>
               {unlocked ? (
                 <>
                   <p>Yours. Open it any time.</p>
                   <Link className="btn btn-primary btn-block" href={`/access/${id}`}>
-                    Open {product.name}
+                    Open {displayNames[id]}
                   </Link>
                 </>
               ) : (

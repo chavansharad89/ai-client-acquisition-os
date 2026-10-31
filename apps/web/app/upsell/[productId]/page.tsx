@@ -8,6 +8,7 @@ import { notFound } from 'next/navigation';
 import { PriceTag } from '../../../src/components/PriceTag';
 import { UpsellTracker } from '../../../src/components/UpsellTracker';
 import { currentAccess } from '../../../src/server/access';
+import { getCustomerDisplayName } from '../../../src/server/customerDisplayName';
 import { getPool } from '../../../src/server/db';
 import { readVisitorIdFromServerComponent } from '../../../src/server/visitor';
 
@@ -28,6 +29,7 @@ export default async function UpsellPage({ params }: { params: { productId: stri
   if (isRetiredFromNewPurchases(product.id)) notFound();
 
   const access = await currentAccess();
+  const displayName = await getCustomerDisplayName(product.id);
 
   // Duplicate purchase handling: never offer something already owned.
   const alreadyOwned = access.granted && isDuplicatePurchase(access.context.purchased, product.id);
@@ -38,7 +40,7 @@ export default async function UpsellPage({ params }: { params: { productId: stri
         <div className="stack" style={{ maxWidth: '56ch' }}>
           <h1 className="page-title">You already have this</h1>
           <p className="lede">
-            The {product.name} is already in your library — there is nothing to buy here.
+            The {displayName} is already in your library — there is nothing to buy here.
           </p>
           <p>
             <Link className="btn btn-primary" href="/access">
@@ -82,7 +84,7 @@ export default async function UpsellPage({ params }: { params: { productId: stri
         </p>
         <h1 className="page-title">Before you go — the next step up</h1>
         <p className="lede">
-          You have the fundamentals. The {product.name} is what turns them into paid work, and it
+          You have the fundamentals. The {displayName} is what turns them into paid work, and it
           includes everything you just bought.
         </p>
 
@@ -105,9 +107,9 @@ export default async function UpsellPage({ params }: { params: { productId: stri
   );
 }
 
-export function generateMetadata({ params }: { params: { productId: string } }) {
+export async function generateMetadata({ params }: { params: { productId: string } }) {
   if (!isValidProductId(params.productId)) return { title: 'Upsell' };
-  return { title: `Add the ${getProduct(params.productId).name}` };
+  return { title: `Add the ${await getCustomerDisplayName(params.productId)}` };
 }
 
 export const dynamic = 'force-dynamic'; // entitlement-dependent; never cached

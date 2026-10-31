@@ -39,7 +39,7 @@ import { StatusMessage } from './StatusMessage';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^\+?[1-9]\d{7,14}$/;
 
-export function CheckoutPanel({ product }: { product: Product }) {
+export function CheckoutPanel({ product, displayName }: { product: Product; displayName: string }) {
   const [state, dispatch] = useReducer(checkoutReducer, initialCheckoutState);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -346,7 +346,7 @@ export function CheckoutPanel({ product }: { product: Product }) {
         <h2 style={{ margin: 0, fontSize: '1rem' }}>Order summary</h2>
         <dl>
           <div className="row">
-            <dt>{product.name}</dt>
+            <dt>{displayName}</dt>
             <dd>{formatInrDisplay(product.amountPaise)}</dd>
           </div>
           <div className="row total">

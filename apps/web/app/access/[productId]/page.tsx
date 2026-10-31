@@ -6,6 +6,7 @@ import { deliverablesFor, getProduct, isValidProductId } from '@acos/catalog';
 import { canAccessProduct, createDownloadGrant } from '@acos/core-entitlements';
 
 import { currentAccess } from '../../../src/server/access';
+import { getCustomerDisplayName } from '../../../src/server/customerDisplayName';
 
 // A product's contents. The direct-URL protection lives here.
 // -----------------------------------------------------------------------
@@ -36,6 +37,7 @@ export default async function ProductAccessPage({ params }: { params: { productI
     redirect(`/upsell/${product.id}`);
   }
 
+  const displayName = await getCustomerDisplayName(product.id);
   const secret = loadEnv().DOWNLOAD_GRANT_SECRET;
   const assets = deliverablesFor(product.id).map((asset) => ({
     asset,
@@ -51,7 +53,7 @@ export default async function ProductAccessPage({ params }: { params: { productI
         <p style={{ margin: 0 }}>
           <Link href="/access">← Your library</Link>
         </p>
-        <h1 className="page-title">{product.name}</h1>
+        <h1 className="page-title">{displayName}</h1>
         <div className="status status-good" role="status">
           <p style={{ margin: 0 }}>
             <strong>Unlocked.</strong> This kit is part of your library.
@@ -74,7 +76,7 @@ export default async function ProductAccessPage({ params }: { params: { productI
   );
 }
 
-export function generateMetadata({ params }: { params: { productId: string } }) {
+export async function generateMetadata({ params }: { params: { productId: string } }) {
   if (!isValidProductId(params.productId)) return { title: 'Your library' };
-  return { title: getProduct(params.productId).name };
+  return { title: await getCustomerDisplayName(params.productId) };
 }

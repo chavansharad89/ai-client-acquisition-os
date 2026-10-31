@@ -1,6 +1,6 @@
 import type { AccessResolution } from '@acos/core-entitlements';
 import { funnelStateFor } from '@acos/core-entitlements';
-import type { ProductId } from '@acos/catalog';
+import { getProduct, type ProductId } from '@acos/catalog';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +17,17 @@ const state = vi.hoisted(() => ({
 
 vi.mock('../../src/server/access', () => ({
   currentAccess: async () => state.resolution,
+}));
+
+// Phase 1G: the page now also resolves each product's CMS display name
+// (getCustomerDisplayName, which reaches a real DB connection via
+// commerceRepositories()). Faked here, same as currentAccess above, to
+// keep this a true no-database unit render test — resolves to the
+// catalog default, which is what "no CMS override" means in production
+// too, so the retired-SKU assertions below (which only check hrefs/
+// static copy, not the name) are unaffected.
+vi.mock('../../src/server/customerDisplayName', () => ({
+  getCustomerDisplayName: async (productId: ProductId) => getProduct(productId).name,
 }));
 
 (globalThis as { React?: typeof React }).React = React;
