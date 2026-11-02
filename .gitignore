@@ -26,3 +26,6 @@ pnpm-debug.log*
 
 # os
 .DS_Store
+
+# git worktrees (superpowers subagent-driven-development isolation)
+.worktrees/
