@@ -1,5 +1,3 @@
-import { useMemo, useState } from 'react';
-
 import { locateNode, type ContentTreeNode } from '../../src/cms-admin/contentTree';
 
 // Shared topic-selection + sequential-navigation model for the customer
@@ -186,24 +184,3 @@ export function ancestorPath(tree: readonly ContentTreeNode[], id: string): Cont
   return result ?? [];
 }
 
-export function useTopicNavigation(tree: readonly ContentTreeNode[], initialId: string): TopicNavigation {
-  const [selectedId, setSelectedId] = useState(initialId);
-  const topics = useMemo(() => flattenTopics(tree), [tree]);
-  const currentIndex = topics.findIndex((t) => t.id === selectedId);
-  const total = topics.length;
-  const clamped = clampIndex(currentIndex, total);
-  const hasPrev = clamped > 0;
-  const hasNext = clamped < total - 1;
-
-  return {
-    selectedId,
-    select: (id) => setSelectedId(resolveSelection({ type: 'select', id }, { selectedId, topics })),
-    topics,
-    currentIndex,
-    total,
-    hasPrev,
-    hasNext,
-    goPrev: () => setSelectedId(resolveSelection({ type: 'prev' }, { selectedId, topics })),
-    goNext: () => setSelectedId(resolveSelection({ type: 'next' }, { selectedId, topics })),
-  };
-}

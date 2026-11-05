@@ -7,8 +7,9 @@ import { useMemo, useState } from 'react';
 import type { ContentTreeNode } from '../../src/cms-admin/contentTree';
 
 import { RoadmapView } from './RoadmapView';
-import { firstDescendantTopicId, flattenTopics, resolveNodeClick, useTopicNavigation } from './topicNavigation';
+import { firstDescendantTopicId, flattenTopics, resolveNodeClick } from './topicNavigation';
 import { TopicView } from './TopicView';
+import { useTopicNavigation } from './useTopicNavigation';
 
 
 type ViewMode = 'roadmap' | 'topics';
