@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 import type { ContentTreeNode } from '../../src/cms-admin/contentTree';
 
 import { RoadmapView } from './RoadmapView';
-import { firstDescendantTopicId, flattenTopics, useTopicNavigation } from './topicNavigation';
+import { firstDescendantTopicId, flattenTopics, resolveNodeClick, useTopicNavigation } from './topicNavigation';
 import { TopicView } from './TopicView';
 
 
@@ -26,9 +27,19 @@ export function ProductRoadmap({
   productId: string;
   displayName: string;
 }) {
+  const router = useRouter();
   const [view, setView] = useState<ViewMode>('roadmap');
   const initialId = useMemo(() => flattenTopics(tree)[0]?.id ?? tree[0]!.id, [tree]);
   const nav = useTopicNavigation(tree, initialId);
+
+  // CMS-PO-013: clicking an ASSET node navigates to the dedicated
+  // topic-detail page; clicking a CONTAINER node keeps the existing
+  // local-select behavior.
+  function handleSelect(id: string) {
+    const action = resolveNodeClick(tree, id, productId);
+    if (action.type === 'navigate') router.push(action.href);
+    else nav.select(action.id);
+  }
 
   // CMS-PO-011(E) point 5: switching to Topic View while a CONTAINER is
   // selected lands on the nearest topic inside that section (not an
@@ -71,7 +82,7 @@ export function ProductRoadmap({
           </button>
         </div>
         {view === 'roadmap' ? (
-          <RoadmapView tree={tree} productId={productId} nav={nav} />
+          <RoadmapView tree={tree} productId={productId} nav={nav} onSelect={handleSelect} />
         ) : (
           <TopicView tree={tree} productId={productId} nav={nav} />
         )}
