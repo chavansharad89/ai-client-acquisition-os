@@ -6,13 +6,15 @@ import type { ContentTreeNode } from '../../src/cms-admin/contentTree';
 
 import { topicsWithSectionLabels, type TopicNavigation } from './topicNavigation';
 
-// View B (CMS-PO-011): a flat, sequential topic list with Previous/Next
-// and "X of Y" position, over the same shared TopicNavigation model View
-// A uses. Section labels (CMS-PO-011(D)) are plain, non-interactive text
-// naming each topic's nearest-ancestor container, deduped by that
-// container's identity via topicsWithSectionLabels (topicNavigation.ts)
-// — not by title text, since two differently-identified sections can
-// share a title.
+// View B (CMS-PO-011): a flat list of topic navigation links (each
+// linking to its own ?topic= page), over the same shared
+// TopicNavigation model View A uses. No Previous/Next and no "X of Y"
+// position indicator here — those live on the dedicated topic-detail
+// page (TopicDetailView) instead. Section labels (CMS-PO-011(D)) are
+// plain, non-interactive text naming each topic's nearest-ancestor
+// container, deduped by that container's identity via
+// topicsWithSectionLabels (topicNavigation.ts) — not by title text,
+// since two differently-identified sections can share a title.
 export function TopicView({
   tree,
   productId,

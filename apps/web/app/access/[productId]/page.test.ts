@@ -318,6 +318,7 @@ describe('/access/[productId] — dedicated topic-detail view (CMS-PO-013)', () 
 
     const html = await renderProduct('ai_income_99', { topic: 'does-not-exist' });
     expect(html).toContain('Roadmap');
+    expect(html).not.toContain('Back to course overview');
   });
 
   it('falls back to the overview when ?topic= matches a CONTAINER, not an ASSET', async () => {
@@ -343,6 +344,7 @@ describe('/access/[productId] — dedicated topic-detail view (CMS-PO-013)', () 
 
     const html = await renderProduct('ai_income_99', { topic: section.id });
     expect(html).toContain('Roadmap');
+    expect(html).not.toContain('Back to course overview');
   });
 
   it('falls back to the overview when ?topic= matches a real ASSET owned by a different product', async () => {
@@ -375,6 +377,7 @@ describe('/access/[productId] — dedicated topic-detail view (CMS-PO-013)', () 
 
     const html = await renderProduct('ai_income_99', { topic: otherAsset.id });
     expect(html).toContain('Roadmap');
+    expect(html).not.toContain('Back to course overview');
   });
 
   it('falls back to the overview when ?topic= matches a DRAFT (unpublished) ASSET', async () => {
@@ -408,6 +411,39 @@ describe('/access/[productId] — dedicated topic-detail view (CMS-PO-013)', () 
     const html = await renderProduct('ai_income_99', { topic: draft.id });
     expect(html).toContain('Roadmap');
     expect(html).not.toContain('Draft topic, must never render as detail');
+  });
+
+  it('falls back to the overview when ?topic= matches an ARCHIVED ASSET', async () => {
+    process.env.CMS_ACCESS_CUTOVER_ENABLED = 'true';
+    grant(['ai_income_99']);
+    const published = await createAsset(
+      { contentItems },
+      {
+        owningProductId: 'ai_income_99',
+        parentId: null,
+        title: 'Published topic',
+        assetKind: 'pdf',
+        storageKey: buildAssetStorageKey('ai_income_99', 'seg-1', 'pdf'),
+        bytes: '1024',
+      },
+    );
+    await contentItems.setStatus(published.id, 'PUBLISHED');
+    const archived = await createAsset(
+      { contentItems },
+      {
+        owningProductId: 'ai_income_99',
+        parentId: null,
+        title: 'Archived topic, must never render as detail',
+        assetKind: 'pdf',
+        storageKey: buildAssetStorageKey('ai_income_99', 'seg-2', 'pdf'),
+        bytes: '1024',
+      },
+    );
+    await contentItems.setStatus(archived.id, 'ARCHIVED');
+
+    const html = await renderProduct('ai_income_99', { topic: archived.id });
+    expect(html).toContain('Roadmap');
+    expect(html).not.toContain('Archived topic, must never render as detail');
   });
 
   it('still redirects an anonymous visitor even when ?topic= is present', async () => {
