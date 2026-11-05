@@ -42,6 +42,10 @@ vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NOT_FOUND');
   },
+  // CMS-PO-013 (Task 4): ProductRoadmap renders client-side and calls
+  // useRouter() for its handleSelect navigation wrapper — this page test
+  // renders it via renderToStaticMarkup, so useRouter needs a stub.
+  useRouter: () => ({ push: () => {} }),
 }));
 
 vi.mock('../../../src/server/access', () => ({
@@ -151,7 +155,13 @@ describe('/access/[productId] — Customer Fulfillment Phase B parallel-run boun
     );
     await contentItems.setStatus(asset.id, 'PUBLISHED');
 
-    const html = await renderProduct('ai_income_99');
+    // CMS-PO-013 (Task 4): the bare overview no longer renders an ASSET's
+    // detail/download link inline (RoadmapView only inline-renders
+    // TopicDetails for a CONTAINER selection) — render the dedicated
+    // topic-detail page via ?topic= instead, where the download link
+    // this test is proving (the per-asset route, not the legacy grant
+    // URL) actually appears.
+    const html = await renderProduct('ai_income_99', { topic: asset.id });
     expect(html).toContain('CMS-backed worksheet');
     expect(html).toContain(`/access/ai_income_99/download/${asset.id}`);
     expect(html).not.toContain('/api/downloads/ai_income_99/');
