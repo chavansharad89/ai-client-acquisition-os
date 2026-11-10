@@ -309,4 +309,37 @@ describe('GET /api/cms/content/[id]/download', () => {
     expect(JSON.stringify(body)).not.toContain('AKIA_SECRET_NOT_REAL');
     expect(JSON.stringify(body)).not.toContain('cms-assets-prod');
   });
+
+  it('CMS-PO-015: 404s for a PUBLISHED asset whose grandparent (not just its immediate parent) is ARCHIVED', async () => {
+    freshDeps();
+    subscriptionPeriods = fakeSubscriptionPeriodRepository([
+      subscriptionPeriod({ userId: 'user-plus', productSlug: 'ai_income_99' }),
+    ]);
+    const root = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: null, title: 'Root' },
+    );
+    await contentItems.setStatus(root.id, 'PUBLISHED');
+    await contentItems.setStatus(root.id, 'ARCHIVED');
+    const section = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: root.id, title: 'Section' },
+    );
+    await contentItems.setStatus(section.id, 'PUBLISHED');
+    const asset = await createAsset(
+      { contentItems },
+      {
+        owningProductId: 'ai_income_99',
+        parentId: section.id,
+        title: 'Hidden by grandparent',
+        assetKind: 'pdf',
+        storageKey: buildAssetStorageKey('ai_income_99', 'seg-hidden', 'pdf'),
+        bytes: '1024',
+      },
+    );
+    await contentItems.setStatus(asset.id, 'PUBLISHED');
+
+    const response = await getRequest(asset.id, 'tok-plus');
+    expect(response.status).toBe(404);
+  });
 });

@@ -1,8 +1,8 @@
 # Governance Record: CMS Lifecycle Status Inheritance (CMS-PO-015)
 
-**Type:** Product Owner decision — **APPROVED** (behavioral decisions LI-001, LI-002, LI-003 only; chat, 2026-11-09). This is a **new, separate requirement**, independent of CMS-PO-014. It does not merge into, amend, or expand CMS-PO-014's scope in any way — see §10.
+**Type:** Product Owner decision — **APPROVED** (behavioral decisions LI-001, LI-002, LI-003; chat, 2026-11-09). **Technical decisions TD-001 (enforcement point) and Decision 2 (ancestor-resolution mechanism, Option 4B) are also now APPROVED** (chat, 2026-11-09) — see §9.1 for their exact recorded scope. This is a **new, separate requirement**, independent of CMS-PO-014. It does not merge into, amend, or expand CMS-PO-014's scope in any way — see §10.
 
-**Status: APPROVED (behavioral decision). DESIGN-ONLY — no technical implementation mechanism is approved yet. Does not authorize implementation. See §9 and §11.**
+**Status: APPROVED — behavioral decisions (LI-001–003) and technical decisions TD-001/Decision 2 (§9.1). Items in §9.2 remain open (not load-bearing for release). Independent security review (§6) has been performed across three rounds, and all three returned APPROVED WITH FINDINGS (no Critical, High, or Medium findings); every Low finding across those rounds (F-01, F-02, R-1, R-2) has since been remediated and independently confirmed closed — see §6 for the full review history. Gates 1–4 are now all satisfied: explicit Product Owner release authorization for CMS-PO-015 was given via chat instruction, 2026-11-10 — see §11. This authorization covers release of CMS-PO-015 only; it does not itself authorize staging, committing, pushing, deployment, any `CMS_ACCESS_CUTOVER_ENABLED` change, or customer cutover, each of which remains its own, separately controlled action.**
 
 ---
 
@@ -97,6 +97,23 @@ This rule is a **content-exposure/access-control correctness control**, not a co
 - No change to `requireUser`, `permittedContentPlans`, `canAccessProduct`, or any other existing entitlement/session code — this rule is additive filtering *within* already-permitted content, not a change to who is permitted.
 - A fail-closed default for any ancestor-resolution failure (e.g. a missing/unreadable ancestor row, which should not occur given the existing `ON DELETE RESTRICT` foreign key, but must not be assumed impossible): such a failure must result in the item being treated as **not** effectively published, never the reverse. This is a requirement of this record, not a Product Owner decision deferred as "open" — it follows directly from LI-001's hiding behavior and this project's existing no-existence-leak convention (CMS-PO-013 §2a.5).
 
+**Independent security review, round 1 — performed (chat, 2026-11-09).** `octo:personas:security-auditor`, independent of the implementer, reviewed the implementation against this section's requirements. Verdict: **APPROVED WITH FINDINGS** — no Critical, High, or Medium findings; two Low findings (test-coverage gaps: a mixed-sibling-visibility case and a more precise LI-002 restoration test) and several Informational observations (none blocking), none of which identified an authorization bypass. This satisfied this section's independent-review requirement for the reviewed code as it stood at that review's time.
+
+**Remediation and re-review, rounds 2–3 (2026-11-09).** The two Low findings above were remediated with new test coverage, then independently re-reviewed in two further rounds:
+- **Round 2** (`octo:droids:octo-security-auditor`, independent of the implementer) verified the remediation of F-01 and F-02. Verdict: **APPROVED WITH FINDINGS** — no Critical, High, or Medium findings; F-01 and F-02 confirmed closed; three further Low/informational items raised (two deferred as optional follow-ups, carried forward as R-1/R-2 below; one misleading test comment, fixed immediately and re-verified).
+- **Round 3** (`octo:droids:octo-security-auditor`, independent of the implementer) verified the remediation of R-1 and R-2. Verdict: **APPROVED WITH FINDINGS** — no Critical, High, or Medium findings; R-1 and R-2 confirmed closed; two Informational items raised (I-1, I-2), neither blocking.
+
+| Finding | Outcome |
+|---|---|
+| F-01 | Closed — mixed-siblings and Plus Learning Path Selection regression coverage added |
+| F-02 | Closed — restoration lifecycle test strengthened, including stored-status assertions |
+| R-1 | Closed — hidden-content `?path=` deep-link regression coverage added |
+| R-2 | Closed — PostgreSQL integration test now verifies stored status and restoration behavior |
+| I-1 | Informational — optional follow-up remains open (not required for release) |
+| I-2 | Informational — optional follow-up remains open (not required for release) |
+
+No round of this review — rounds 1, 2, or 3 — ever reported a Critical, High, or Medium finding, or identified an authorization bypass. Across all three rounds, this still **does not constitute, and must not be read as, release or customer-cutover authorization** — that remains a separate, explicit Product Owner action per §11.
+
 ## 7. Migration and backward-compatibility considerations
 
 - **No schema migration is required or authorized by the behavioral decisions alone** — effective status is computed, not stored (§4). If a future, separately-authorized technical decision (§9) chose to cache or materialize effective status as a stored column, *that* would require its own migration and backfill, authorized separately, not by this record.
@@ -110,24 +127,41 @@ This rule is a **content-exposure/access-control correctness control**, not a co
 3. **Retroactive visibility of this record's effect on the Learning Path Selection feature (CMS-PO-014).** Correctly enforcing LI-001–003 at the read paths in §2's inventory is expected to also close the orphan-promotion risk flagged in the CMS-PO-014 independent review — because the mechanism that causes orphan-promotion (a filtered-out ancestor) and the mechanism LI-001 asks to be fixed (an unchecked ancestor) are the same underlying gap. This is noted here as a relevant consequence, not a decision — the specific fix is explored, with unresolved options presented, in the companion implementation plan referenced in §9; that plan does not authorize implementation, and no fix is asserted as already true by this record.
 4. **Whether this rule should also govern any future admin-facing "preview as customer" feature**, if one is ever built. Not addressed — no such feature exists today.
 5. **The Learning Progress API**, once merged (§5) — if a route in it exposes CMS content or grants access, it is automatically covered by LI-003, no new Product Owner decision required. The narrower, separate question — whether merely recording a view/complete event should itself be blocked for an effectively-hidden item, for a route that neither exposes CMS content nor grants access to it, and only records progress against a content-item id — is not answered by LI-003 either way and remains open for that merge's own review.
-6. **Concurrent lifecycle updates and consistent reads.** If a parent or ancestor's status changes *while* a customer-facing single-item read is resolving that item's ancestor chain, the read must not make an access decision based on a mixture of pre-change and post-change database states (e.g. treating an item as effectively published because an ancestor was read as `PUBLISHED` a moment before an admin archived it, or the reverse). This record does not resolve how — it is listed here as a real open question the eventual technical design (§9) must address, not assumed away.
+6. **Concurrent lifecycle updates and consistent reads.** If a parent or ancestor's status changes *while* a customer-facing single-item read is resolving that item's ancestor chain, the read must not make an access decision based on a mixture of pre-change and post-change database states (e.g. treating an item as effectively published because an ancestor was read as `PUBLISHED` a moment before an admin archived it, or the reverse). **Resolved for the single-item resolution path by Decision 2 (§9.1):** the approved Option 4B mechanism inherently provides this — the item and its complete ancestor chain are resolved in one recursive SQL statement, which Postgres evaluates against one snapshot regardless of isolation level, so no separate transaction-isolation-level decision is required for that path. This record does not separately address the list path's consistency beyond what §9.1 records.
 
-## 9. Technical decisions requiring further Product Owner / engineering approval (explicitly not approved by this record)
+## 9. Technical decisions
 
-This record approves **only** the behavioral rule (§3, §4). The following remain open and must be resolved — via the companion implementation plan's own review and a separate approval — before implementation begins:
-- **Enforcement point and mechanism**: where effective status is computed (candidate: consolidating in `packages/core-cms/src/customerContentService.ts`'s two existing functions, since all five inventoried paths already converge there — but this record does not approve that as final, only notes it as the most direct candidate per §2's evidence) and how ancestor resolution is performed for single-item reads (sequential `findById` calls vs. a new recursive-query repository method vs. any other technique).
+### 9.1 Approved technical decisions (chat, 2026-11-09)
+
+**TD-001 — Effective-status enforcement point.** Approved enforcement boundary: `packages/core-cms/src/customerContentService.ts`. Its two existing functions, `listPublishedContentForPlans` and `getPublishedContentItemForPlans`, centrally enforce effective publication status. Repository methods retrieve the necessary data; they do not themselves decide what is effectively published. Customer-facing routes and pages must not independently bypass this enforcement boundary. All current and future customer-facing CMS paths that expose content or grant access to it remain covered by LI-003 (§3) — TD-001 fixes *where* that coverage is enforced, it does not change LI-003's own scope.
+
+**Decision 2 — Ancestor resolution: Option 4B (PostgreSQL recursive CTE).** Approved. Binding implementation constraints:
+- The requested item and its complete ancestor chain are resolved in one recursive SQL statement.
+- The initial item lookup and the ancestor traversal share that same statement's snapshot.
+- Sequential per-ancestor lookups (Option 4A) are not used.
+- Defensive cycle detection is included.
+- A missing ancestor fails closed.
+- A query or resolution failure fails closed.
+- A missing parent is never treated as a legitimate root item.
+
+Whether the enforcement point is this file, and whether ancestor resolution uses Option 4B, are no longer open questions — see §9.2 for what remains open.
+
+### 9.2 Still requiring further Product Owner / engineering approval (explicitly not approved by this record)
+
 - Whether any caching/memoization is introduced, and if so, its invalidation strategy.
 - Whether a stored/materialized effective-status representation is ever introduced (not currently proposed; would need its own migration if chosen).
-- Exact test strategy and regression scope (detailed in the companion implementation plan).
-- **Consistent-read behavior under concurrent lifecycle changes** (§8.6): the chosen mechanism must consider and document — a transaction-isolation or other consistent-read approach ensuring an ancestor-chain resolution observes one coherent database state (not a specific isolation level, which this record does not prescribe); whether all ancestor statuses in a single resolution are read from that one coherent state; what happens if consistent resolution cannot be guaranteed (fail-closed is required by §6, but the exact mechanism is undecided); and what tests are needed to exercise a concurrent status change during an in-flight read.
+- The exact 404/not-found response shape for each of the three single-item paths once an item is excluded by this rule — Decision 2 fixes the resolution mechanism, not each route's response contract.
+- Exact test strategy and regression scope beyond what the companion implementation plan already specifies (detailed there).
 
 ## 10. Relationship to existing governance — CMS-PO-014 is unchanged
 
 **This record does not merge into, amend, supersede, or expand CMS-PO-014** (`requirement/CMS_PO_014_LEARNING_PATH_SELECTION_AND_COMPLETE_DOWNLOAD_PO_DECISION.md`) in any way. CMS-PO-014's approved decisions (D1–D7, D9, D10), its unresolved blockers (D8; the §3.7 complete-book designation mechanism), its acceptance criteria, and its release gates all remain exactly as previously approved, untouched by this record. CMS-PO-015 is a **separate, independent governance record** addressing a distinct gap (ancestor-status enforcement) that happens to have been discovered during CMS-PO-014's independent review, but is not part of CMS-PO-014's scope, Requirement A, or Requirement B. Likewise, this record does not alter CMS-PO-011, CMS-PO-012, or CMS-PO-013.
 
-## 11. Current authorization — behavioral decision only, no implementation
+## 11. Current authorization — technical decisions recorded; implementation separately authorized and reported; Gate 4 release authorization now granted
 
-This record, as approved, authorizes **finalizing this decision document and its companion implementation plan only**. It does **not** authorize any code, test, migration, schema, configuration, or CMS content change. Implementation may not begin until: (a) the open technical decisions in §9 are resolved and recorded as an amendment to this decision or a successor record, and (b) a separate, explicit Product Owner authorization to implement is given — consistent with this project's established CMS-PO-011/013/014 pattern of separating design approval, implementation authorization, and release authorization.
+This amendment records, as resolved: (a) finalizing this decision document and its companion implementation plan, and (b) the technical decisions in §9.1 (TD-001, Decision 2) — satisfying this record's own prior condition that they be "resolved and recorded... before implementation begins." Implementation against these decisions was separately authorized by the Product Owner and has been reported as completed, outside this record; this record does not itself re-verify that report's claims against the code — that verification is the independent security review required by §6, whose findings are recorded in §6's review history rather than rewriting this section. **That review has since been performed, across three rounds, and all three returned APPROVED WITH FINDINGS (no Critical, High, or Medium findings); every Low finding (F-01, F-02, R-1, R-2) has since been remediated and independently confirmed closed, and both I-1 and I-2 remain recorded as optional, open, informational follow-ups — see §6.**
+
+**Gate 4 — explicit Product Owner release authorization: APPROVED, 2026-11-10.** Given via chat instruction, following the same "approved via chat instruction" convention this record already uses for LI-001–003, TD-001, and Decision 2. This authorization was given after, and is expressly conditioned on, Gates 1–3 already being satisfied (TD-001/Decision 2 recorded; implementation separately authorized and reported; the three-round independent security review in §6 closed with no Critical/High/Medium findings and every Low finding remediated). It covers **release of CMS-PO-015 only** — it is not blanket authorization for any other requirement, decision, or change. **This record does not authorize, and this Gate 4 grant does not itself extend to, staging any file, creating a commit, pushing to any remote, deploying, changing `CMS_ACCESS_CUTOVER_ENABLED`, or performing customer cutover — each of those remains its own, separately controlled action requiring its own explicit authorization**, consistent with this project's established CMS-PO-011/013/014 pattern of separating design approval, implementation authorization, and release authorization from the mechanics of shipping a change.
 
 ## 12. Acceptance criteria
 

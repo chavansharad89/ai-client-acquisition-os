@@ -181,4 +181,34 @@ describe('GET /api/cms/content', () => {
     expect(body[0]).not.toHaveProperty('previousStorageKey');
     expect(JSON.stringify(body)).not.toContain('cms/ai_income_99/assets/seg-1.pdf');
   });
+
+  it('CMS-PO-015: excludes a PUBLISHED item whose grandparent (not just its immediate parent) is ARCHIVED', async () => {
+    identity = fakeIdentityByToken({ 'tok-plus': 'user-plus' });
+    subscriptionPeriods = fakeSubscriptionPeriodRepository([
+      subscriptionPeriod({ userId: 'user-plus', productSlug: 'ai_income_99' }),
+    ]);
+    contentItems = fakeContentItemRepository();
+    const root = await createContainer({ contentItems }, { owningProductId: 'ai_income_99', parentId: null, title: 'Root' });
+    await contentItems.setStatus(root.id, 'PUBLISHED');
+    await contentItems.setStatus(root.id, 'ARCHIVED');
+    const section = await createContainer({ contentItems }, { owningProductId: 'ai_income_99', parentId: root.id, title: 'Section' });
+    await contentItems.setStatus(section.id, 'PUBLISHED');
+    const asset = await createAsset(
+      { contentItems },
+      {
+        owningProductId: 'ai_income_99',
+        parentId: section.id,
+        title: 'Hidden by grandparent',
+        assetKind: 'pdf',
+        storageKey: 'cms/ai_income_99/assets/hidden.pdf',
+        bytes: '1024',
+      },
+    );
+    await contentItems.setStatus(asset.id, 'PUBLISHED');
+
+    const response = await getRequest('tok-plus');
+    const body = (await response.json()) as Array<{ id: string }>;
+    expect(body.map((i) => i.id)).not.toContain(asset.id);
+    expect(body.map((i) => i.id)).not.toContain(section.id);
+  });
 });

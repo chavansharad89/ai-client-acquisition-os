@@ -44,6 +44,23 @@ export interface ContentItemRepository {
   findAllByOwningProduct(owningProductId: string): Promise<readonly ContentItem[]>;
 
   /**
+   * `id` itself (index 0), then its parent, grandparent, ... up to the
+   * root, in that order -- resolved as one query (CMS-PO-015 Option 4B:
+   * a single recursive statement, never N sequential per-ancestor
+   * lookups). Null if `id` does not exist.
+   *
+   * The chain reached a legitimate root iff the LAST element's
+   * `parentId` is null. If it is not null, the walk was cut short --
+   * either a missing ancestor row, or a defensively-broken cycle (a
+   * cycle cannot occur through any real write path today: `parentId` is
+   * set only at creation and never updated afterward, so this guard is
+   * defense-in-depth, not a response to an observed risk). Callers must
+   * treat a cut-short chain as effectively hidden (fail-closed), never
+   * as if it legitimately ended at a root.
+   */
+  findWithAncestorChain(id: string): Promise<readonly ContentItem[] | null>;
+
+  /**
    * Creates a node. The DB's `content_items_node_shape` CHECK is the
    * source of truth for which fields a `CONTAINER` vs `ASSET` may carry;
    * `NewContentItem`'s discriminated union mirrors it at the type level.
@@ -197,6 +214,37 @@ export function createPgContentItemRepository(sql: SqlClient): ContentItemReposi
           ORDER BY parent_id NULLS FIRST, order_index, id`,
         [owningProductId],
       );
+      return (rows as ContentItemRow[]).map(toContentItem);
+    },
+
+    async findWithAncestorChain(id) {
+      // One recursive statement: start at `id` (depth 0), walk parent_id
+      // upward. `visited` guards against a cycle re-entering an
+      // already-seen row -- a cycle cannot occur through any real write
+      // path (parent_id is set once at INSERT and never updated), but the
+      // recursion must still terminate rather than loop forever if one
+      // somehow existed. ORDER BY depth guarantees [item, parent,
+      // grandparent, ...]; a single SQL statement is evaluated against one
+      // snapshot by Postgres regardless of isolation level, so this needs
+      // no explicit transaction wrapper to be internally consistent.
+      const { rows } = await sql.query(
+        `WITH RECURSIVE chain AS (
+            SELECT ${COLUMNS}, 0 AS depth, ARRAY[id]::text[] AS visited
+              FROM content_items
+             WHERE id = $1
+            UNION ALL
+            SELECT c.id, c.owning_product_id, c.parent_id, c.node_type, c.asset_kind, c.title,
+                   c.description, c.storage_key, c.bytes, c.order_index, c.status, c.archived_at,
+                   c.created_at, c.updated_at, c.replaces_content_item_id, c.previous_storage_key,
+                   c.previous_storage_retention_until, chain.depth + 1, chain.visited || c.id
+              FROM content_items c
+              JOIN chain ON c.id = chain.parent_id
+             WHERE NOT (c.id = ANY(chain.visited))
+         )
+         SELECT ${COLUMNS} FROM chain ORDER BY depth`,
+        [id],
+      );
+      if (rows.length === 0) return null;
       return (rows as ContentItemRow[]).map(toContentItem);
     },
 

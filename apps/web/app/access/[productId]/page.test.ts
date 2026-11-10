@@ -275,6 +275,223 @@ describe('/access/[productId] — Customer Fulfillment Phase B parallel-run boun
     const html = await renderProduct('ai_income_99');
     expect(html).toContain('Prompt library');
   });
+  it('CMS-PO-015: a PUBLISHED topic never renders when its grandparent (not just its immediate parent) is ARCHIVED', async () => {
+    process.env.CMS_ACCESS_CUTOVER_ENABLED = 'true';
+    grant(['ai_freelancing_499']);
+    const root = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_freelancing_499', parentId: null, title: 'Archived Root', orderIndex: 0 },
+    );
+    await contentItems.setStatus(root.id, 'PUBLISHED');
+    await contentItems.setStatus(root.id, 'ARCHIVED');
+    const section = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_freelancing_499', parentId: root.id, title: 'Published Section', orderIndex: 0 },
+    );
+    await contentItems.setStatus(section.id, 'PUBLISHED');
+    const topic = await createAsset(
+      { contentItems },
+      {
+        owningProductId: 'ai_freelancing_499',
+        parentId: section.id,
+        title: 'Hidden-by-grandparent topic',
+        assetKind: 'pdf',
+        storageKey: buildAssetStorageKey('ai_freelancing_499', 'seg-1', 'pdf'),
+        bytes: '1024',
+      },
+    );
+    await contentItems.setStatus(topic.id, 'PUBLISHED');
+
+    const html = await renderProduct('ai_freelancing_499');
+    expect(html).not.toContain('Hidden-by-grandparent topic');
+    expect(html).not.toContain('Published Section');
+    expect(html).toContain('/api/downloads/ai_freelancing_499/'); // falls back to legacy -- the CMS tree has zero effectively-published ASSET rows
+  });
+});
+
+// CMS-PO-015 release-scoping follow-up (2026-11-10): F-01 and R-1 live in
+// their own describe block, independent of CMS-PO-014's Learning Path
+// Selection describe block below, so this coverage can be included in a
+// CMS-PO-015-only changeset without that block's scaffolding. Nothing
+// about either test actually depended on it: the fixtures they use
+// (`grant`, `contentItems`, `renderProduct`, `createContainer`,
+// `createAsset`, `buildAssetStorageKey`) are all file-level (the
+// `beforeEach`/`afterEach` above apply to every describe block in this
+// file, and the CMS-PO-014 describe block itself has no describe-local
+// setup of its own) -- moving them here changes nothing about what they
+// exercise or assert.
+describe('/access/[productId] — CMS-PO-015 Plus route regression tests (F-01, R-1)', () => {
+  // Independent-review Finding F-01 (CMS-PO-015 security review,
+  // 2026-11-09): exercises the real Plus route boundary (this page +
+  // LearningPathSelection, not an isolated helper) with mixed siblings --
+  // a selectable published path, a sibling hidden by its own DRAFT status,
+  // and an ARCHIVED sibling whose own PUBLISHED child must stay hidden
+  // because of that ancestor. Because `cmsLibraryTree` only ever builds
+  // its tree from the already-ancestor-filtered item set
+  // (`listPublishedContentForPlans`), the archived sibling's child can
+  // never reach `buildContentTree` at all, so it can never be promoted to
+  // appear as a selectable top-level learning path of its own.
+  it('mixed siblings in the Plus path list: a hidden sibling and a descendant hidden by an archived ancestor are never selectable or exposed, and never promoted to a top-level path (F-01)', async () => {
+    process.env.CMS_ACCESS_CUTOVER_ENABLED = 'true';
+    grant(['ai_income_99']);
+
+    const pathA = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: null, title: 'Path A', orderIndex: 0 },
+    );
+    await contentItems.setStatus(pathA.id, 'PUBLISHED');
+    const assetA = await createAsset(
+      { contentItems },
+      {
+        owningProductId: 'ai_income_99',
+        parentId: pathA.id,
+        title: 'Path A topic',
+        assetKind: 'pdf',
+        storageKey: buildAssetStorageKey('ai_income_99', 'f01-a', 'pdf'),
+        bytes: '1024',
+      },
+    );
+    await contentItems.setStatus(assetA.id, 'PUBLISHED');
+
+    // Sibling hidden by its own DRAFT status -- must not be selectable.
+    await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: null, title: 'Draft Path', orderIndex: 1 },
+    );
+    // never published -- stays DRAFT
+
+    // ARCHIVED sibling whose own PUBLISHED child must stay hidden because
+    // of this ancestor, and must never surface as its own top-level path.
+    const archivedPath = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: null, title: 'Archived Path', orderIndex: 2 },
+    );
+    await contentItems.setStatus(archivedPath.id, 'PUBLISHED');
+    await contentItems.setStatus(archivedPath.id, 'ARCHIVED');
+    const promotionCandidate = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: archivedPath.id, title: 'Should Not Be A Path', orderIndex: 0 },
+    );
+    await contentItems.setStatus(promotionCandidate.id, 'PUBLISHED'); // own status fine -- only the archived ancestor hides it
+
+    // A second valid sibling, ordered after the hidden ones, to prove
+    // ordering/tree structure among the surviving items is unaffected by
+    // the hidden siblings interleaved before it.
+    const pathD = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: null, title: 'Path D', orderIndex: 3 },
+    );
+    await contentItems.setStatus(pathD.id, 'PUBLISHED');
+    const assetD = await createAsset(
+      { contentItems },
+      {
+        owningProductId: 'ai_income_99',
+        parentId: pathD.id,
+        title: 'Path D topic',
+        assetKind: 'pdf',
+        storageKey: buildAssetStorageKey('ai_income_99', 'f01-d', 'pdf'),
+        bytes: '1024',
+      },
+    );
+    await contentItems.setStatus(assetD.id, 'PUBLISHED');
+
+    const html = await renderProduct('ai_income_99');
+
+    expect(html).toContain('Path A'); // valid sibling remains selectable
+    expect(html).toContain('Path D'); // valid sibling remains selectable
+    expect(html.indexOf('Path A')).toBeLessThan(html.indexOf('Path D')); // existing ordering preserved
+    expect(html).not.toContain('Draft Path'); // hidden by its own DRAFT status
+    expect(html).not.toContain('Archived Path'); // hidden by its own ARCHIVED status
+    expect(html).not.toContain('Should Not Be A Path'); // hidden by its ancestor, never promoted to a top-level path
+
+    // The selected path itself still resolves correctly through the real
+    // route -- this isn't only a selection-page string check.
+    const selectedHtml = await renderProduct('ai_income_99', { path: pathA.id });
+    expect(selectedHtml).toContain('Roadmap');
+    expect(selectedHtml).toContain('Path A topic');
+  });
+
+  // Independent-review Finding R-1 (CMS-PO-015 F-01 follow-up review,
+  // 2026-11-09): the test above only checks what the selection page
+  // itself lists; it never tries the realistic bypass vector -- directly
+  // supplying a hidden item's real id through the ?path= query parameter,
+  // hoping `resolvePathParam` trusts the caller-supplied id over the
+  // server's own effective-status filtering. This test tries exactly
+  // that, for every way an id can be hidden (own DRAFT status, own
+  // ARCHIVED status, and PUBLISHED-but-under-an-ARCHIVED-ancestor -- the
+  // case where a check on the targeted id's own row alone would wrongly
+  // let it through), alongside a valid id to confirm normal, unaffected
+  // behavior.
+  it('a direct ?path=<hidden-content-id> deep link never bypasses effective-status enforcement, for every way a path can be hidden (R-1)', async () => {
+    process.env.CMS_ACCESS_CUTOVER_ENABLED = 'true';
+    grant(['ai_income_99']);
+
+    const validPath = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: null, title: 'Valid Path', orderIndex: 0 },
+    );
+    await contentItems.setStatus(validPath.id, 'PUBLISHED');
+    const validAsset = await createAsset(
+      { contentItems },
+      {
+        owningProductId: 'ai_income_99',
+        parentId: validPath.id,
+        title: 'Valid Path topic',
+        assetKind: 'pdf',
+        storageKey: buildAssetStorageKey('ai_income_99', 'r1-valid', 'pdf'),
+        bytes: '1024',
+      },
+    );
+    await contentItems.setStatus(validAsset.id, 'PUBLISHED');
+
+    // Hidden by its own DRAFT status.
+    const draftPath = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: null, title: 'Draft Path', orderIndex: 1 },
+    );
+    // never published -- stays DRAFT
+
+    // Hidden by its own ARCHIVED status.
+    const archivedPath = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: null, title: 'Archived Path', orderIndex: 2 },
+    );
+    await contentItems.setStatus(archivedPath.id, 'PUBLISHED');
+    await contentItems.setStatus(archivedPath.id, 'ARCHIVED');
+
+    // PUBLISHED own status, but hidden by an ARCHIVED ancestor -- the
+    // specific bypass case this finding targets.
+    const hiddenByAncestor = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: archivedPath.id, title: 'Hidden By Ancestor Path', orderIndex: 0 },
+    );
+    await contentItems.setStatus(hiddenByAncestor.id, 'PUBLISHED');
+    const hiddenByAncestorAsset = await createAsset(
+      { contentItems },
+      {
+        owningProductId: 'ai_income_99',
+        parentId: hiddenByAncestor.id,
+        title: 'Hidden By Ancestor topic',
+        assetKind: 'pdf',
+        storageKey: buildAssetStorageKey('ai_income_99', 'r1-hidden', 'pdf'),
+        bytes: '1024',
+      },
+    );
+    await contentItems.setStatus(hiddenByAncestorAsset.id, 'PUBLISHED');
+
+    for (const hiddenId of [draftPath.id, archivedPath.id, hiddenByAncestor.id]) {
+      const html = await renderProduct('ai_income_99', { path: hiddenId });
+      expect(html).toContain('Choose a learning path'); // falls back to selection -- exactly like an unknown id, no existence leak
+      expect(html).not.toContain('Roadmap'); // never scoped into the hidden path's own view
+      expect(html).not.toContain('Hidden By Ancestor topic'); // the ancestor-hidden content itself never renders
+    }
+
+    // Existing, valid Plus selection/navigation behavior is unaffected
+    // alongside the bypass attempts above.
+    const validHtml = await renderProduct('ai_income_99', { path: validPath.id });
+    expect(validHtml).toContain('Roadmap');
+    expect(validHtml).toContain('Valid Path topic');
+  });
 });
 
 describe('/access/[productId] — dedicated topic-detail view (CMS-PO-013)', () => {

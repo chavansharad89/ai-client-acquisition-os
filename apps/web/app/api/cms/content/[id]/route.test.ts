@@ -180,4 +180,37 @@ describe('GET /api/cms/content/[id]', () => {
     const response = await getRequest(item.id, 'tok-expired');
     expect(response.status).toBe(404);
   });
+
+  it('CMS-PO-015: 404s for a PUBLISHED item whose grandparent (not just its immediate parent) is ARCHIVED', async () => {
+    // Three levels, deliberately: root (ARCHIVED) -> section (PUBLISHED)
+    // -> topic (PUBLISHED, the item under test). Querying `section.id`
+    // here would only prove an immediate-parent check exists -- querying
+    // `topic.id` is what actually exercises LI-001's "any level, not
+    // just the direct parent" requirement.
+    identity = fakeIdentityByToken({ 'tok-plus': 'user-plus' });
+    subscriptionPeriods = fakeSubscriptionPeriodRepository([
+      subscriptionPeriod({ userId: 'user-plus', productSlug: 'ai_income_99' }),
+    ]);
+    contentItems = fakeContentItemRepository();
+    const root = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: null, title: 'Root' },
+    );
+    await contentItems.setStatus(root.id, 'PUBLISHED');
+    await contentItems.setStatus(root.id, 'ARCHIVED');
+    const section = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: root.id, title: 'Section' },
+    );
+    await contentItems.setStatus(section.id, 'PUBLISHED');
+    const topic = await createContainer(
+      { contentItems },
+      { owningProductId: 'ai_income_99', parentId: section.id, title: 'Topic' },
+    );
+    await contentItems.setStatus(topic.id, 'PUBLISHED');
+
+    const response = await getRequest(topic.id, 'tok-plus');
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: 'Not found', code: 'NOT_FOUND' });
+  });
 });

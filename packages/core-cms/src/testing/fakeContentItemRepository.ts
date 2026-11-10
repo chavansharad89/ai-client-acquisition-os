@@ -49,6 +49,23 @@ export function fakeContentItemRepository(seed: readonly ContentItem[] = []): Co
         .sort((a, b) => a.orderIndex - b.orderIndex || a.id.localeCompare(b.id));
     },
 
+    async findWithAncestorChain(id) {
+      const item = rows.get(id);
+      if (!item) return null;
+
+      const chain: ContentItem[] = [item];
+      const visited = new Set([item.id]);
+      let current = item;
+      while (current.parentId !== null) {
+        const parent = rows.get(current.parentId);
+        if (!parent || visited.has(parent.id)) break; // missing ancestor or cycle -- chain stays cut short
+        visited.add(parent.id);
+        chain.push(parent);
+        current = parent;
+      }
+      return chain;
+    },
+
     async create(input: NewContentItem) {
       if (input.parentId !== null) {
         const parent = rows.get(input.parentId);

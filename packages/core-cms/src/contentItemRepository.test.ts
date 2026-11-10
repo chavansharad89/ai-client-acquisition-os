@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { FakeUniqueViolationError, fakeContentItemRepository } from './testing/fakeContentItemRepository';
+import type { ContentItem } from './types';
 
 describe('ContentItemRepository (content hierarchy)', () => {
   it('creates a valid parent/child hierarchy, ordered by orderIndex', async () => {
@@ -243,6 +244,133 @@ describe('ContentItemRepository (content hierarchy)', () => {
       await expect(
         repo.updatePendingReplacement(live.id, { storageKey: 'x', assetKind: 'pdf', bytes: '1' }),
       ).rejects.toThrow(/not a pending DRAFT replacement/);
+    });
+  });
+
+  // CMS-PO-015 (Option 4B): the item itself plus its ancestor chain up to
+  // the root, in one call -- the data this repository hands to
+  // customerContentService.ts's effective-status computation. The real
+  // Postgres implementation does this as a single recursive query; this
+  // contract test only checks the shape every implementation (real and
+  // fake) must agree on.
+  describe('findWithAncestorChain', () => {
+    it('returns null for a nonexistent id', async () => {
+      const repo = fakeContentItemRepository();
+      expect(await repo.findWithAncestorChain('nope')).toBeNull();
+    });
+
+    it('returns a one-element chain for a root-level item (no parent)', async () => {
+      const repo = fakeContentItemRepository();
+      const root = await repo.create({
+        nodeType: 'CONTAINER',
+        owningProductId: 'ai_income_99',
+        parentId: null,
+        title: 'Root',
+      });
+
+      const chain = await repo.findWithAncestorChain(root.id);
+
+      expect(chain?.map((n) => n.id)).toEqual([root.id]);
+      expect(chain?.at(-1)?.parentId).toBeNull(); // the chain reached a true root
+    });
+
+    it('returns the item first, then each ancestor up to the root, for a nested item', async () => {
+      const repo = fakeContentItemRepository();
+      const root = await repo.create({
+        nodeType: 'CONTAINER',
+        owningProductId: 'ai_income_99',
+        parentId: null,
+        title: 'Root',
+      });
+      const section = await repo.create({
+        nodeType: 'CONTAINER',
+        owningProductId: 'ai_income_99',
+        parentId: root.id,
+        title: 'Section',
+      });
+      const topic = await repo.create({
+        nodeType: 'ASSET',
+        owningProductId: 'ai_income_99',
+        parentId: section.id,
+        title: 'Topic',
+        assetKind: 'pdf',
+        storageKey: 'cms/ai_income_99/assets/t1.pdf',
+        bytes: '100',
+      });
+
+      const chain = await repo.findWithAncestorChain(topic.id);
+
+      expect(chain?.map((n) => n.id)).toEqual([topic.id, section.id, root.id]);
+      expect(chain?.at(-1)?.parentId).toBeNull();
+    });
+
+    it('a chain whose parent is missing is cut short -- the last element is NOT treated as a root (its parentId is not null)', async () => {
+      // Seeded directly (bypassing create()'s own parent-existence check)
+      // to construct the otherwise-impossible "dangling parentId" case --
+      // see CMS-PO-015's investigation: this cannot happen through any
+      // real write path, but the repository contract must still defend
+      // against it, per the fail-closed requirement.
+      const now = new Date();
+      const orphan: ContentItem = {
+        id: 'orphan-1',
+        owningProductId: 'ai_income_99',
+        parentId: 'does-not-exist',
+        nodeType: 'ASSET',
+        assetKind: 'pdf',
+        title: 'Orphan',
+        description: null,
+        storageKey: 'cms/ai_income_99/assets/orphan.pdf',
+        bytes: '100',
+        orderIndex: 0,
+        status: 'PUBLISHED',
+        archivedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        replacesContentItemId: null,
+        previousStorageKey: null,
+        previousStorageRetentionUntil: null,
+      };
+      const repo = fakeContentItemRepository([orphan]);
+
+      const chain = await repo.findWithAncestorChain('orphan-1');
+
+      expect(chain?.map((n) => n.id)).toEqual(['orphan-1']);
+      expect(chain?.at(-1)?.parentId).toBe('does-not-exist'); // cut short, not a legitimate root
+    });
+
+    it('a cycle is defensively broken, never looping forever, and the chain is never treated as reaching a root', async () => {
+      // Seeded directly -- a cycle cannot be constructed through any real
+      // write path (parentId is write-once at creation; see CMS-PO-015's
+      // investigation), but the repository must still defend against one.
+      const now = new Date();
+      function node(id: string, parentId: string): ContentItem {
+        return {
+          id,
+          owningProductId: 'ai_income_99',
+          parentId,
+          nodeType: 'CONTAINER',
+          assetKind: null,
+          title: id,
+          description: null,
+          storageKey: null,
+          bytes: null,
+          orderIndex: 0,
+          status: 'PUBLISHED',
+          archivedAt: null,
+          createdAt: now,
+          updatedAt: now,
+          replacesContentItemId: null,
+          previousStorageKey: null,
+          previousStorageRetentionUntil: null,
+        };
+      }
+      const repo = fakeContentItemRepository([node('a', 'b'), node('b', 'a')]);
+
+      const chain = await repo.findWithAncestorChain('a');
+
+      expect(chain).not.toBeNull();
+      expect(chain?.length).toBeLessThanOrEqual(2); // terminates, does not loop forever
+      expect(chain?.at(-1)?.parentId).not.toBeNull(); // never mistaken for a legitimate root
     });
   });
 });

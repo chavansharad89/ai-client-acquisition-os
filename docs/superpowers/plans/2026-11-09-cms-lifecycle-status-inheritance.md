@@ -1,6 +1,6 @@
 # CMS Lifecycle Status Inheritance (CMS-PO-015) — Implementation Plan
 
-> **Status: DESIGN/PLANNING DOCUMENT ONLY. Not an authorized execution plan.** CMS-PO-015 (`requirement/CMS_PO_015_LIFECYCLE_STATUS_INHERITANCE_PO_DECISION.md`) approves the *behavioral* rule (LI-001–003) only. This document maps the architecture, inventories affected code, and presents enforcement-mechanism options with trade-offs — it does **not** commit to a single technical design, because CMS-PO-015 §9 explicitly leaves the enforcement mechanism undecided. Nothing in this document may be executed until: (a) the open technical choices below are resolved and recorded, and (b) a separate, explicit Product Owner authorization to implement is given. Per that authorization's constraints, no code, test, migration, schema, configuration, or CMS content has been touched while producing this document.
+> **Status: the technical choices this document originally presented as options are now DECIDED.** CMS-PO-015 §9.1 records TD-001 (enforcement point: `customerContentService.ts`) and Decision 2 (ancestor resolution: Option 4B, the recursive CTE) as approved (chat, 2026-11-09). Implementation against these decisions was separately authorized and has been reported as completed, outside this document. This plan is retained as the architecture/trade-off record that led to those decisions; it is still not itself a release or security-review authorization — see CMS-PO-015 §6/§9.2/§11 for what remains open.
 >
 > **Requirement B (CMS-PO-014) is unaffected and out of scope.** This plan does not expand CMS-PO-014 in any way.
 
@@ -67,7 +67,7 @@ Customer read path (the five inventoried paths, all converging on two functions)
 
 **Alternative considered and rejected as insufficient on its own: enforcing only at the tree-building layer (`apps/web/src/cms-admin/contentTree.ts` or the page/component layer).** Rejected because three of the five inventoried paths (`#2`, `#4`, `#5` — the single-item/download paths) never call `buildContentTree` at all; a tree-level-only fix would leave a customer able to retrieve or download a specific item directly by id even while its ancestor is archived, which violates CMS-PO-015 LI-003's explicit enforcement-scope requirement ("direct content-item retrieval... asset retrieval... download authorization"). This alternative is recorded for completeness, not as a live option.
 
-This section's conclusion (which *file* carries the fix) is a reasonably confident recommendation grounded directly in the architecture mapping above — but it is **not** a Product Owner-approved technical decision; CMS-PO-015 §9 leaves it open, and it still requires sign-off before coding begins.
+**Approved as TD-001 (CMS-PO-015 §9.1, chat, 2026-11-09).** This section's conclusion is no longer only a recommendation.
 
 ## 4. The open technical choice: ancestor resolution for single-item reads
 
@@ -78,7 +78,7 @@ For the three single-item paths (#2, #4, #5), `getPublishedContentItemForPlans` 
 - **Option 4A — Sequential `findById` calls up the chain.** Walk `item.parentId → findById → .parentId → findById → ...` until reaching a null `parentId` or a non-`PUBLISHED` ancestor (short-circuit on the first non-`PUBLISHED` ancestor found, fail-closed). *Trade-off:* zero new repository surface, but **each step of the walk is its own database round trip**, added on top of the single round trip this path makes today. Depth is believed shallow (the existing `apps/web/src/cms-admin/contentTree.ts:78-86` depth-label convention caps friendly names at `Roadmap`/`Section`/`Topic`/`Lesson`, suggesting a typical depth of 2-4), but this is not empirically measured against real content, and "believed shallow" is not a substitute for a measurement.
 - **Option 4B — A new repository method performing one recursive query.** E.g. `findAncestorStatuses(id): Promise<readonly ContentLifecycleStatus[]>` implemented as a single `WITH RECURSIVE` CTE in the real Postgres repository (with a straightforward loop-based equivalent in the fake). *Trade-off:* one round trip regardless of depth, but adds new repository surface (interface + two implementations + its own tests) that doesn't exist today.
 
-**Neither option is selected or approved by this document — this is left as an engineering decision, informed by measurement, not a preference stated here.**
+**Decided: Option 4B is approved (CMS-PO-015 §9.1, "Decision 2," chat, 2026-11-09).** The performance characteristics below remain accurate context for why; they no longer gate the choice itself.
 
 **Performance characteristics, stated precisely (not "no worse than today"):**
 - Under Option 4A, **every** ancestor-chain resolution adds at least one additional database round trip beyond today's single `findById`, and the common case — a `PUBLISHED` item under an all-`PUBLISHED` chain, which is expected to be the *typical*, not the exceptional, case — is also the case that requires walking the **full** chain to confirm, since there is no ancestor failure to short-circuit on. This is strictly more database round trips than today for that common case, not "no worse."
@@ -86,15 +86,14 @@ For the three single-item paths (#2, #4, #5), `getPublishedContentItemForPlans` 
 - **Total added latency is a function of two things neither of which is known yet:** actual hierarchy depth in real content, and actual database round-trip time in whatever environment this runs in (this application has not been deployed, per `docs/DEPLOYMENT.md` — there is no production or staging latency figure to reason from). Depth × round-trip time is the right mental model, but both factors are currently estimates, not measurements.
 - **This performance impact must be measured against realistic content and a realistic environment before Option 4A or 4B is selected** — not reasoned about in the abstract, and not decided by this document.
 
-## 4a. Concurrency and consistent reads (open design requirement — mechanism undecided)
+## 4a. Concurrency and consistent reads — resolved for the single-item path by Decision 2
 
-Ancestor-chain resolution is not a single atomic read — under either Option 4A (several sequential queries) or Option 4B (one query, but still a read that can race an in-flight write), it is possible for a parent or ancestor's lifecycle status to change *while* a single customer-facing read is still resolving that chain. The eventual technical design must consider and document — without this document prescribing which:
-- **Transaction isolation or another consistent-read mechanism** ensuring the read observes one coherent view of the relevant rows, rather than a mixture of pre-change and post-change state. No specific isolation level or technique is selected here; that is an engineering decision for whoever implements this.
-- **Whether every ancestor status consulted during one resolution is read from that same coherent snapshot** — i.e., that the chain isn't resolved by combining a status read before a concurrent change with a status read after it.
-- **Failure handling if a consistent view cannot be obtained or guaranteed** by whatever mechanism is chosen — per CMS-PO-015 §6, the fail-closed default (treat as not effectively published) applies here too, but the specific detection/handling of an inconsistent-read condition is not designed here.
-- **Tests exercising a concurrent lifecycle-status change during an in-flight ancestor-chain read** — a new category under §5's test strategy, to be designed once a consistency mechanism is chosen; not written here, since there is nothing yet to test against.
+With Option 4B decided (§3/§4 above), this question is answered for the single-item resolution path, not merely analyzed: a single recursive SQL statement is evaluated by Postgres against one snapshot regardless of isolation level, so the item and its complete ancestor chain are never resolved from a mixture of pre-change and post-change state — no separate transaction-isolation-level decision was needed, and none was made. This was recorded as part of Decision 2 itself (CMS-PO-015 §9.1: "the initial item lookup and the ancestor traversal share the same statement snapshot").
 
-This is listed as an explicit open item (also tracked in §9) specifically so it is not silently assumed away during implementation.
+What this section originally analyzed, kept for reference:
+- The concern (a parent/ancestor status changing mid-resolution) is real under Option 4A's multiple sequential queries — it is why Option 4A was rejected as insufficient on its own for this requirement, not merely less efficient.
+- Failure handling if resolution cannot complete: fail-closed, per CMS-PO-015 §6 — unchanged by this resolution.
+- A test exercising a concurrent lifecycle-status change during an in-flight read remains a reasonable addition to §5's test strategy, though the implementation report supplied separately should be checked for whether one already exists before assuming it's still missing.
 
 ## 5. Test strategy
 
@@ -150,42 +149,47 @@ All of the following are **new test cases to be written when implementation is a
 CMS-PO-015 (behavioral decision, APPROVED)
         │
         ▼
- [GATE 1] §9 technical decisions resolved (enforcement mechanism + Option 4A/4B)
-        │   recorded as an amendment to CMS-PO-015 or a successor record
+ [GATE 1 — SATISFIED] TD-001 + Decision 2 recorded as an amendment to CMS-PO-015 §9.1
         ▼
- [GATE 2] Explicit, separate Product Owner authorization to implement
+ [GATE 2 — SATISFIED] Explicit, separate Product Owner authorization to implement (given)
         │
         ▼
- Task A: Core effective-status logic in customerContentService.ts
-        │  (blocks everything below — every read path depends on this)
+ Task A: Core effective-status logic in customerContentService.ts  — REPORTED COMPLETE
         ▼
- Task B: Per-path integration tests (5 paths, can proceed in parallel once Task A lands)
+ Task B: Per-path integration tests (5 paths)                       — REPORTED COMPLETE
+        ▼
+ Task C: Full regression run + typecheck                            — REPORTED COMPLETE
         │
         ▼
- Task C: Full regression run (access + components/access + core-cms suites) + typecheck
-        │
+ [GATE 3 — SATISFIED] Independent security review (CMS-PO-015 §6 — mandatory, this is access-control-adjacent)
+        │   — performed across three rounds, all APPROVED WITH FINDINGS (no Critical/High/Medium);
+        │     every Low finding (F-01, F-02, R-1, R-2) remediated and independently confirmed closed —
+        │     tracked in CMS-PO-015 §6; this plan does not itself re-verify that review's claims
         ▼
- [GATE 3] Independent security review (CMS-PO-015 §6 — mandatory, this is access-control-adjacent)
-        │
-        ▼
- [GATE 4] Explicit Product Owner release authorization
-        │
+ [GATE 4 — SATISFIED] Explicit Product Owner release authorization
+        │   — granted via chat instruction, 2026-11-10 (CMS-PO-015 §11); covers release of
+        │     CMS-PO-015 only and does not itself authorize staging, committing, pushing,
+        │     deployment, any CMS_ACCESS_CUTOVER_ENABLED change, or customer cutover —
+        │     each remains its own, separately controlled action
         ▼
  Enable for real customers (also gated on the unrelated, already-known content-hygiene
- dependency from CMS-PO-014 §9.1 and CMS-PO-015 §8.3, if sharing a rollout)
+ dependency from CMS-PO-014 §9.1 and CMS-PO-015 §8.3, if sharing a rollout, and on the
+ separate repository/deployment/cutover authorizations above)
 ```
 
-No task above may begin before Gate 1 and Gate 2 are both satisfied. This plan does not satisfy either — it only prepares what each would need to review.
+Gates 1, 2, 3, and 4 are all satisfied, per CMS-PO-015 §9.1/§6/§11. Tasks A–C are reported complete in the implementation report supplied separately — this plan does not itself re-verify that report against the code, nor does it itself re-verify the security review beyond citing its recorded, closed status in CMS-PO-015 §6, nor does it itself re-verify Gate 4 beyond citing its recorded grant in CMS-PO-015 §11. **Gate 4's grant is release authorization only — it does not automatically authorize staging, committing, pushing, deployment, any `CMS_ACCESS_CUTOVER_ENABLED` change, or customer cutover.** Each of those remains a separate, explicitly controlled action this plan does not grant.
 
-## 9. Technical decisions still requiring Product Owner / engineering approval
+## 9. Technical decisions
 
-(Mirrors CMS-PO-015 §9; repeated here because this plan is the document that would implement them.)
-1. Confirm `customerContentService.ts` as the enforcement point (§3) — a strong recommendation, not yet a decision.
-2. Choose Option 4A (sequential lookups) or 4B (new recursive-query repository method) for single-item ancestor resolution (§4), informed by a depth/performance check against real content.
-3. Decide whether any caching/memoization is introduced for the list path's ancestor walk (unlikely to be necessary given it's already in-memory over already-fetched data, but not ruled out here).
-4. Decide whether a stored/materialized effective-status representation is ever wanted (not currently proposed; would need its own migration).
-5. Confirm the exact 404/not-found response shape for each of the three single-item paths once an item is excluded by this rule — recommended to match each path's existing no-existence-leak convention exactly (same shape as "unknown id"), but this should be confirmed per-path during implementation, not assumed uniform across all three without checking.
-6. **Concurrency and consistent reads (§4a)**: the transaction-isolation or other consistent-read mechanism (none prescribed here), whether it guarantees every ancestor status in one resolution comes from a single coherent snapshot, and the failure-handling behavior if it cannot — all undecided, all required before implementation of the single-item read paths specifically.
+### 9.1 Decided (mirrors CMS-PO-015 §9.1; chat, 2026-11-09)
+1. `customerContentService.ts` is the enforcement point (§3) — TD-001.
+2. Option 4B (recursive-query repository method) for single-item ancestor resolution (§4) — Decision 2. Option 4A is not used.
+3. Concurrency and consistent reads for the single-item path (§4a) — resolved by Decision 2's single-statement-snapshot property; no separate transaction-isolation-level decision needed for that path.
+
+### 9.2 Still requiring Product Owner / engineering approval (mirrors CMS-PO-015 §9.2)
+1. Whether any caching/memoization is introduced for the list path's ancestor walk (unlikely to be necessary given it's already in-memory over already-fetched data, but not ruled out here).
+2. Whether a stored/materialized effective-status representation is ever wanted (not currently proposed; would need its own migration).
+3. The exact 404/not-found response shape for each of the three single-item paths once an item is excluded by this rule — recommended to match each path's existing no-existence-leak convention exactly (same shape as "unknown id"), but this should be confirmed per-path, not assumed uniform across all three without checking.
 
 ---
 
@@ -194,3 +198,5 @@ No task above may begin before Gate 1 and Gate 2 are both satisfied. This plan d
 **Scope discipline:** every section above traces to either CMS-PO-015's approved behavioral decisions (§3, §4 definitions) or to independently re-verified, cited evidence (§1, §2) — no technical choice is presented as decided when CMS-PO-015 §9 leaves it open; §4 and §9 explicitly flag the two live open questions rather than silently picking one. No file list or task above touches CMS-PO-014, Requirement B, or any file this plan doesn't name.
 
 **Completeness against the request:** repository architecture mapping (§1), affected services/read paths (§2), recommended enforcement point with alternatives and trade-offs (§3, §4), test strategy covering nested containers/DRAFT-ARCHIVED ancestors/mixed descendants/restoration/direct retrieval/downloads (§5), regression coverage for Plus/Pro/Max/legacy fallback (§5), DB performance/query-efficiency considerations (§6), backward compatibility and failure handling (§7), task dependencies and verification gates (§8), and technical decisions requiring further Product Owner approval (§9) are each present as their own section.
+
+**Addendum (governance amendment, chat, 2026-11-09):** the self-review above describes this plan as it stood when first written, when §3/§4/§4a/§9's technical choices were still open. They are no longer open — §9.1 (and the corresponding edits to §3, §4, §4a, §8) record TD-001 and Decision 2 as approved. This addendum preserves that history rather than rewriting the original self-review to pretend those choices were always decided.
