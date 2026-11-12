@@ -9,7 +9,9 @@ import {
   firstDescendantTopicId,
   flattenTopics,
   getAdjacentTopicIds,
+  learningPaths,
   resolveNodeClick,
+  resolvePathParam,
   resolveSelection,
   resolveTopicParam,
   topicsWithSectionLabels,
@@ -327,5 +329,79 @@ describe('ancestorPath', () => {
     ]);
 
     expect(ancestorPath(tree, 'nonexistent')).toEqual([]);
+  });
+});
+
+describe('learningPaths', () => {
+  it("preserves the order buildContentTree's own orderIndex sort already produces for root CONTAINER nodes, not insertion order", () => {
+    // Items are inserted out of orderIndex order; buildContentTree's sortTree(roots) call sorts the
+    // top-level array before learningPaths ever sees it (contentTree.ts) — this asserts the
+    // composition, not that learningPaths itself sorts.
+    const tree = buildContentTree([
+      item({ id: 'b', orderIndex: 1 }),
+      item({ id: 'a', orderIndex: 0 }),
+      item({ id: 'c', orderIndex: 2 }),
+    ]);
+
+    expect(learningPaths(tree).map((n) => n.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('excludes a top-level ASSET node (not a CONTAINER) from the result', () => {
+    const tree = buildContentTree([
+      item({ id: 'section-1', orderIndex: 0 }),
+      item({ id: 'asset-1', nodeType: 'ASSET', assetKind: 'pdf', orderIndex: 1 }),
+    ]);
+
+    expect(learningPaths(tree).map((n) => n.id)).toEqual(['section-1']);
+  });
+
+  it('includes a CONTAINER with zero children', () => {
+    const tree = buildContentTree([item({ id: 'empty-section' })]);
+
+    expect(learningPaths(tree).map((n) => n.id)).toEqual(['empty-section']);
+  });
+
+  it('returns an empty array for a tree with no top-level CONTAINER nodes', () => {
+    const tree = buildContentTree([item({ id: 'asset-1', nodeType: 'ASSET', assetKind: 'pdf' })]);
+
+    expect(learningPaths(tree)).toEqual([]);
+  });
+});
+
+describe('resolvePathParam', () => {
+  it('returns the matching top-level CONTAINER when pathParam matches its id', () => {
+    const tree = buildContentTree([
+      item({ id: 'path-a', orderIndex: 0 }),
+      item({ id: 'path-b', orderIndex: 1 }),
+    ]);
+
+    expect(resolvePathParam(tree, 'path-a')).toEqual(tree[0]);
+  });
+
+  it('returns null when pathParam is undefined', () => {
+    const tree = buildContentTree([item({ id: 'path-a' })]);
+
+    expect(resolvePathParam(tree, undefined)).toBeNull();
+  });
+
+  it('returns null when pathParam does not match any node in the tree', () => {
+    const tree = buildContentTree([item({ id: 'path-a' })]);
+
+    expect(resolvePathParam(tree, 'nonexistent')).toBeNull();
+  });
+
+  it('returns null when pathParam matches a top-level ASSET id (not a CONTAINER)', () => {
+    const tree = buildContentTree([item({ id: 'asset-1', nodeType: 'ASSET', assetKind: 'pdf' })]);
+
+    expect(resolvePathParam(tree, 'asset-1')).toBeNull();
+  });
+
+  it('returns null when pathParam matches a CONTAINER id that exists in the tree but is NOT at depth 0 (a nested section)', () => {
+    const tree = buildContentTree([
+      item({ id: 'root', orderIndex: 0 }),
+      item({ id: 'nested-section', parentId: 'root', orderIndex: 0 }),
+    ]);
+
+    expect(resolvePathParam(tree, 'nested-section')).toBeNull();
   });
 });

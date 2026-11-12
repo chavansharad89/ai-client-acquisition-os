@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 
 import { loadEnv } from '@acos/config';
-import { handleRazorpayWebhook, verifyRazorpayWebhook } from '@acos/core-payments';
+import {
+  CLIENT_FINDER_SUBSCRIPTION_PRODUCT_ID,
+  handleRazorpayWebhook,
+  verifyRazorpayWebhook,
+} from '@acos/core-payments';
 import { createClaimEmailSender, issueClaimLink } from '@acos/core-entitlements';
 import { createActivationEmailSender } from '@acos/core-identity';
 import { buildPurchaseEventId } from '@acos/core-capi';
@@ -130,6 +134,10 @@ export async function POST(request: Request) {
             config.GMAIL_DEV_USER && config.GMAIL_DEV_APP_PASSWORD
               ? { user: config.GMAIL_DEV_USER, appPassword: config.GMAIL_DEV_APP_PASSWORD }
               : undefined,
+          resend:
+            config.RESEND_API_KEY && config.RESEND_FROM_EMAIL
+              ? { apiKey: config.RESEND_API_KEY, fromEmail: config.RESEND_FROM_EMAIL }
+              : undefined,
         });
         await issueClaimLink(
           commerceRepositories().entitlements,
@@ -154,11 +162,17 @@ export async function POST(request: Request) {
     // committed, and a mail-provider outage must not turn into a 500
     // Razorpay retries.
     if (outcome.status === 'processed' && outcome.grantedSubscriptionPeriod) {
+      const { userId } = outcome.grantedSubscriptionPeriod;
+      // Captured outside the try so the failure log below can name who
+      // the email was for even if the failure happened before/during the
+      // send itself (e.g. the user lookup succeeded but createActivation-
+      // EmailSender or sender.send() then threw).
+      let recipientEmail: string | undefined;
       try {
         const { identity, subscriptionPeriods } = clientFinderRepositories();
-        const { userId } = outcome.grantedSubscriptionPeriod;
         const user = await identity.findUserById(userId);
         if (user) {
+          recipientEmail = user.email;
           const sender = createActivationEmailSender({
             provider: config.EMAIL_PROVIDER,
             nodeEnv: config.NODE_ENV,
@@ -178,7 +192,23 @@ export async function POST(request: Request) {
           );
         }
       } catch (cause) {
-        console.error('Failed to issue/send AUTH Phase 2 activation link after webhook grant:', cause);
+        // Observability for the missing-email class of failure this
+        // route cannot otherwise surface (the send is deliberately
+        // non-fatal — see the comment above). Logs exactly product /
+        // recipient / provider / error: never the activation token/URL,
+        // and never a provider secret — ResendDeliveryError carries only
+        // an HTTP status, and GmailDevNotConfiguredError/
+        // ResendNotConfiguredError's own messages are already secret-free
+        // (asserted by core-identity's activationEmail.test.ts).
+        console.error(
+          JSON.stringify({
+            event: 'activation_email.delivery_failed',
+            product: CLIENT_FINDER_SUBSCRIPTION_PRODUCT_ID,
+            recipient: recipientEmail,
+            provider: config.EMAIL_PROVIDER ?? 'console',
+            error: cause instanceof Error ? cause.message : String(cause),
+          }),
+        );
       }
     }
 

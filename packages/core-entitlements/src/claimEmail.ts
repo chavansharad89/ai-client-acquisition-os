@@ -127,11 +127,90 @@ export class EmailProviderNotConfiguredError extends Error {
         ? `Email provider "${provider}" has no ClaimEmailSender implementation yet. ` +
           `Implement one and wire it into createClaimEmailSender before setting EMAIL_PROVIDER=${provider}.`
         : 'No transactional email provider is configured (EMAIL_PROVIDER unset) and this is a ' +
-          'production boot, so claim-link emails cannot be delivered. Select a provider ' +
-          '(e.g. Postmark, SES, Resend), add its credentials to env.ts/.env.example, and ' +
-          'implement a ClaimEmailSender for it.',
+          'production boot, so claim-link emails cannot be delivered. Set EMAIL_PROVIDER=resend ' +
+          'and RESEND_API_KEY/RESEND_FROM_EMAIL, or implement a ClaimEmailSender for another provider.',
     );
     this.name = 'EmailProviderNotConfiguredError';
+  }
+}
+
+/** Resend's send-email REST endpoint — the one call this adapter makes. Mirrors @acos/core-identity's activationEmail.ts transport; kept as a separate copy rather than a shared import, per that file's own note that claim and activation must stay structurally separate (AUTH_PHASE_1_PURCHASE_IDENTITY_ACTIVATION_DESIGN.md §12). */
+export interface ResendTransport {
+  send(message: { from: string; to: string; subject: string; text: string }): Promise<void>;
+}
+
+export interface ResendConfig {
+  apiKey: string;
+  fromEmail: string;
+}
+
+export class ResendNotConfiguredError extends Error {
+  constructor() {
+    super(
+      'EMAIL_PROVIDER=resend requires RESEND_API_KEY and RESEND_FROM_EMAIL to be set. ' +
+        'See .env.example "Production Resend claim-email delivery".',
+    );
+    this.name = 'ResendNotConfiguredError';
+  }
+}
+
+/** Thrown when Resend's API rejects or fails a send. Carries only the HTTP status — never the request/response body, which could echo the API key or recipient content into a log. */
+export class ResendDeliveryError extends Error {
+  constructor(status: number) {
+    super(`Resend API request failed with status ${status}`);
+    this.name = 'ResendDeliveryError';
+  }
+}
+
+/** A hung Resend call must not hang the webhook response past Razorpay's own retry timeout (security-review finding, Phase A). */
+const RESEND_TIMEOUT_MS = 10_000;
+
+function createResendHttpTransport(apiKey: string): ResendTransport {
+  return {
+    async send(message) {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(message),
+        signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        throw new ResendDeliveryError(response.status);
+      }
+    },
+  };
+}
+
+/**
+ * Production ClaimEmailSender over the Resend HTTP API.
+ *
+ * `transport` is injectable (default: a real `fetch` call to Resend) so
+ * tests exercise subject/body/recipient construction and failure
+ * handling without a live API key or network call — same shape as
+ * GmailDevClaimEmailSender's injectable SmtpTransport above.
+ */
+export class ResendClaimEmailSender implements ClaimEmailSender {
+  private readonly config: ResendConfig;
+  private readonly transport: ResendTransport;
+
+  constructor(config: ResendConfig, transport: ResendTransport = createResendHttpTransport(config.apiKey)) {
+    this.config = config;
+    this.transport = transport;
+  }
+
+  async send(message: ClaimEmailMessage): Promise<void> {
+    await this.transport.send({
+      from: this.config.fromEmail,
+      to: message.to,
+      subject: 'Your claim link',
+      text:
+        `Open this link to set your password and access your purchase:\n\n${message.claimUrl}\n\n` +
+        `This link expires at ${message.expiresAt.toISOString()} and can only be used once. ` +
+        `If you did not request this, you can ignore this email.`,
+    });
   }
 }
 
@@ -159,6 +238,7 @@ export function createClaimEmailSender(opts: {
   provider: string | undefined;
   nodeEnv: string;
   gmailDev?: GmailDevConfig | undefined;
+  resend?: ResendConfig | undefined;
 }): ClaimEmailSender {
   if (!opts.provider) {
     if (opts.nodeEnv === 'production') {
@@ -177,6 +257,12 @@ export function createClaimEmailSender(opts: {
       throw new GmailDevNotConfiguredError();
     }
     return new GmailDevClaimEmailSender(opts.gmailDev);
+  }
+  if (opts.provider === 'resend') {
+    if (!opts.resend) {
+      throw new ResendNotConfiguredError();
+    }
+    return new ResendClaimEmailSender(opts.resend);
   }
   throw new EmailProviderNotConfiguredError(opts.provider);
 }

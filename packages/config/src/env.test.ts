@@ -353,3 +353,26 @@ describe('WEBHOOK_PAYLOAD_RETENTION_DAYS', () => {
     expect(SECRET_KEYS).not.toContain('WEBHOOK_PAYLOAD_RETENTION_DAYS');
   });
 });
+
+describe('CMS_ACCESS_CUTOVER_ENABLED (Customer Fulfillment Phase B parallel-run boundary)', () => {
+  it('defaults to false when unset — production stays on the legacy manifest until Stage 4', () => {
+    expect(loadEnv(COMPLETE).CMS_ACCESS_CUTOVER_ENABLED).toBe(false);
+  });
+
+  it('the literal string "false" parses to the boolean false — NOT z.coerce.boolean(), which would make this truthy', () => {
+    expect(loadEnv({ ...COMPLETE, CMS_ACCESS_CUTOVER_ENABLED: 'false' }).CMS_ACCESS_CUTOVER_ENABLED).toBe(false);
+  });
+
+  it('the literal string "true" parses to the boolean true', () => {
+    expect(loadEnv({ ...COMPLETE, CMS_ACCESS_CUTOVER_ENABLED: 'true' }).CMS_ACCESS_CUTOVER_ENABLED).toBe(true);
+  });
+
+  it('refuses any other value rather than guessing (e.g. a stray "0"/"1"/"False")', () => {
+    expect(() => loadEnv({ ...COMPLETE, CMS_ACCESS_CUTOVER_ENABLED: '1' })).toThrow(/CMS_ACCESS_CUTOVER_ENABLED/);
+    expect(() => loadEnv({ ...COMPLETE, CMS_ACCESS_CUTOVER_ENABLED: 'False' })).toThrow(/CMS_ACCESS_CUTOVER_ENABLED/);
+  });
+
+  it('is not a secret — it may be printed', () => {
+    expect(SECRET_KEYS).not.toContain('CMS_ACCESS_CUTOVER_ENABLED');
+  });
+});

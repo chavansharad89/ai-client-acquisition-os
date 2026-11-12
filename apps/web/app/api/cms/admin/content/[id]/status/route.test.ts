@@ -93,6 +93,41 @@ describe('POST /api/cms/admin/content/[id]/status', () => {
     expect(await contentItems.findById(item.id)).not.toBeNull();
   });
 
+  it('admin can reactivate an ARCHIVED item back to PUBLISHED', async () => {
+    identity = fakeIdentityByToken({ 'tok-admin': 'user-admin' });
+    cmsAdmins = fakeCmsAdminRepository([{ userId: 'user-admin', createdAt: new Date(), createdBy: 'operator-1' }]);
+    contentItems = fakeContentItemRepository();
+    const item = await createContainer({ contentItems }, { owningProductId: 'ai_income_99', parentId: null, title: 'X' });
+    await contentItems.setStatus(item.id, 'PUBLISHED');
+    await contentItems.setStatus(item.id, 'ARCHIVED');
+
+    const response = await postRequest(item.id, { status: 'PUBLISHED' }, 'tok-admin');
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.status).toBe('PUBLISHED');
+    expect(body.id).toBe(item.id);
+  });
+
+  it('an ordinary archive never touches replacement/retention bookkeeping (archiveContentItem is setStatus alone, with no obsoleteObjects dependency to act through)', async () => {
+    identity = fakeIdentityByToken({ 'tok-admin': 'user-admin' });
+    cmsAdmins = fakeCmsAdminRepository([{ userId: 'user-admin', createdAt: new Date(), createdBy: 'operator-1' }]);
+    contentItems = fakeContentItemRepository();
+    const item = await createContainer({ contentItems }, { owningProductId: 'ai_income_99', parentId: null, title: 'X' });
+    await contentItems.setStatus(item.id, 'PUBLISHED');
+
+    const response = await postRequest(item.id, { status: 'ARCHIVED' }, 'tok-admin');
+    const body = await response.json();
+    expect(body.replacesContentItemId).toBeNull();
+    // The real obsolete-object bookkeeping lives in content_item_obsolete_objects
+    // (migration 0067), written only by publishReplacementTransaction's own
+    // pinned-connection transaction — this route's ContentServiceDeps has no
+    // obsoleteObjects dependency at all, so it is structurally incapable of
+    // writing there; previousStorageKey/previousStorageRetentionUntil below are
+    // migration 0066's now-legacy, unused columns, asserted here only because
+    // they are the one place this still shows up on the wire.
+    expect(body.previousStorageRetentionUntil).toBeNull();
+  });
+
   it('404s for a nonexistent id', async () => {
     identity = fakeIdentityByToken({ 'tok-admin': 'user-admin' });
     cmsAdmins = fakeCmsAdminRepository([{ userId: 'user-admin', createdAt: new Date(), createdBy: 'operator-1' }]);

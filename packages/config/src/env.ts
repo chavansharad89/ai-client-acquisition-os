@@ -197,6 +197,27 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().trim().min(1).optional(),
   R2_SECRET_ACCESS_KEY: z.string().trim().min(1).optional(),
   R2_BUCKET_NAME: z.string().trim().min(1).optional(),
+
+  // Customer Fulfillment Phase B parallel-run boundary (spec §14/§17
+  // Phase 4): while false (the default, and the only value this must
+  // have in production until Stage 4 is explicitly authorized),
+  // /access/[productId] keeps reading deliverables.ts unchanged for
+  // every product, exactly as spec §14 requires ("existing... page keep
+  // working against the old manifest unchanged until verified"). Set
+  // true only in a non-production Stage 2/3 verification environment to
+  // exercise the CMS-backed read path for ai_income_99/ai_freelancing_499
+  // (the only two CMS-eligible products reachable from this page —
+  // ai_client_acquisition_1499 is out of CMS scope by design, see
+  // @acos/core-subscriptions' cmsAccess.ts, and always reads the legacy
+  // manifest regardless of this flag).
+  // Deliberately NOT z.coerce.boolean(): that coerces via JS's Boolean(),
+  // under which the literal string "false" is truthy — an operator
+  // setting CMS_ACCESS_CUTOVER_ENABLED=false would then actually enable
+  // it. Only the literal strings "true"/"false" are accepted.
+  CMS_ACCESS_CUTOVER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

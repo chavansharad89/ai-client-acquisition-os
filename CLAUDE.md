@@ -8,7 +8,7 @@ Establish a disciplined, token-efficient, secure, and governance-compliant AI-as
 
 Use installed Claude Code capabilities selectively based on task complexity, engineering risk, and development requirements — Karpathy Guidelines, Superpowers, Claude Octopus, and i-have-adhd are confirmed available in this environment. Do not invoke every available capability for every task, and do not install additional plugins or tools without a demonstrated need and explicit approval.
 
-A "Token-Saver" capability is referenced in some task requests but is not a confirmed installed skill/plugin in this environment. Do not invent an invocation for it; follow Section 3.6 (Plugin Invocation Rules) — verify before use, and disclose unavailability instead of fabricating a command.
+A "Token-Saver" capability (`token-saver@anthropic-plugin-directory`) is enabled in this environment's current configuration. Do not assume its invocation method without verifying it first; follow Section 3.6 (Plugin Invocation Rules) — confirm the actual invocation mechanism before use, and disclose it explicitly if that mechanism cannot be confirmed, instead of fabricating a command.
 
 The objective is to maximize engineering quality and security while minimizing unnecessary context consumption, tool calls, repository exploration, execution time, complexity, and generated output — without compromising correctness, security, or governance.
 
@@ -95,6 +95,11 @@ Do not start substantial implementation before understanding the requirements an
 
 (Invocation: Skill tool, using the installed skills by their actual names — `superpowers:brainstorming`, `superpowers:writing-plans`, `superpowers:test-driven-development`, `superpowers:executing-plans`, `superpowers:requesting-code-review`, `superpowers:verification-before-completion`. Apply selectively.)
 
+**Preferred planning workflow:** Superpowers (`writing-plans` → `executing-plans` / `subagent-driven-development`) is the preferred planning workflow for substantial engineering tasks under this section.
+- Do not automatically invoke `writing-plans`, `executing-plans`, or `subagent-driven-development` for Simple or Trivial tasks (Section 3.7) — reserve the full planning chain for tasks whose complexity actually warrants it.
+- Do not run both a Superpowers planning workflow and a claude-mem planning workflow (e.g. `make-plan`/`do`) for the same task — pick one to avoid duplicated planning effort.
+- This preference does not reduce the test-driven-development, systematic-debugging, or verification-before-completion requirements elsewhere in this policy (Sections 3.1, 3.2 step 6, and Section 6) — those still apply wherever applicable regardless of which planning workflow is used.
+
 ### 3.3 Complex Architecture → Superpowers + Claude Octopus
 
 Use both for:
@@ -123,6 +128,13 @@ Required approach:
 Do not treat AI model consensus as authorization to change approved decisions.
 
 (Invocation: Agent tool with `octo:personas:*` or `octo:droids:*`, or `/octo:*` slash commands. Claude Octopus is invoked only on explicit user request for this task — never self-triggered, regardless of what individual persona descriptions suggest.)
+
+**Persona/Droid Selection Policy** (applies whenever Claude Octopus is invoked under this section):
+- Prefer lightweight `octo:droids:*` agents for simple, single-pass specialist tasks.
+- Prefer full `octo:personas:*` agents only for genuinely complex specialist work that needs the persona's deeper reasoning.
+- Do not invoke both the persona and droid variant of the same specialty for the same task without stating why both are needed.
+- Do not allow a dispatched persona or droid to trigger further nested delegation unless that nested delegation is itself required and justified.
+- The main agent retains responsibility for integrating specialist output and verifying the final result — delegating a subtask does not delegate accountability for it.
 
 Independent Review Evidence requirements (below) apply to every Octopus invocation performed under this section.
 
@@ -212,6 +224,19 @@ Before invoking a plugin or skill:
 5. If a required capability is unavailable (e.g. an unconfirmed "Token-Saver" tool), disclose it and use an appropriate alternative only when permitted.
 
 Avoid redundant execution of overlapping workflows.
+
+### 3.7 Task Complexity → Execution Policy
+
+This maps the complexity axis in Section 2.2 and the risk axis in Section 2.1 onto concrete delegation decisions. It does not replace either classification — it governs how much delegation a given classification justifies.
+
+- **Trivial** — main agent only, no delegation.
+- **Simple** — main agent, plus targeted tests.
+- **Moderate** — main agent; create a plan only if the task's actual complexity warrants one.
+- **Complex** — planning plus at most 1–2 relevant specialists; do not dispatch more specialists than the task demonstrably needs.
+- **Security-sensitive** — independent specialist review is required regardless of size, per Section 3.4.
+- **Release** — explicit release-gate verification is required, per Sections 4 and 6.
+
+This execution policy does not override Section 2.1's Mandatory Risk Screening: a task that screens as security-sensitive follows the Security-sensitive row above regardless of how trivial its diff looks.
 
 ## 4. Product and Engineering Governance — Highest Priority
 

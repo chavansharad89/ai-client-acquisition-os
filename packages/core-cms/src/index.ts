@@ -61,6 +61,21 @@ export {
 export type { R2AssetStorageConfig } from './r2AssetStorage';
 
 export {
+  createR2DirectUploadTarget,
+  migratePlusLegacyAssetsToR2,
+  PLUS_LEGACY_MIGRATION_PRODUCT_ID,
+  PreconditionFailedError,
+} from './legacyAssetR2Migration';
+export type {
+  LegacyAssetUploadReport,
+  R2DirectUploadConfig,
+  R2DirectUploadTarget,
+  R2ObjectMetadata,
+  ReadLocalLegacyFile,
+} from './legacyAssetR2Migration';
+export { fakeR2DirectUploadTarget } from './testing/fakeR2DirectUploadTarget';
+
+export {
   MAX_ASSET_BYTES,
   validateAssetCandidate,
   buildAssetStorageKey,
@@ -88,6 +103,9 @@ export type {
 } from './assetIngestionService';
 
 export { isCmsEligibleProduct } from './cmsEligibility';
+
+export { backfillContentItemsFromDeliverables, extensionOfLegacyStorageKey } from './deliverablesBackfill';
+export type { DeliverableBackfillRowReport } from './deliverablesBackfill';
 
 export { setDisplayNameOverride } from './displayNameService';
 export type { DisplayNameServiceDeps } from './displayNameService';

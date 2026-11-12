@@ -1,4 +1,4 @@
-import { funnelStateFor, purchasedFrom, type AccessResolution } from '@acos/core-entitlements';
+import { funnelStateFor, purchasedFrom, type AccessContext, type AccessResolution } from '@acos/core-entitlements';
 import { resolveSession } from '@acos/core-identity';
 
 import { resolveCmsAwarePurchased } from './cmsAccessGate';
@@ -23,7 +23,18 @@ import { readSessionTokenFromServerComponent } from './session';
 // /access page's upsell flow handles that case already.
 // -----------------------------------------------------------------------
 
-const ANONYMOUS: AccessResolution = {
+/**
+ * Widened locally: `userId` is added to `context` for Customer
+ * Fulfillment Phase B's CMS-backed `/access/[productId]` read path
+ * (listAccessibleCmsContent/getAccessibleCmsContentItem both need it).
+ * Structurally still an `AccessResolution` (superset), so every existing
+ * caller that only reads `customerEmail`/`purchased` is unaffected.
+ */
+export type WebAccessResolution =
+  | { granted: true; context: AccessContext & { userId: string }; funnel: AccessResolution['funnel'] }
+  | (AccessResolution & { granted: false });
+
+const ANONYMOUS: WebAccessResolution = {
   granted: false,
   reason: 'no-token',
   funnel: funnelStateFor([]),
@@ -35,7 +46,7 @@ const ANONYMOUS: AccessResolution = {
  * ANONYMOUS, same as before — protected pages still send a visitor to
  * checkout/login rather than opening up.
  */
-export async function currentAccess(): Promise<AccessResolution> {
+export async function currentAccess(): Promise<WebAccessResolution> {
   const { identity, entitlements, subscriptionPeriods } = commerceRepositories();
   const resolution = await resolveSession(identity, readSessionTokenFromServerComponent());
   if (!resolution.authenticated) return ANONYMOUS;
@@ -56,7 +67,7 @@ export async function currentAccess(): Promise<AccessResolution> {
   );
   return {
     granted: true,
-    context: { customerEmail: user.email, purchased },
+    context: { customerEmail: user.email, purchased, userId: resolution.userId },
     funnel: funnelStateFor(purchased),
   };
 }

@@ -115,6 +115,10 @@ export async function POST(request: NextRequest) {
         config.GMAIL_DEV_USER && config.GMAIL_DEV_APP_PASSWORD
           ? { user: config.GMAIL_DEV_USER, appPassword: config.GMAIL_DEV_APP_PASSWORD }
           : undefined,
+      resend:
+        config.RESEND_API_KEY && config.RESEND_FROM_EMAIL
+          ? { apiKey: config.RESEND_API_KEY, fromEmail: config.RESEND_FROM_EMAIL }
+          : undefined,
     });
     await issueClaimLink(entitlements, sender, {
       orderId: order.id,

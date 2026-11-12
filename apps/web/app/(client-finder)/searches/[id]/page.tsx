@@ -100,7 +100,9 @@ export default async function SearchStatusPage({ params }: { params: { id: strin
       </section>
 
       {search.status === 'COMPLETE' ? (
-        <a href="/opportunities" className="btn btn-primary">
+        // B2 (CF-OPPORTUNITIES-SEARCH-FIRST-PO-DEC-001): link to this
+        // Search's own results, not the cumulative workspace.
+        <a href={`/opportunities?searchId=${search.id}`} className="btn btn-primary">
           View opportunities
         </a>
       ) : null}

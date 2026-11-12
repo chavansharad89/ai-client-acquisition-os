@@ -27,6 +27,30 @@ export function flattenTopics(tree: readonly ContentTreeNode[]): ContentTreeNode
 }
 
 /**
+ * The top-level CONTAINER nodes of `tree` — each one is a "learning
+ * path" (CMS-PO-014 D2). Only inspects `tree`'s own entries, never
+ * descends into `children`, so a nested section never qualifies. Does
+ * not sort: `buildContentTree`'s own `sortTree(roots)` call already
+ * orders `tree` by `orderIndex` before this ever runs — filtering
+ * preserves whatever order it is given.
+ */
+export function learningPaths(tree: readonly ContentTreeNode[]): ContentTreeNode[] {
+  return tree.filter((node) => node.nodeType === 'CONTAINER');
+}
+
+/**
+ * Finds the top-level CONTAINER node matching `pathParam`, or null if
+ * `pathParam` is undefined, matches nothing, matches a top-level ASSET,
+ * or matches a CONTAINER that exists in the tree but is not at depth 0
+ * (a nested section) — used to resolve the ?path=<contentItemId> query
+ * parameter on `/access/[productId]` (CMS-PO-014).
+ */
+export function resolvePathParam(tree: readonly ContentTreeNode[], pathParam: string | undefined): ContentTreeNode | null {
+  if (!pathParam) return null;
+  return tree.find((node) => node.id === pathParam && node.nodeType === 'CONTAINER') ?? null;
+}
+
+/**
  * Resolves "no matching topic" (`-1`, e.g. a CONTAINER is the shared
  * selection when a view that only shows topics renders) to the first
  * topic, when any exist. A valid index passes through unchanged.

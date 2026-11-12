@@ -18,6 +18,8 @@ const state = vi.hoisted(() => ({
   token: 'tok-a' as string | undefined,
   repos: {} as Record<string, unknown>,
   ranked: [] as unknown[],
+  qualification: null as unknown,
+  opportunityProspectIds: {} as Record<string, string>,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -39,7 +41,7 @@ vi.mock('@acos/core-opportunity', async (importOriginal) => ({
   rankOpportunities: async () => state.ranked,
   getOpportunity: async (_repos: unknown, _token: unknown, id: string) => ({
     id,
-    prospectId: 'prospect_a',
+    prospectId: state.opportunityProspectIds[id] ?? 'prospect_a',
     state: 'NEW',
     needDetected: false,
     staleness: 'FRESH',
@@ -48,6 +50,11 @@ vi.mock('@acos/core-opportunity', async (importOriginal) => ({
     aiEnrichmentReason: 'NOT_ESCALATED',
     relevantSubservices: [],
   }),
+}));
+
+vi.mock('@acos/core-qualification', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@acos/core-qualification')>()),
+  getOpportunityQualification: async () => state.qualification,
 }));
 
 vi.mock('@acos/core-subscriptions', async (importOriginal) => ({
@@ -116,8 +123,11 @@ function fakeProspects(rows: StoredProspect[]) {
     async findOrCreate() {
       throw new Error('not used by these tests');
     },
-    async listBySearch() {
-      throw new Error('not used by these tests');
+    // Mirrors the real repository's ownership filter (userId AND
+    // searchId) — a foreign/invalid searchId simply yields no rows,
+    // never another user's data.
+    async listBySearch(userId: string, searchId: string) {
+      return rows.filter((row) => row.userId === userId && row.searchId === searchId);
     },
     async getById(userId: string, id: string) {
       return rows.find((row) => row.id === id && row.userId === userId) ?? null;
@@ -167,10 +177,10 @@ function fakeEntities(
   };
 }
 
-function rankedEntry(opportunityId: string) {
+function rankedEntry(opportunityId: string, rank = 1) {
   return {
     opportunityId,
-    rank: 1,
+    rank,
     score: {
       id: `score_${opportunityId}`,
       opportunityId,
@@ -194,6 +204,8 @@ function rankedEntry(opportunityId: string) {
 beforeEach(() => {
   state.token = 'tok-a';
   state.ranked = [rankedEntry('opp_a')];
+  state.qualification = null;
+  state.opportunityProspectIds = {};
   state.repos = {
     identity: fakeIdentity(sessionFor('tok-a', 'user_a')),
     prospects: fakeProspects([prospect('prospect_a', 'user_a', 'search_a', 'company_a')]),
@@ -208,8 +220,8 @@ beforeEach(() => {
   };
 });
 
-async function renderPage(): Promise<string> {
-  return renderToStaticMarkup(await OpportunitiesPage());
+async function renderPage(searchId?: string): Promise<string> {
+  return renderToStaticMarkup(await OpportunitiesPage({ searchParams: searchId ? { searchId } : {} }));
 }
 
 /** Visible text only, entities decoded, whitespace collapsed. */
@@ -293,5 +305,146 @@ describe('Opportunities list page — legacy (pre-migration-0044) score compatib
     expect(page).not.toContain('Need/Opportunity:');
     expect(page).not.toContain('Service Fit:');
     expect(page).toContain('No suitable offer detected');
+  });
+});
+
+// B1 (CF-OPPORTUNITIES-LIST-VISIBILITY-PO-DEC-001): every discovered
+// Opportunity stays visible regardless of QualificationState.
+// QualificationState only changes presentation (label + de-emphasis via
+// the existing `.hint` treatment); it never filters `rows`, and ranking
+// order is untouched.
+describe('Opportunities list page — B1 qualification visibility (CF-OPPORTUNITIES-LIST-VISIBILITY-PO-DEC-001)', () => {
+  function qualificationFixture(qualState: 'QUALIFIED' | 'NOT_QUALIFIED' | 'INSUFFICIENT_EVIDENCE') {
+    return {
+      id: 'qual_a',
+      opportunityId: 'opp_a',
+      prospectId: 'prospect_a',
+      state: qualState,
+      criteria: [],
+      evidenceSignalIds: [],
+      evaluatorVersion: 'qualification-v2',
+      evaluatedAt: new Date('2026-09-28T00:00:00.000Z'),
+      createdAt: new Date('2026-09-28T00:00:00.000Z'),
+      updatedAt: new Date('2026-09-28T00:00:00.000Z'),
+    };
+  }
+
+  it('shows QUALIFIED opportunities visibly, with normal (non-de-emphasized) presentation', async () => {
+    state.qualification = qualificationFixture('QUALIFIED');
+    const html = await renderPage();
+    expect(text(html)).toContain('Qualified');
+    expect(html).not.toMatch(/<span class="[^"]*text-muted-foreground[^"]*">\s*Qualified\s*<\/span>/);
+  });
+
+  it('keeps NOT_QUALIFIED opportunities visible, labeled "Not qualified" and de-emphasized (muted, 13px — the new theme\'s equivalent of the old .hint treatment)', async () => {
+    state.qualification = qualificationFixture('NOT_QUALIFIED');
+    const html = await renderPage();
+    expect(text(html)).toContain('Not qualified');
+    expect(html).toMatch(/<span class="text-\[13px\] text-muted-foreground">Not qualified<\/span>/);
+  });
+
+  it('keeps INSUFFICIENT_EVIDENCE opportunities visible, labeled "Needs more evidence" and de-emphasized', async () => {
+    state.qualification = qualificationFixture('INSUFFICIENT_EVIDENCE');
+    const html = await renderPage();
+    expect(text(html)).toContain('Needs more evidence');
+    expect(html).toMatch(/<span class="text-\[13px\] text-muted-foreground">Needs more evidence<\/span>/);
+  });
+
+  it('does not filter unqualified opportunities out of the rendered list', async () => {
+    state.qualification = qualificationFixture('NOT_QUALIFIED');
+    const html = await renderPage();
+    expect(html).not.toContain('No opportunities yet');
+    expect(text(html)).toContain('Fixture Bistro');
+  });
+
+  it('leaves ranking/order unchanged by qualification state', async () => {
+    state.ranked = [rankedEntry('opp_a', 1), rankedEntry('opp_b', 2)];
+    state.qualification = qualificationFixture('NOT_QUALIFIED');
+    const page = text(await renderPage());
+    const firstIndex = page.indexOf('#1');
+    const secondIndex = page.indexOf('#2');
+    expect(firstIndex).toBeGreaterThanOrEqual(0);
+    expect(secondIndex).toBeGreaterThan(firstIndex);
+  });
+});
+
+// B2 (CF-OPPORTUNITIES-SEARCH-FIRST-PO-DEC-001): an optional ?searchId
+// narrows the already-ranked rows to one Search via the existing
+// ownership-safe listBySearch(userId, searchId). No searchId preserves
+// the unchanged cumulative behavior. Filtering happens on the full
+// ranked list — an invalid/foreign searchId can only ever exclude rows,
+// never fall back to showing the cumulative list.
+describe('Opportunities list page — B2 search-scoped results (CF-OPPORTUNITIES-SEARCH-FIRST-PO-DEC-001)', () => {
+  beforeEach(() => {
+    state.ranked = [rankedEntry('opp_a', 1), rankedEntry('opp_b', 2)];
+    state.opportunityProspectIds = { opp_a: 'prospect_a', opp_b: 'prospect_b' };
+    state.repos.prospects = fakeProspects([
+      prospect('prospect_a', 'user_a', 'search_a', 'company_a'),
+      prospect('prospect_b', 'user_a', 'search_b', 'company_b'),
+    ]);
+  });
+
+  it("shows only the requested Search's Opportunities", async () => {
+    const page = text(await renderPage('search_a'));
+    expect(page).toContain('#1');
+    expect(page).not.toContain('#2');
+  });
+
+  it('excludes Opportunities belonging to another Search', async () => {
+    const page = text(await renderPage('search_b'));
+    expect(page).toContain('#2');
+    expect(page).not.toContain('#1');
+  });
+
+  it('preserves cumulative/all-opportunities behavior when no searchId is given', async () => {
+    const page = text(await renderPage());
+    expect(page).toContain('#1');
+    expect(page).toContain('#2');
+  });
+
+  it('renders a Search-specific empty state for a Search with zero Opportunities, never falling back to the cumulative list', async () => {
+    const page = text(await renderPage('search_with_no_opportunities'));
+    expect(page).toContain('No opportunities found for this search');
+    expect(page).toContain('View all opportunities');
+    expect(page).not.toContain('#1');
+    expect(page).not.toContain('#2');
+  });
+
+  it("never exposes another user's Opportunities for a foreign searchId", async () => {
+    state.opportunityProspectIds = { opp_a: 'prospect_a', opp_b: 'prospect_foreign' };
+    state.repos.prospects = fakeProspects([
+      prospect('prospect_a', 'user_a', 'search_a', 'company_a'),
+      // Owned by a different user — listBySearch's own ownership filter
+      // (userId AND searchId) must exclude this regardless of searchId.
+      prospect('prospect_foreign', 'user_b', 'search_foreign', 'company_x'),
+    ]);
+    const page = text(await renderPage('search_foreign'));
+    expect(page).toContain('No opportunities found for this search');
+    expect(page).not.toContain('#1');
+    expect(page).not.toContain('#2');
+  });
+
+  it('continues to render B1 qualification labels within a Search-scoped result', async () => {
+    state.qualification = { state: 'NOT_QUALIFIED' };
+    const page = text(await renderPage('search_a'));
+    expect(page).toContain('Not qualified');
+  });
+
+  it('preserves existing ranking order within the filtered result set', async () => {
+    state.ranked = [rankedEntry('opp_a', 1), rankedEntry('opp_b', 2), rankedEntry('opp_c', 3)];
+    state.opportunityProspectIds = { opp_a: 'prospect_a', opp_b: 'prospect_b', opp_c: 'prospect_c' };
+    state.repos.prospects = fakeProspects([
+      prospect('prospect_a', 'user_a', 'search_a', 'company_a'),
+      prospect('prospect_b', 'user_a', 'search_a', 'company_b'),
+      prospect('prospect_c', 'user_a', 'search_a', 'company_c'),
+    ]);
+
+    const page = text(await renderPage('search_a'));
+    const firstIndex = page.indexOf('#1');
+    const secondIndex = page.indexOf('#2');
+    const thirdIndex = page.indexOf('#3');
+    expect(firstIndex).toBeGreaterThanOrEqual(0);
+    expect(secondIndex).toBeGreaterThan(firstIndex);
+    expect(thirdIndex).toBeGreaterThan(secondIndex);
   });
 });
