@@ -8,23 +8,30 @@ import type { DiscoveryCandidate, DiscoveryProvider } from './provider';
 // remains the sole validity gate, and this file never touches userId —
 // ownership is entirely the caller's (runDiscoveryForOwner) concern.
 
+// CF-SEARCH-INPUT-SERVICE-GEOGRAPHY-ONLY-PO-DEC-002 D2/D4: no target-
+// customer clause — the freelancer no longer supplies one for NEW
+// searches, and search.parameters.targetCustomer (now a system-owned
+// sentinel for those searches) is not a real discovery constraint.
 function buildQuery(search: Parameters<DiscoveryProvider['discover']>[0]): string {
-  const { service, targetCustomer, geography, keywords } = search.parameters;
-  const parts = [`${service} for ${targetCustomer} in ${geography}`, ...keywords];
+  const { service, geography, keywords } = search.parameters;
+  const parts = [`${service} in ${geography}`, ...keywords];
   return parts.join(' ').trim();
 }
 
 export function createGooglePlacesDiscoveryProvider(client: ExternalDiscoveryClient): DiscoveryProvider {
   return {
     async discover(search) {
-      const query = buildQuery(search);
-      const results = await client.searchText(query);
-      return results.map(
+      const actualQuery = buildQuery(search);
+      const results = await client.searchText(actualQuery);
+      const candidates = results.map(
         (result): DiscoveryCandidate => ({
           name: result.name,
           website: result.websiteUri,
+          businessStatus: result.businessStatus,
+          placeId: result.placeId,
         }),
       );
+      return { candidates, actualQuery, provider: 'GOOGLE_PLACES' };
     },
   };
 }

@@ -1,7 +1,8 @@
 import { requireUser, type IdentityRepository } from '@acos/core-identity';
 
 import type { ServiceProfileRepository } from './repository';
-import type { ServiceProfileInput, StoredServiceProfile } from './types';
+import { applySystemServiceProfileDefaults } from './systemDefaults';
+import type { NewSearchServiceProfileInput, ServiceProfileInput, StoredServiceProfile } from './types';
 import { validateServiceProfileInput } from './validation';
 
 // Application/service boundary.
@@ -21,11 +22,17 @@ export interface ServiceProfileDeps {
 export async function createServiceProfile(
   deps: ServiceProfileDeps,
   rawToken: string | undefined | null,
-  input: ServiceProfileInput,
+  input: NewSearchServiceProfileInput,
   now: Date = new Date(),
 ): Promise<StoredServiceProfile> {
   const userId = await requireUser(deps.identity, rawToken, now);
-  const fields = validateServiceProfileInput(input);
+  // CF-SEARCH-INPUT-SERVICE-GEOGRAPHY-ONLY-PO-DEC-001/002,
+  // CF-QUALIFICATION-WITHOUT-CATEGORY-PLAUSIBILITY-PO-DEC-001 (system-
+  // owned-field correction): input's type carries only service+geography,
+  // so there is no caller-suppliable value for the other five fields to
+  // read here at all — applySystemServiceProfileDefaults() always
+  // constructs them, unconditionally, before validation runs.
+  const fields = validateServiceProfileInput(applySystemServiceProfileDefaults(input));
   return deps.profiles.create(userId, fields, now);
 }
 

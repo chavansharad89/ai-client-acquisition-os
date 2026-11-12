@@ -15,11 +15,14 @@
   "dependencies": {
     "@acos/core-ai-usage": "workspace:*",
     "@acos/core-capi": "workspace:*",
+    "@acos/core-cms": "workspace:*",
     "@acos/core-discovery": "workspace:*",
     "@acos/core-entitlements": "workspace:*",
     "@acos/core-followup-preparation": "workspace:*",
+    "@acos/core-launch-gates": "workspace:*",
     "@acos/core-opportunity": "workspace:*",
     "@acos/core-outreach-preparation": "workspace:*",
+    "@acos/core-payments": "workspace:*",
     "@acos/core-personalization": "workspace:*",
     "@acos/core-qualification": "workspace:*",
     "@acos/core-research": "workspace:*",
@@ -38,6 +41,7 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./cmsCleanup": "./src/cmsCleanup/index.ts",
     "./metaEvents": "./src/metaEvents/index.ts",
     "./searchWorker": "./src/searchWorker/index.ts"
   }

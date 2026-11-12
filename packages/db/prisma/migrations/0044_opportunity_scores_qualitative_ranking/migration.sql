@@ -1,0 +1,47 @@
+-- 0044_opportunity_scores_qualitative_ranking
+-- =======================================================================
+-- Phase 3 of requirement/CLIENT_FINDER_DETERMINISTIC_ARCHITECTURE_IMPLEMENTATION_PLAN.md
+-- (§0 item 1, RESOLVED 2026-10-13): replaces the numeric, 0-100
+-- OpportunityScore with the governance-decided qualitative ranking
+-- (CLIENT_FINDER_UNIVERSAL_RANKING_FRAMEWORK_PO_DECISION.md) —
+-- lexicographic ordering over seven dimensions, each a qualitative tier
+-- (STRONG/MODERATE/WEAK/UNKNOWN), never a composite number.
+--
+-- Why a migration is required (not just an application-layer change):
+-- migration 0018 made `total` and `observed_share` NOT NULL numeric
+-- columns with range CHECKs, and `band`'s CHECK only permits
+-- 'HIGH'/'MEDIUM'/'LOW'. The qualitative model has no honest numeric
+-- value for `total`/`observed_share` to hold, and no single collapsed
+-- label for `band` — inventing one to satisfy these constraints is
+-- exactly the fabricated-score/misleading-band-semantics this phase is
+-- authorized NOT to do. `factors` and `reasons` need no migration: both
+-- are untyped at the database level (JSONB / TEXT[]) and are repurposed
+-- in place by the application layer to hold the new per-dimension tier
+-- breakdown instead of the old seven-factor array.
+--
+-- What this migration does, additive-only (DEC-006), and nothing else:
+--   - Drops NOT NULL on total, band, observed_share. A NULL value
+--     trivially satisfies each column's existing CHECK (Postgres does
+--     not evaluate a CHECK as violated for NULL), so no CHECK is
+--     altered or dropped.
+--   - New (Phase 3) rows write NULL for all three — they are legacy
+--     numeric-scorer columns, never populated or read by the
+--     qualitative ranking path. Historical rows written before this
+--     migration keep their original HIGH/MEDIUM/LOW/0-100 values
+--     untouched; they are understood as frozen historical artifacts,
+--     never mapped back into the application's StoredOpportunityScore
+--     type (see @acos/core-opportunity's scorePgRepository.ts).
+--   - `cap` was already nullable; Phase 3 simply stops populating it
+--     (it was an artifact of the numeric scorer's inference-heavy HIGH
+--     cap rule, which no longer exists).
+--   - `scorer_version` is reused, not renamed: it continues to identify
+--     the build that produced a row, now a ranking-formula version
+--     string (e.g. 'universalRanking-v1') instead of a scorer-weights
+--     version.
+--
+-- No table is created, renamed, or dropped. No index changes.
+-- =======================================================================
+
+ALTER TABLE "opportunity_scores" ALTER COLUMN "total" DROP NOT NULL;
+ALTER TABLE "opportunity_scores" ALTER COLUMN "band" DROP NOT NULL;
+ALTER TABLE "opportunity_scores" ALTER COLUMN "observed_share" DROP NOT NULL;

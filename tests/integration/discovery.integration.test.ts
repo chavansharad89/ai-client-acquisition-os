@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import {
   createGooglePlacesDiscoveryProvider,
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   DiscoveryInvalidSearchStateError,
@@ -10,6 +11,7 @@ import {
   type DiscoveryCandidate,
   type DiscoveryDeps,
   type DiscoveryProvider,
+  type DiscoveryResult,
   type ExternalDiscoveryClient,
 } from '@acos/core-discovery';
 import {
@@ -27,9 +29,10 @@ import {
 import {
   createPgServiceProfileRepository,
   createServiceProfile,
-  type ServiceProfileInput,
+  type NewSearchServiceProfileInput,
 } from '@acos/core-service-profile';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
 import { suiteDatabase } from './support/suiteDb';
 
@@ -41,18 +44,39 @@ import { suiteDatabase } from './support/suiteDb';
 // dedup constraints (R-08/PFR-11/DEC-005/G-02), and that discovery only
 // runs against a RUNNING Search. Mirrors
 // tests/integration/search.integration.test.ts.
+//
+// Global Entity Architecture: EntityRepository needs a real `pg.Pool`
+// (it pins one connection per transaction via `pool.connect()`), not the
+// single `pg.Client` the suite harness exposes as `db.client` — a
+// separate Pool connected to the SAME suite database is created here,
+// mirroring tests/integration/lead-unlock.integration.test.ts's own
+// pattern for `createPgLeadUnlockRepository`'s identical need.
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('discovery');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
-function testProvider(candidates: readonly DiscoveryCandidate[]): DiscoveryProvider {
+function testProvider(
+  candidates: readonly DiscoveryCandidate[],
+  options: { provider?: string; actualQuery?: string } = {},
+): DiscoveryProvider {
   return {
     async discover() {
-      return candidates;
+      return {
+        candidates,
+        actualQuery: options.actualQuery ?? 'test query',
+        provider: options.provider ?? 'TEST_PROVIDER',
+      } satisfies DiscoveryResult;
     },
   };
 }
@@ -65,6 +89,7 @@ function deps(provider: DiscoveryProvider): SearchDeps & DiscoveryDeps {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     provider,
   };
 }
@@ -83,15 +108,12 @@ async function createUserAndSession(label: string): Promise<{ userId: string; to
   return { userId, token: minted.token };
 }
 
-function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
+function sampleProfileInput(
+  overrides: Partial<NewSearchServiceProfileInput> = {},
+): NewSearchServiceProfileInput {
   return {
-    service: 'Website development',
-    targetCustomer: 'Restaurants',
+    service: 'Web & Software Development',
     geography: 'Mumbai',
-    minProjectValuePaise: 3_000_000,
-    triggers: ['JOB_POST'],
-    keywords: ['website', 'redesign'],
-    rationale: 'They lack a working website.',
     ...overrides,
   };
 }
@@ -99,7 +121,7 @@ function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): Servi
 async function createRunningSearch(
   d: SearchDeps,
   token: string,
-  overrides: Partial<ServiceProfileInput> = {},
+  overrides: Partial<NewSearchServiceProfileInput> = {},
 ): Promise<StoredSearch> {
   const profile = await createServiceProfile(d, token, sampleProfileInput(overrides));
   const created = await createSearch(d, token, { serviceProfileId: profile.id });
@@ -176,12 +198,16 @@ describe('Discovery execution', () => {
     // (Phase 18 scope doc §26.B) — no live network call.
     const fakeClient: ExternalDiscoveryClient = {
       async searchText(query) {
-        expect(query).toContain('Website development');
-        expect(query).toContain('Restaurants');
+        expect(query).toContain('Web & Software Development');
         expect(query).toContain('Mumbai');
         return [
-          { name: 'Acme Co', websiteUri: 'https://acme.example.com' },
-          { name: null, websiteUri: null }, // malformed — dropped by normalizeCandidate downstream
+          {
+            name: 'Acme Co',
+            websiteUri: 'https://acme.example.com',
+            businessStatus: 'OPERATIONAL',
+            placeId: 'ChIJacmeintegration',
+          },
+          { name: null, websiteUri: null, businessStatus: null, placeId: null }, // malformed — dropped by normalizeCandidate downstream
         ];
       },
     };
@@ -237,7 +263,7 @@ describe('Discovery execution', () => {
     const firstSearch = await createRunningSearch(d, a.token);
     const firstResult = await runDiscovery(d, a.token, { searchId: firstSearch.id });
 
-    const secondSearch = await createRunningSearch(d, a.token, { service: 'SEO audits' });
+    const secondSearch = await createRunningSearch(d, a.token, { service: 'Digital Marketing' });
     const secondResult = await runDiscovery(d, a.token, { searchId: secondSearch.id });
 
     expect(secondResult.companies[0]?.id).toBe(firstResult.companies[0]?.id);
@@ -264,7 +290,78 @@ describe('Discovery execution', () => {
 
     const result = await runDiscovery(d, a.token, { searchId: search.id });
 
-    expect(result.companies).toHaveLength(1);
+    // Global Entity Architecture (C-1): "No Website Co" is no longer
+    // skipped — a wholly absent website is accepted, persisted with a
+    // null normalized_domain. Only the empty-name candidate is skipped.
+    expect(result.companies).toHaveLength(2);
+    expect(result.skipped).toBe(1);
+    expect(result.companies.some((c) => c.normalizedDomain === null)).toBe(true);
+  });
+
+  it('a failed-normalization candidate is logged to discovery_attempts, never creates a DiscoveryEvent or Entity (OQ-8)', async () => {
+    const a = await createUserAndSession('a');
+    const d = deps(
+      testProvider(
+        [
+          { name: '', website: 'https://noname.example.com' },
+          { name: 'Bad URL Co', website: 'not a url and no dots' },
+        ],
+        { provider: 'TEST_PROVIDER', actualQuery: 'plumbers in Pune' },
+      ),
+    );
+    const search = await createRunningSearch(d, a.token);
+
+    const result = await runDiscovery(d, a.token, { searchId: search.id });
     expect(result.skipped).toBe(2);
+
+    const { db } = suite.require();
+    const attempts = await db.client.query(
+      `SELECT failure_reason FROM discovery_attempts WHERE search_id = $1 ORDER BY failure_reason`,
+      [search.id],
+    );
+    expect(attempts.rows.map((r: { failure_reason: string }) => r.failure_reason)).toEqual([
+      'MISSING_NAME',
+      'MISSING_WEBSITE_UNPARSEABLE',
+    ]);
+
+    const events = await db.client.query(
+      `SELECT count(*)::int AS n FROM discovery_events WHERE search_id = $1`,
+      [search.id],
+    );
+    expect(events.rows[0].n).toBe(0);
+  });
+
+  it('Place ID alone resolves an existing Entity across two separate discoveries (OQ-1)', async () => {
+    const a = await createUserAndSession('a');
+    const d1 = deps(
+      testProvider([{ name: 'Acme Co', website: 'https://acme.example.com', placeId: 'ChIJsameplace' }]),
+    );
+    const firstSearch = await createRunningSearch(d1, a.token);
+    const first = await runDiscovery(d1, a.token, { searchId: firstSearch.id });
+
+    // A second discovery, same Place ID, but a DIFFERENT domain this
+    // time — proves the resolver matched on Place ID alone (OQ-1), not
+    // on the (unrelated) domain-based Company dedup index.
+    const d2 = deps(
+      testProvider([
+        { name: 'Acme Co Rebranded', website: 'https://acme-new.example.com', placeId: 'ChIJsameplace' },
+      ]),
+    );
+    const secondSearch = await createRunningSearch(d2, a.token, { service: 'Digital Marketing' });
+    const second = await runDiscovery(d2, a.token, { searchId: secondSearch.id });
+
+    expect(first.companies[0]?.entityId).not.toBeNull();
+    expect(second.companies[0]?.entityId).toBe(first.companies[0]?.entityId);
+    // Different domain -> NOT the same Company row, even though it IS
+    // the same resolved Entity (Company dedup and Entity identity are
+    // deliberately separate mechanisms).
+    expect(second.companies[0]?.id).not.toBe(first.companies[0]?.id);
+
+    const { db } = suite.require();
+    const entityCount = await db.client.query(
+      `SELECT count(DISTINCT entity_id)::int AS n FROM discovery_events WHERE search_id = ANY($1::text[])`,
+      [[firstSearch.id, secondSearch.id]],
+    );
+    expect(entityCount.rows[0].n).toBe(1);
   });
 });

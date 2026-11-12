@@ -25,6 +25,25 @@ export class ResearchProviderError extends Error {
   }
 }
 
+/**
+ * A vendor HTTP call returned a non-2xx status. Provider-neutral — any
+ * fetch-based `ResearchModel` adapter (openAIModel.ts, geminiModel.ts)
+ * throws this on a failed HTTP response instead of a vendor-specific SDK
+ * error type, so `researcher.ts`'s `toProviderError()` classifies it via
+ * the same `status`-based retryable/non-retryable rule it already
+ * applies to the Anthropic SDK's own errors — no per-adapter
+ * classification logic is duplicated.
+ */
+export class ProviderHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ProviderHttpError';
+  }
+}
+
 /** The model declined the request on safety grounds. */
 export class ResearchRefusedError extends Error {
   constructor(readonly category: string | null) {

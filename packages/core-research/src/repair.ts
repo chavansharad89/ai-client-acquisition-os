@@ -35,7 +35,11 @@ export interface RepairIssue {
   message: string;
 }
 
-/** Fields of leadResearchSchema that hold arrays of observations. */
+/**
+ * Fields of leadResearchSchema that hold arrays of independently
+ * repairable items — Observations, or (categoryPlausibility)
+ * CategorySegmentResults (Path 2, D2).
+ */
 const OBSERVATION_LISTS = new Set([
   'visibleProblems',
   'growthOpportunities',
@@ -43,6 +47,7 @@ const OBSERVATION_LISTS = new Set([
   'websiteIssues',
   'contentOpportunities',
   'automationOpportunities',
+  'categoryPlausibility',
 ]);
 
 /**

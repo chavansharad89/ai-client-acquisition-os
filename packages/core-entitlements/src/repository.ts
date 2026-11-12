@@ -2,6 +2,7 @@ import type { ProductId } from '@acos/catalog';
 
 import type { Entitlement, GrantEntitlementInput, GrantResult } from './types';
 import type { StoredAccessToken } from './accessToken';
+import type { StoredClaimToken } from './claimToken';
 
 /**
  * Persistence boundary. Mirrors core-payments' OrderRepository so the
@@ -30,6 +31,33 @@ export interface EntitlementRepository {
     expiresAt: Date;
     now: Date;
   }): Promise<void>;
+
+  /** The entitlement an order paid for, or null if none has been granted yet (webhook/reconciliation pending). */
+  findByOrderId(orderId: string): Promise<Entitlement | null>;
+
+  /** Active entitlements claimed by an authenticated account — the post-claim authorization path. */
+  listActiveByUser(userId: string): Promise<readonly Entitlement[]>;
+
+  saveClaimToken(input: {
+    tokenHash: string;
+    orderId: string;
+    customerEmail: string;
+    expiresAt: Date;
+    now: Date;
+  }): Promise<void>;
+
+  /** Looks a claim token up BY HASH. The plaintext never reaches the database. */
+  findClaimToken(tokenHash: string): Promise<StoredClaimToken | null>;
+
+  /**
+   * Atomically marks a claim token claimed. Returns false if it was
+   * already claimed — the caller's single-use guarantee, enforced by the
+   * database rather than a read-then-write race.
+   */
+  markClaimTokenClaimed(tokenHash: string, now: Date): Promise<boolean>;
+
+  /** Binds every entitlement already held under this email to the newly claimed account. */
+  linkEntitlementsToUser(customerEmail: string, userId: string, now: Date): Promise<void>;
 }
 
 /** Normalises an email the same way the database CHECK requires. */

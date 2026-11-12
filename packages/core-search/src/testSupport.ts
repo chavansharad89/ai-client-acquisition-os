@@ -36,6 +36,8 @@ export function fakeSearchRepository(
         idempotencyKey: input.idempotencyKey,
         createdAt: now,
         updatedAt: now,
+        completedAt: null,
+        aiEscalationUnitsConsumed: 0,
       };
       rows.push(created);
       return created;
@@ -134,6 +136,7 @@ export function fakeSearchRepository(
         leaseOwner: null,
         leaseExpiresAt: null,
         updatedAt: now,
+        completedAt: now,
       };
       return true;
     },
@@ -166,6 +169,30 @@ export function fakeSearchRepository(
         updatedAt: now,
       };
       return status;
+    },
+
+    async consumeAiEscalationUnit({
+      id,
+      workerId,
+      now,
+      budget,
+    }: {
+      id: string;
+      workerId: string;
+      now: Date;
+      budget: number;
+    }) {
+      const index = rows.findIndex(
+        (row) => row.id === id && row.status === 'RUNNING' && row.leaseOwner === workerId,
+      );
+      if (index === -1) return { outcome: 'fenced' } as const;
+      const existing = rows[index]!;
+      if (existing.aiEscalationUnitsConsumed >= budget) {
+        return { outcome: 'exhausted', consumed: existing.aiEscalationUnitsConsumed } as const;
+      }
+      const consumed = existing.aiEscalationUnitsConsumed + 1;
+      rows[index] = { ...existing, aiEscalationUnitsConsumed: consumed, updatedAt: now };
+      return { outcome: 'admitted', consumed } as const;
     },
   };
 }

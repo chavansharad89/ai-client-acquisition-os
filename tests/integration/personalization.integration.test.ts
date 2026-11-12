@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   createPgCompanyRepository,
+  createPgEntityRepository,
   createPgProspectRepository,
   runDiscovery,
   type DiscoveryCandidate,
@@ -33,6 +34,7 @@ import {
   type QualificationDeps,
 } from '@acos/core-qualification';
 import {
+  createPgCategoryPlausibilityRepository,
   createPgResearchSignalRepository,
   runResearch,
   type LeadResearch,
@@ -48,11 +50,12 @@ import {
 } from '@acos/core-search';
 import {
   createPgServiceProfileRepository,
-  createServiceProfile,
   type ServiceProfileInput,
 } from '@acos/core-service-profile';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 
+import { createHistoricalServiceProfile } from './support/historicalServiceProfile';
 import { suiteDatabase } from './support/suiteDb';
 
 // Personalization persistence (migration 0023) — real PostgreSQL.
@@ -70,25 +73,51 @@ import { suiteDatabase } from './support/suiteDb';
 // -----------------------------------------------------------------------
 
 const suite = suiteDatabase('personalization');
+let entityPool: Pool | undefined;
 
-beforeAll(() => suite.setup(), 60_000);
+beforeAll(async () => {
+  await suite.setup();
+  if (suite.reachable()) entityPool = new Pool({ connectionString: suite.require().db.url });
+}, 60_000);
 afterEach(() => suite.cleanup());
-afterAll(() => suite.teardown());
+afterAll(async () => {
+  await entityPool?.end();
+  await suite.teardown();
+});
 
 const WEBSITE = { url: 'https://acme.test', label: 'homepage' };
 
 function matchingResearch(): LeadResearch {
   return {
-    companySummary: {
-      classification: 'OBSERVED',
-      value: 'needs a website redesign',
-      evidence: [{ quote: 'needs a website redesign', sourceUrl: WEBSITE.url, sourceLabel: WEBSITE.label }],
-      basis: null,
-      confidence: 88,
-    },
+    companySummary: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     businessModel: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     targetCustomers: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
-    visibleProblems: [],
+    // One entry: sampleProfileInput()'s targetCustomer ('Restaurants',
+    // line 191) has no ';' and parses to exactly one segment (Path 2,
+    // D2). MATCH is what keeps this fixture's pre-existing QUALIFIED
+    // assertions true now that CATEGORY_PLAUSIBLE also gates state.
+    categoryPlausibility: [
+      {
+        fit: 'MATCH',
+        rationale: 'the homepage says they serve restaurants',
+        evidence: [{ quote: 'we cater to restaurants across the city', sourceUrl: WEBSITE.url, sourceLabel: WEBSITE.label }],
+        confidence: 90,
+      },
+    ],
+    // K8 (evidence-taxonomy audit): this is a problem/gap statement
+    // ("needs a website redesign"), not a topical company description —
+    // R-71 excludes companySummary from offer matching, so the claim
+    // belongs here. Same string, evidence, and confidence as before;
+    // relocated, not duplicated or rewritten.
+    visibleProblems: [
+      {
+        classification: 'OBSERVED',
+        value: 'needs a website redesign',
+        evidence: [{ quote: 'needs a website redesign', sourceUrl: WEBSITE.url, sourceLabel: WEBSITE.label }],
+        basis: null,
+        confidence: 88,
+      },
+    ],
     growthOpportunities: [],
     aiOpportunities: [],
     websiteIssues: [],
@@ -105,6 +134,7 @@ function unmatchedResearch(): LeadResearch {
     companySummary: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     businessModel: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
     targetCustomers: { classification: 'UNKNOWN', value: null, evidence: [], basis: null, confidence: 0 },
+    categoryPlausibility: [],
     visibleProblems: [],
     growthOpportunities: [],
     aiOpportunities: [],
@@ -128,7 +158,7 @@ function testProvider(result: LeadResearch): ResearchProvider {
 function discoveryProvider(candidates: readonly DiscoveryCandidate[]): DiscoveryProvider {
   return {
     async discover() {
-      return candidates;
+      return { candidates, actualQuery: 'test query', provider: 'TEST_PROVIDER' };
     },
   };
 }
@@ -141,7 +171,9 @@ function repos() {
     searches: createPgSearchRepository(db.client),
     companies: createPgCompanyRepository(db.client),
     prospects: createPgProspectRepository(db.client),
+    entities: createPgEntityRepository(entityPool!),
     signals: createPgResearchSignalRepository(db.client),
+    categoryPlausibility: createPgCategoryPlausibilityRepository(db.client),
     opportunities: createPgOpportunityRepository(db.client),
     qualifications: createPgQualificationRepository(db.client),
     personalizations: createPgPersonalizationRepository(db.client),
@@ -187,7 +219,7 @@ async function createUserAndSession(label: string): Promise<{ userId: string; to
 
 function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): ServiceProfileInput {
   return {
-    service: 'Website development',
+    service: 'Web & Software Development',
     targetCustomer: 'Restaurants',
     geography: 'Mumbai',
     minProjectValuePaise: 15_000_000,
@@ -203,9 +235,15 @@ function sampleProfileInput(overrides: Partial<ServiceProfileInput> = {}): Servi
 async function createProspect(
   base: ReturnType<typeof repos>,
   token: string,
+  userId: string,
 ): Promise<{ search: StoredSearch; prospectId: string }> {
   const d = discoveryDeps(base, [{ name: 'Acme Co', website: 'https://acme.example.com' }]);
-  const profile = await createServiceProfile(d, token, sampleProfileInput());
+  // K5-D2/K7: a real, non-sentinel targetCustomer is needed so
+  // category-plausibility-gated qualification actually runs —
+  // createServiceProfile() can no longer supply one for a NEW search,
+  // so this historical-style construction is used instead. See
+  // ./support/historicalServiceProfile.ts.
+  const profile = await createHistoricalServiceProfile(d.profiles, userId, sampleProfileInput());
   const created = await createSearch(d, token, { serviceProfileId: profile.id });
   const running = (await transitionSearch(d, token, created.id, { status: 'RUNNING' }))!;
 
@@ -240,7 +278,7 @@ describe('evaluateOpportunityPersonalization', () => {
   it('R-45: generate -> persist -> read back for a QUALIFIED Opportunity', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
-    const { prospectId } = await createProspect(base, a.token);
+    const { prospectId } = await createProspect(base, a.token, a.userId);
     await runResearch(researchDeps(base, matchingResearch()), a.token, { prospectId });
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
     const qualification = await evaluateQualificationForOwner(base, a.userId, opportunity.id);
@@ -258,7 +296,7 @@ describe('evaluateOpportunityPersonalization', () => {
     expect(stored!.opportunityId).toBe(opportunity.id);
     expect(stored!.prospectId).toBe(prospectId);
     expect(stored!.state).toBe('GENERATED');
-    expect(stored!.offerService).toBe('Website development');
+    expect(stored!.offerService).toBe('Web & Software Development');
     expect(stored!.generatorVersion).toBe(GENERATOR_VERSION);
     expect(stored!.generatedAt).toEqual(now);
     expect(stored!.evidence.length).toBeGreaterThan(0);
@@ -266,7 +304,7 @@ describe('evaluateOpportunityPersonalization', () => {
       true,
     );
     expect(stored!.openingContext).toContain('Acme Co');
-    expect(stored!.valueProposition).toContain('Website development');
+    expect(stored!.valueProposition).toContain('Web & Software Development');
 
     const fetched = await getOpportunityPersonalization(personalizationDeps(base), a.token, opportunity.id);
     expect(fetched).toEqual(stored);
@@ -275,7 +313,7 @@ describe('evaluateOpportunityPersonalization', () => {
   it('R-42: NOT_QUALIFIED (needDetected=false) produces no Personalization', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
-    const { prospectId } = await createProspect(base, a.token);
+    const { prospectId } = await createProspect(base, a.token, a.userId);
     await runResearch(researchDeps(base, unmatchedResearch()), a.token, { prospectId });
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
     expect(opportunity.needDetected).toBe(false);
@@ -296,7 +334,7 @@ describe('evaluateOpportunityPersonalization', () => {
   it('R-42: INSUFFICIENT_EVIDENCE produces no Personalization', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
-    const { prospectId } = await createProspect(base, a.token);
+    const { prospectId } = await createProspect(base, a.token, a.userId);
     await runResearch(researchDeps(base, matchingResearch()), a.token, { prospectId });
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
     await evaluateQualificationForOwner(base, a.userId, opportunity.id);
@@ -314,7 +352,7 @@ describe('evaluateOpportunityPersonalization', () => {
   it('R-42: a missing Qualification (never evaluated) produces no Personalization', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
-    const { prospectId } = await createProspect(base, a.token);
+    const { prospectId } = await createProspect(base, a.token, a.userId);
     await runResearch(researchDeps(base, matchingResearch()), a.token, { prospectId });
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
     // Qualification is deliberately never evaluated.
@@ -327,7 +365,7 @@ describe('evaluateOpportunityPersonalization', () => {
   it('R-42: never modifies Qualification — the row is byte-for-byte unchanged after Personalization runs', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
-    const { prospectId } = await createProspect(base, a.token);
+    const { prospectId } = await createProspect(base, a.token, a.userId);
     await runResearch(researchDeps(base, matchingResearch()), a.token, { prospectId });
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
     const qualification = await evaluateQualificationForOwner(base, a.userId, opportunity.id);
@@ -344,7 +382,7 @@ describe('evaluateOpportunityPersonalization', () => {
   it('R-49/R-50: idempotency — repeated evaluation of unchanged inputs overwrites the same row, no duplicates', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
-    const { prospectId } = await createProspect(base, a.token);
+    const { prospectId } = await createProspect(base, a.token, a.userId);
     await runResearch(researchDeps(base, matchingResearch()), a.token, { prospectId });
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
     await evaluateQualificationForOwner(base, a.userId, opportunity.id);
@@ -376,7 +414,7 @@ describe('evaluateOpportunityPersonalization', () => {
   it('a Qualification that later moves away from QUALIFIED leaves the existing Personalization row untouched', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
-    const { prospectId } = await createProspect(base, a.token);
+    const { prospectId } = await createProspect(base, a.token, a.userId);
     await runResearch(researchDeps(base, matchingResearch()), a.token, { prospectId });
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
     await evaluateQualificationForOwner(base, a.userId, opportunity.id);
@@ -405,7 +443,7 @@ describe('evaluateOpportunityPersonalization', () => {
     const a = await createUserAndSession('a');
     const b = await createUserAndSession('b');
     const base = repos();
-    const { prospectId } = await createProspect(base, a.token);
+    const { prospectId } = await createProspect(base, a.token, a.userId);
     await runResearch(researchDeps(base, matchingResearch()), a.token, { prospectId });
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
     await evaluateQualificationForOwner(base, a.userId, opportunity.id);
@@ -429,7 +467,7 @@ describe('getOpportunityPersonalization', () => {
   it('returns null when the Opportunity has never been personalized', async () => {
     const a = await createUserAndSession('a');
     const base = repos();
-    const { prospectId } = await createProspect(base, a.token);
+    const { prospectId } = await createProspect(base, a.token, a.userId);
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
 
     await expect(
@@ -441,7 +479,7 @@ describe('getOpportunityPersonalization', () => {
     const a = await createUserAndSession('a');
     const b = await createUserAndSession('b');
     const base = repos();
-    const { prospectId } = await createProspect(base, a.token);
+    const { prospectId } = await createProspect(base, a.token, a.userId);
     await runResearch(researchDeps(base, matchingResearch()), a.token, { prospectId });
     const opportunity = await createOpportunity(opportunityDeps(base), a.token, { prospectId });
     await evaluateQualificationForOwner(base, a.userId, opportunity.id);

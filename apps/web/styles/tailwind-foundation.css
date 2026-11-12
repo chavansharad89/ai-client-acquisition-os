@@ -1,0 +1,178 @@
+/* Tailwind v4 + shadcn/ui entry point for NEW routes only.
+   -------------------------------------------------------------------
+   Not imported by app/globals.css or app/layout.tsx. Existing routes
+   (checkout, dashboard, client-finder, marketing) keep rendering from
+   the plain-CSS token system in app/globals.css, unchanged.
+
+   Import this file only from a layout under a new, isolated route
+   group (see app/(marketing-v2)/layout.tsx) so its generated utility
+   CSS is a separate bundle chunk, loaded only for pages nested there. */
+
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.625rem;
+
+  /* ACOS light-theme design tokens (Product Owner-approved palette).
+     --secondary-foreground and --warning-foreground use the dark ink
+     token rather than white: measured WCAG contrast against teal
+     (#0D9488) is ~3.75:1 with white vs. ~4.14:1 with #172033, and
+     against warning amber (#D97706) white is ~3.3:1 vs. ~4.7:1 with
+     #172033 — neither solid fill cleanly clears 4.5:1 for normal text
+     with either choice, but dark ink is the closer of the two. Treat
+     solid teal/amber fills as large-text/icon/outline treatments where
+     possible rather than small body-size labels. */
+  --background: #f8fafc;
+  --foreground: #172033;
+  --card: #ffffff;
+  --card-foreground: #172033;
+  --popover: #ffffff;
+  --popover-foreground: #172033;
+  --primary: #7047eb;
+  --primary-foreground: #ffffff;
+  --secondary: #0d9488;
+  --secondary-foreground: #172033;
+  --muted: #f8fafc;
+  --muted-foreground: #64748b;
+  --accent: #e2e8f0;
+  --accent-foreground: #172033;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --success: #15803d;
+  --success-foreground: #ffffff;
+  --warning: #d97706;
+  --warning-foreground: #172033;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #7047eb;
+
+  /* Approved as "Primary navy" but not assigned a shadcn slot by the
+     design brief (no dark-sidebar-rail or similar surface is in scope
+     for T1-T3) — exposed as a plain token so a later screen can opt in
+     without a second token-mapping decision. */
+  --navy: #171d32;
+
+  /* Plus-specific accent (Learn stage) — approved per the T1 dashboard
+     brief. Pro and Max reuse the existing --primary (#7047EB) and
+     --secondary (#0D9488) tokens as their accents; Plus has no existing
+     slot, so it gets its own pair here, following the same
+     token+foreground convention as --primary/--secondary above. */
+  --plus: #2563eb;
+  --plus-foreground: #ffffff;
+
+  /* Canonical application typography scale (PO-approved, "Library"
+     screenshot reference). Namespaced --acos-type-*, --acos-weight-*,
+     --acos-leading-* — deliberately NOT mapped into Tailwind's own
+     --text-* / --font-weight-* @theme namespace, which would silently
+     resize every existing text-xs/sm/base/lg/xl/2xl/3xl/4xl utility
+     app-wide (Tailwind's own scale already uses those exact names at
+     different pixel values) including uses outside this scale's scope
+     (e.g. Button's small-size variant). Consumed via arbitrary-value
+     syntax at each covered element instead, e.g.
+     text-[length:var(--acos-type-base)]. */
+  --acos-type-xs: 11px;
+  --acos-type-sm: 12px;
+  --acos-type-base: 14px;
+  --acos-type-md: 16px;
+  --acos-type-lg: 18px;
+  --acos-type-xl: 20px;
+  --acos-type-2xl: 24px;
+  --acos-type-3xl: 28px;
+  --acos-type-4xl: 34px;
+
+  --acos-weight-regular: 400;
+  --acos-weight-medium: 500;
+  --acos-weight-semibold: 600;
+  --acos-weight-bold: 700;
+
+  --acos-leading-tight: 1.2;
+  --acos-leading-heading: 1.25;
+  --acos-leading-normal: 1.5;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+}
+
+/* Dark-mode block left on shadcn's generated defaults, unchanged: the
+   approved design direction is light-theme only (no screen in T1-T3
+   toggles the `.dark` class), so there is no ACOS dark palette to
+   apply here yet. Inert until something opts in. */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-navy: var(--navy);
+  --color-plus: var(--plus);
+  --color-plus-foreground: var(--plus-foreground);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Inter, scoped to whichever element carries the next/font variable
+     class (see lib/fonts.ts) — falls back to the system stack outside
+     that subtree, same isolation as the color tokens above. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+/* Deliberately no `body { ... }` rule here: body is owned by the root
+   layout and shared by every route in the app. Background/foreground
+   colors are applied to this route group's own wrapper element
+   instead — see app/(marketing-v2)/layout.tsx. */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
+
+/* (app)/home's hero mountain image — fades its left edge into the hero
+   surface instead of a hard photo edge. A dedicated class (not an inline
+   style) so the gradient-stop numbers live in CSS, not in the page's
+   rendered HTML — a literal "35%" there once tripped page.test.ts's
+   "no fabricated progress number" guard, which scans the whole render. */
+.hero-mountain-mask {
+  mask-image: linear-gradient(to right, transparent, black 35%);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 35%);
+}

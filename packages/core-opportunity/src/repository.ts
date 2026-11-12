@@ -1,6 +1,6 @@
 import type { OpportunityStaleness } from '@acos/core-acquisition';
 
-import type { DetectedOffer, StoredOpportunity } from './types';
+import type { AiEnrichment, AiEnrichmentReason, DetectedOffer, StoredOpportunity } from './types';
 
 /**
  * Persistence boundary for Opportunity. Every operation that touches a
@@ -19,7 +19,13 @@ export interface OpportunityRepository {
    */
   create(
     userId: string,
-    input: { prospectId: string; needDetected: boolean; offer: DetectedOffer | undefined },
+    input: {
+      prospectId: string;
+      needDetected: boolean;
+      offer: DetectedOffer | undefined;
+      /** Phase 7B (MULR item 6) — see {@link StoredOpportunity.relevantSubservices}. */
+      relevantSubservices: readonly string[];
+    },
     now: Date,
   ): Promise<StoredOpportunity>;
 
@@ -50,5 +56,18 @@ export interface OpportunityRepository {
     id: string,
     staleness: OpportunityStaleness,
     computedAt: Date,
+  ): Promise<StoredOpportunity | null>;
+
+  /**
+   * Records this Opportunity's candidate-level AI enrichment provenance
+   * (Phase 6). Scoped by `userId` the same way `updateStaleness` is.
+   * Reclassifiable, not append-only — a retry calling this again for the
+   * same Opportunity updates it in place.
+   */
+  updateAiEnrichment(
+    userId: string,
+    id: string,
+    aiEnrichment: AiEnrichment,
+    aiEnrichmentReason: AiEnrichmentReason | null,
   ): Promise<StoredOpportunity | null>;
 }

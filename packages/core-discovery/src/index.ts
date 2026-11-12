@@ -13,7 +13,30 @@
 export { createPgCompanyRepository, createPgProspectRepository } from './pgRepository';
 export type { CompanyRepository, ProspectRepository } from './repository';
 
-export type { DiscoveryCandidate, DiscoveryProvider } from './provider';
+export {
+  createPgEntityRepository,
+  deriveEntityStatus,
+  EntityResolutionPersistenceError,
+} from './entityRepository';
+export type {
+  DerivedEntityStatus,
+  DiscoveryAttemptFailureReason,
+  DiscoveryEventRecord,
+  EntityRepository,
+  EntityResolutionOutcome,
+  EntityStatusObservation,
+  IdentityAnchorInput,
+  IdentityCategory,
+  RecordFailedAttemptInput,
+  RecordStatusObservationInput,
+  ResolveAndPersistCandidateInput,
+  ResolveAndPersistCandidateResult,
+  SqlClient as EntitySqlClient,
+  SqlPool as EntitySqlPool,
+  StatusObservationRecord,
+} from './entityRepository';
+
+export type { DiscoveryCandidate, DiscoveryProvider, DiscoveryResult } from './provider';
 
 export {
   createGooglePlacesClient,
@@ -25,7 +48,7 @@ export type { ExternalDiscoveryClient, ExternalDiscoveryResult } from './googleP
 export { createGooglePlacesDiscoveryProvider } from './googlePlacesProvider';
 
 export { normalizeCandidate, normalizeDomain } from './normalize';
-export type { NormalizedCandidate } from './normalize';
+export type { NormalizedCandidate, NormalizeCandidateOptions } from './normalize';
 
 export type { ProspectStatus, RunDiscoveryInput, StoredCompany, StoredProspect } from './types';
 

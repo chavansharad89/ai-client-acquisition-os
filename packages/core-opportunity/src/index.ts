@@ -54,6 +54,7 @@ export { createPgOpportunityScoreRepository } from './scorePgRepository';
 export type { OpportunityScoreRepository } from './scoreRepository';
 
 export {
+  buildRankingProfile,
   classifyOpportunityStaleness,
   createOpportunity,
   createOpportunityForOwner,
@@ -64,8 +65,10 @@ export {
   getOpportunityTrackingSummary,
   listOpportunities,
   rankOpportunities,
+  recordAiEnrichmentForOwner,
   recordFeedback,
   scoreOpportunity,
+  scoreOpportunityForOwner,
   SCORER_VERSION,
 } from './service';
 export type {
@@ -75,9 +78,19 @@ export type {
   OpportunityTrackingDeps,
 } from './service';
 
+export { previewOpportunityRanking } from './preview';
+export type { OpportunityRankingPreview } from './preview';
+
+export { literalMatchTermsFor, SERVICE_CATALOG } from './serviceCatalog';
+export type { ServiceFamily } from './serviceCatalog';
+
+export { matchRelevantSubservices } from './subserviceMatching';
+
 export { PROSPECT_ID_MAX_LENGTH, validateCreateOpportunityInput } from './validation';
 
 export type {
+  AiEnrichment,
+  AiEnrichmentReason,
   CreateOpportunityInput,
   DetectedOffer,
   OpportunityState,

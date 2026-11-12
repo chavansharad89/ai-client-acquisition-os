@@ -131,6 +131,7 @@ async function deliver(
     transaction: env.transaction,
     buildMetaEventId: (paymentId) => buildPurchaseEventId({ paymentId }),
     eventId,
+    clientFinderSubscriptionDurationDays: 30,
   });
   if (outcome.status === 'rejected') {
     await recordWebhookRejection(env.pool, outcome.rejection);

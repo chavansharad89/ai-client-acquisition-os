@@ -1,5 +1,5 @@
 export type { Currency, Product, ProductCatalog, ProductId } from './types';
-export { PRODUCT_CATALOG, PRODUCT_IDS, listProducts } from './products';
+export { isRetiredFromNewPurchases, listProducts, PRODUCT_CATALOG, PRODUCT_IDS } from './products';
 export { getProduct, isValidProductId, resolveProduct } from './validate';
 export { InvalidProductIdError } from './errors';
 export { formatPaiseAsInr, paiseToWholeRupees } from './format';

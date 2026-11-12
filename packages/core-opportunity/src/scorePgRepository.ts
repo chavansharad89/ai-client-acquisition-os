@@ -1,4 +1,4 @@
-import type { FactorScore, ProspectScore, ScoreBand } from '@acos/core-acquisition';
+import { RANKING_DIMENSIONS, RANKING_TIERS, type UniversalRankingProfile } from '@acos/core-acquisition';
 import type { SqlExecutor } from '@acos/core-entitlements';
 
 import type { OpportunityScoreRepository } from './scoreRepository';
@@ -17,59 +17,61 @@ import type { StoredOpportunityScore } from './types';
 //
 // One current score per Opportunity: upsert always writes via
 // INSERT ... ON CONFLICT (opportunity_id) DO UPDATE, never a second row.
+//
+// Qualitative ranking (migration 0044, Phase 3): `factors` (JSONB,
+// untyped at the database level) is repurposed to hold the per-dimension
+// UniversalRankingProfile instead of the old seven-factor array — no
+// column rename, since the column never had a fixed shape to begin
+// with. `total`/`band`/`observed_share` are the legacy numeric scorer's
+// columns, now nullable (migration 0044); this repository writes NULL
+// for all three on every row it produces and never selects them back —
+// see that migration's header for why they are not dropped outright.
+// `cap` is likewise left unpopulated (NULL) going forward.
 // -----------------------------------------------------------------------
 
 interface OpportunityScoreRow {
   id: string;
   opportunity_id: string;
-  total: number;
-  band: ScoreBand;
-  factors: FactorScore[];
+  /**
+   * Untyped JSONB — a row written before migration 0044
+   * (scorer_version 'prospectScore-v1') still holds the legacy
+   * seven-factor array here, not a UniversalRankingProfile. Narrowed by
+   * asUniversalRankingProfile() in mapRow(), never assumed.
+   */
+  factors: unknown;
   reasons: string[];
-  observed_share: number;
-  cap: string | null;
   scorer_version: string;
   scored_at: Date;
   created_at: Date;
 }
 
-const COLUMNS = `id, opportunity_id, total, band, factors, reasons, observed_share, cap,
-  scorer_version, scored_at, created_at`;
+const COLUMNS = `id, opportunity_id, factors, reasons, scorer_version, scored_at, created_at`;
 
 export function createPgOpportunityScoreRepository(sql: SqlExecutor): OpportunityScoreRepository {
   return {
     async upsert(
       opportunityId: string,
-      score: ProspectScore,
-      scorerVersion: string,
+      ranking: UniversalRankingProfile,
+      reasons: readonly string[],
+      rankerVersion: string,
       scoredAt: Date,
     ): Promise<StoredOpportunityScore> {
       const { rows } = await sql.query(
         `INSERT INTO opportunity_scores
            (id, opportunity_id, total, band, factors, reasons, observed_share, cap,
             scorer_version, scored_at)
-         VALUES (gen_random_uuid()::text, $1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9)
+         VALUES (gen_random_uuid()::text, $1, NULL, NULL, $2::jsonb, $3, NULL, NULL, $4, $5)
          ON CONFLICT (opportunity_id) DO UPDATE SET
-           total = EXCLUDED.total,
-           band = EXCLUDED.band,
+           total = NULL,
+           band = NULL,
            factors = EXCLUDED.factors,
            reasons = EXCLUDED.reasons,
-           observed_share = EXCLUDED.observed_share,
-           cap = EXCLUDED.cap,
+           observed_share = NULL,
+           cap = NULL,
            scorer_version = EXCLUDED.scorer_version,
            scored_at = EXCLUDED.scored_at
          RETURNING ${COLUMNS}`,
-        [
-          opportunityId,
-          score.score,
-          score.band,
-          JSON.stringify(score.factors),
-          [...score.reasons],
-          score.observedShare,
-          score.cap ?? null,
-          scorerVersion,
-          scoredAt,
-        ],
+        [opportunityId, JSON.stringify(ranking), [...reasons], rankerVersion, scoredAt],
       );
       return mapRow(rows[0] as OpportunityScoreRow);
     },
@@ -79,8 +81,8 @@ export function createPgOpportunityScoreRepository(sql: SqlExecutor): Opportunit
       opportunityId: string,
     ): Promise<StoredOpportunityScore | null> {
       const { rows } = await sql.query(
-        `SELECT os.id, os.opportunity_id, os.total, os.band, os.factors, os.reasons,
-                os.observed_share, os.cap, os.scorer_version, os.scored_at, os.created_at
+        `SELECT os.id, os.opportunity_id, os.factors, os.reasons,
+                os.scorer_version, os.scored_at, os.created_at
            FROM opportunity_scores os
            JOIN opportunities o ON o.id = os.opportunity_id
           WHERE o.id = $2 AND o.user_id = $1`,
@@ -92,8 +94,8 @@ export function createPgOpportunityScoreRepository(sql: SqlExecutor): Opportunit
 
     async listByUserId(userId: string): Promise<readonly StoredOpportunityScore[]> {
       const { rows } = await sql.query(
-        `SELECT os.id, os.opportunity_id, os.total, os.band, os.factors, os.reasons,
-                os.observed_share, os.cap, os.scorer_version, os.scored_at, os.created_at
+        `SELECT os.id, os.opportunity_id, os.factors, os.reasons,
+                os.scorer_version, os.scored_at, os.created_at
            FROM opportunity_scores os
            JOIN opportunities o ON o.id = os.opportunity_id
           WHERE o.user_id = $1`,
@@ -104,17 +106,31 @@ export function createPgOpportunityScoreRepository(sql: SqlExecutor): Opportunit
   };
 }
 
+/**
+ * Narrows `factors` to a real UniversalRankingProfile only when it
+ * structurally has one — every ranking dimension present, each value a
+ * valid tier. A legacy 'prospectScore-v1' row's `factors` is an array
+ * (the old seven-factor breakdown) and fails this check, so it is never
+ * reinterpreted as qualitative ranking data (migration 0044's own
+ * intent: historical rows are frozen artifacts, not re-mapped).
+ */
+function asUniversalRankingProfile(value: unknown): UniversalRankingProfile | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const hasEveryDimension = RANKING_DIMENSIONS.every((dimension) => {
+    const tier = record[dimension];
+    return typeof tier === 'string' && (RANKING_TIERS as readonly string[]).includes(tier);
+  });
+  return hasEveryDimension ? (value as UniversalRankingProfile) : null;
+}
+
 function mapRow(row: OpportunityScoreRow): StoredOpportunityScore {
   return {
     id: row.id,
     opportunityId: row.opportunity_id,
-    total: row.total,
-    band: row.band,
-    factors: row.factors,
+    ranking: asUniversalRankingProfile(row.factors),
     reasons: row.reasons,
-    observedShare: row.observed_share,
-    cap: row.cap ?? undefined,
-    scorerVersion: row.scorer_version,
+    rankerVersion: row.scorer_version,
     scoredAt: new Date(row.scored_at),
     createdAt: new Date(row.created_at),
   };

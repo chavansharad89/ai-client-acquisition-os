@@ -123,6 +123,18 @@ export type { LeadScore, ResearchSignal, ResearchSourceKind, ScoreComponent } fr
 export { classifyStaleness } from './staleness';
 export type { OpportunityStaleness } from './staleness';
 
+export {
+  compareRankingProfiles,
+  IMPORTANT_DIMENSIONS,
+  PRIMARY_DIMENSIONS,
+  RANKING_DIMENSIONS,
+  RANKING_TIERS,
+  rankByUniversalProfile,
+  SUPPORTING_DIMENSIONS,
+  unknownRankingProfile,
+} from './universalRanking';
+export type { RankingDimension, RankingTier, UniversalRankingProfile } from './universalRanking';
+
 export { recommendOpportunityAction } from './opportunityAction';
 export type { OpportunityAction, OpportunityActionInput, OpportunityActionKind } from './opportunityAction';
 

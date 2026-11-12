@@ -26,7 +26,9 @@ Never state a company's revenue, headcount, funding, customer count, or tooling 
 
 For recommendedService, "NONE" is a legitimate answer when the documents do not support a specific offer. Choosing it is better than recommending something generic.
 
-List anything you could not determine in "gaps".`;
+List anything you could not determine in "gaps".
+
+If TARGET CUSTOMER SEGMENTS TO EVALUATE are listed below, return exactly one entry in "categoryPlausibility" for each one, in the SAME order they are listed. For each segment, decide MATCH (the evidence shows this business serves that specific segment), MISMATCH (the evidence shows it does not), or UNKNOWN (the evidence does not say either way). A segment being merely plausible or a generic fit is not enough for MATCH or MISMATCH — if the evidence is not specific enough to be sure, the verdict is UNKNOWN. MATCH and MISMATCH each require at least one quoted, cited piece of evidence, exactly like an OBSERVED claim elsewhere in this response. The quotes you cite must themselves state the verdict, or contain every premise it follows from; if the verdict needs anything not in your cited quotes — background knowledge, the business name alone, or the mere absence of a mention — the verdict is UNKNOWN. Every entry needs a one-sentence "rationale": for MATCH/MISMATCH, why the quotes support the verdict; for UNKNOWN, what evidence was absent or insufficient for that segment. Give each entry a "confidence": 1-100 for MATCH/MISMATCH (how strongly the cited quotes support it), exactly 0 for UNKNOWN. If no segments are listed, return an empty "categoryPlausibility" array.`;
 
 /** Renders the input into the user message. Pure, so the prompt is testable. */
 export function buildUserMessage(input: ResearchInput): string {
@@ -37,6 +39,15 @@ export function buildUserMessage(input: ResearchInput): string {
     input.location ? `Location (supplied, unverified): ${input.location}` : null,
     input.socialProfileUrl ? `Social profile: ${input.socialProfileUrl}` : null,
   ].filter(Boolean);
+
+  const segments =
+    (input.targetSegments ?? []).length > 0
+      ? [
+          '',
+          'TARGET CUSTOMER SEGMENTS TO EVALUATE (in this exact order):',
+          ...input.targetSegments.map((segment, index) => `${index + 1}. ${segment}`),
+        ]
+      : [];
 
   const documents =
     input.sourceDocuments.length === 0
@@ -54,6 +65,7 @@ export function buildUserMessage(input: ResearchInput): string {
     '',
     'The industry and location above were supplied by the operator, not verified by you.',
     'Treat them as INFERRED at best; do not cite them as OBSERVED.',
+    ...segments,
     '',
     'SOURCE DOCUMENTS',
     documents,

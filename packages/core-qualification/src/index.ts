@@ -23,7 +23,7 @@
 export { evaluateQualification } from './evaluator';
 export type { QualificationEvaluatorInput } from './evaluator';
 
-export { evaluateEvidencePresent, evaluateNeedDetected } from './rules';
+export { evaluateCategoryPlausible, evaluateEvidencePresent, evaluateNeedDetected } from './rules';
 
 export { createPgQualificationRepository } from './pgRepository';
 export type { QualificationRepository } from './repository';

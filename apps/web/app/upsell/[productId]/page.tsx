@@ -1,12 +1,16 @@
+
+import { getProduct, isRetiredFromNewPurchases, isValidProductId } from '@acos/catalog';
+import { isDuplicatePurchase } from '@acos/core-entitlements';
+import { recordFunnelEvent } from '@acos/core-funnel-events';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-
-import { getProduct, isValidProductId } from '@acos/catalog';
-import { isDuplicatePurchase } from '@acos/core-entitlements';
 
 import { PriceTag } from '../../../src/components/PriceTag';
 import { UpsellTracker } from '../../../src/components/UpsellTracker';
 import { currentAccess } from '../../../src/server/access';
+import { getCustomerDisplayName } from '../../../src/server/customerDisplayName';
+import { getPool } from '../../../src/server/db';
+import { readVisitorIdFromServerComponent } from '../../../src/server/visitor';
 
 // The post-purchase upsell.
 // -----------------------------------------------------------------------
@@ -18,7 +22,14 @@ import { currentAccess } from '../../../src/server/access';
 export default async function UpsellPage({ params }: { params: { productId: string } }) {
   if (!isValidProductId(params.productId)) notFound();
   const product = getProduct(params.productId);
+
+  // Retired from new purchases (COMMERCIAL-PO-05/17): this upsell must
+  // never offer the legacy SKU to a ₹499 buyer, even though the id
+  // still resolves (existing owners of it are unaffected elsewhere).
+  if (isRetiredFromNewPurchases(product.id)) notFound();
+
   const access = await currentAccess();
+  const displayName = await getCustomerDisplayName(product.id);
 
   // Duplicate purchase handling: never offer something already owned.
   const alreadyOwned = access.granted && isDuplicatePurchase(access.context.purchased, product.id);
@@ -29,7 +40,7 @@ export default async function UpsellPage({ params }: { params: { productId: stri
         <div className="stack" style={{ maxWidth: '56ch' }}>
           <h1 className="page-title">You already have this</h1>
           <p className="lede">
-            The {product.name} is already in your library — there is nothing to buy here.
+            The {displayName} is already in your library — there is nothing to buy here.
           </p>
           <p>
             <Link className="btn btn-primary" href="/access">
@@ -39,6 +50,28 @@ export default async function UpsellPage({ params }: { params: { productId: stri
         </div>
       </main>
     );
+  }
+
+  // PCG-3A/3B exposure instrumentation (ED-5/B-1): the server-rendered
+  // offer screen itself is the authoritative "exposure" record — the
+  // client-side UpsellTracker below fires a browser event for UI
+  // analytics only and is NOT the gate's data source (see that
+  // component). product.id is the existing server-resolved tier
+  // identity (no invented analytics-only ₹1,499 component). Fail-soft:
+  // a request that reached this page without the visitor cookie (e.g.
+  // middleware did not run) still renders the offer; it just is not
+  // counted.
+  const visitorId = readVisitorIdFromServerComponent();
+  if (visitorId) {
+    await recordFunnelEvent(getPool(), {
+      eventName: 'upsell_viewed',
+      visitorId,
+      userId: null,
+      subjectType: 'product',
+      subjectId: product.id,
+      payload: { fromTier: access.funnel.tier },
+      occurredAt: new Date(),
+    });
   }
 
   return (
@@ -51,7 +84,7 @@ export default async function UpsellPage({ params }: { params: { productId: stri
         </p>
         <h1 className="page-title">Before you go — the next step up</h1>
         <p className="lede">
-          You have the fundamentals. The {product.name} is what turns them into paid work, and it
+          You have the fundamentals. The {displayName} is what turns them into paid work, and it
           includes everything you just bought.
         </p>
 
@@ -74,9 +107,9 @@ export default async function UpsellPage({ params }: { params: { productId: stri
   );
 }
 
-export function generateMetadata({ params }: { params: { productId: string } }) {
+export async function generateMetadata({ params }: { params: { productId: string } }) {
   if (!isValidProductId(params.productId)) return { title: 'Upsell' };
-  return { title: `Add the ${getProduct(params.productId).name}` };
+  return { title: `Add the ${await getCustomerDisplayName(params.productId)}` };
 }
 
 export const dynamic = 'force-dynamic'; // entitlement-dependent; never cached

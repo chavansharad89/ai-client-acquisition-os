@@ -29,7 +29,18 @@ export interface SourceDocumentTarget {
 
 export interface SourceDocumentProvider {
   fetchSourceDocuments(target: SourceDocumentTarget): Promise<readonly SourceDocument[]>;
+  /**
+   * How this provider turns a fetched page into model-facing text —
+   * recorded with every A11-P1 M-2 source capture. Optional so existing
+   * providers/fakes keep compiling; an undeclared path is recorded as
+   * 'UNDECLARED', never guessed.
+   */
+  readonly extractionMethod?: string;
 }
+
+/** The extraction path createHttpSourceDocumentProvider() implements (see extractText()). */
+export const HTTP_HOMEPAGE_EXTRACTION_METHOD =
+  'https-homepage:jsdom+readability:textContent:trim+collapse-whitespace';
 
 /** Transient — network failure, timeout, or 5xx. Bounded-retried once inside this provider, then thrown. */
 export class SourceFetchTransportError extends Error {
@@ -161,6 +172,7 @@ export function createHttpSourceDocumentProvider(
   const sleep = options.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
 
   return {
+    extractionMethod: HTTP_HOMEPAGE_EXTRACTION_METHOD,
     async fetchSourceDocuments(target) {
       const url = `https://${target.normalizedDomain}`;
 

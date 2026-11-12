@@ -1,18 +1,10 @@
-import { ProductLanding } from '../../../src/components/ProductLanding';
+import { permanentRedirect } from 'next/navigation';
 
-export const metadata = { title: 'AI Client Acquisition System' };
-
-export default function ClientAcquisitionSystemPage() {
-  return (
-    <ProductLanding
-      productId="ai_client_acquisition_1499"
-      blurb="The full operating system: the acquisition funnel, the delivery workflow, and the automation that keeps both running without you."
-      includes={[
-        'Everything in the AI Freelancing Launch Kit',
-        'The acquisition funnel, end to end',
-        'Delivery workflow and client handover checklists',
-        'Automation recipes for follow-up, invoicing and reporting',
-      ]}
-    />
-  );
+// This product (ai_client_acquisition_1499) is retired from new
+// purchases (COMMERCIAL-PO-05/17) — this route no longer offers a
+// purchase path. Redirecting rather than deleting the route preserves
+// any existing bookmarks/links while sending a new visitor to the
+// current ₹1,499 product, AI Client Finder — 30 Days.
+export default function ClientAcquisitionSystemPage(): never {
+  permanentRedirect('/kits');
 }

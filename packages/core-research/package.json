@@ -15,6 +15,7 @@
     "@acos/core-discovery": "workspace:*",
     "@acos/core-entitlements": "workspace:*",
     "@acos/core-identity": "workspace:*",
+    "@acos/core-search": "workspace:*",
     "@anthropic-ai/sdk": "^0.125.0",
     "@mozilla/readability": "^0.6.0",
     "jsdom": "^24.1.3",

@@ -10,9 +10,17 @@ const SDK_URL = 'https://checkout.razorpay.com/v1/checkout.js';
 
 export interface RazorpayOptions {
   key: string;
-  order_id: string;
-  amount: number;
-  currency: string;
+  /** One-time order checkout. Mutually exclusive with `subscription_id`. */
+  order_id?: string;
+  /**
+   * Recurring subscription checkout. Mutually exclusive with `order_id`.
+   * `amount`/`currency` are deliberately absent alongside it — Razorpay
+   * reads the charge amount from the Plan attached to the subscription,
+   * not from this options object.
+   */
+  subscription_id?: string;
+  amount?: number;
+  currency?: string;
   name: string;
   description: string;
   prefill: { email?: string; contact?: string };

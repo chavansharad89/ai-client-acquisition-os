@@ -50,3 +50,10 @@ export async function checkCreateOrderLimits(
 ): Promise<RateLimitDecision> {
   return consumeAll(getRateLimiter(), checks);
 }
+
+/** Same limiter, generic name — for the claim/auth surface, which checkCreateOrderLimits predates. */
+export async function checkLimits(
+  checks: readonly { identifier: string; policy: RateLimitPolicy }[],
+): Promise<RateLimitDecision> {
+  return consumeAll(getRateLimiter(), checks);
+}

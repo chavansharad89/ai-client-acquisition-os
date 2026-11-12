@@ -9,14 +9,22 @@ import { PriceTag } from './PriceTag';
  * not a fetch — so it works before hydration and is keyboard/right-click
  * friendly, and the price shown here is never what gets charged.
  */
-export function ProductCard({ product, blurb }: { product: Product; blurb: string }) {
+export function ProductCard({
+  product,
+  displayName,
+  blurb,
+}: {
+  product: Product;
+  displayName: string;
+  blurb: string;
+}) {
   return (
     <article className="card">
-      <h2>{product.name}</h2>
+      <h2>{displayName}</h2>
       <PriceTag amountPaise={product.amountPaise} />
       <p>{blurb}</p>
       <Link className="btn btn-primary btn-block" href={`/checkout/${product.id}`}>
-        Buy {product.name}
+        Buy {displayName}
       </Link>
     </article>
   );

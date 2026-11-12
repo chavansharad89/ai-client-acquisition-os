@@ -177,6 +177,39 @@ describe('recordAiUsageEvent', () => {
 
     expect(usageEvents.rows).toHaveLength(2);
   });
+
+  it("persists requestKind = 'fallback' (migration 0026, Multi-Model Research Provider) with its own provider/model identity", async () => {
+    const d = deps({ sessions: sessionFor('tok-a', 'user_a') });
+
+    const stored = await recordAiUsageEvent(
+      d,
+      'tok-a',
+      'prospect_1',
+      sampleUsage({ provider: 'openai', model: 'gpt-test', providerMessageId: 'chatcmpl_fallback_1' }),
+      'fallback',
+    );
+
+    expect(stored.requestKind).toBe('fallback');
+    expect(stored.provider).toBe('openai');
+    expect(stored.model).toBe('gpt-test');
+  });
+
+  it("distinguishes 'initial', 'repair' and 'fallback' as three separate, non-colliding events for the same prospect", async () => {
+    const d = deps({ sessions: sessionFor('tok-a', 'user_a') });
+    const usageEvents = d.usageEvents as ReturnType<typeof fakeAiUsageEventRepository>;
+
+    await recordAiUsageEvent(d, 'tok-a', 'prospect_1', sampleUsage({ providerMessageId: 'm1' }), 'initial');
+    await recordAiUsageEvent(d, 'tok-a', 'prospect_1', sampleUsage({ providerMessageId: 'm2' }), 'repair');
+    await recordAiUsageEvent(
+      d,
+      'tok-a',
+      'prospect_1',
+      sampleUsage({ provider: 'openai', providerMessageId: 'm3' }),
+      'fallback',
+    );
+
+    expect(usageEvents.rows.map((row) => row.requestKind).sort()).toEqual(['fallback', 'initial', 'repair']);
+  });
 });
 
 describe('listAiUsageEvents', () => {

@@ -1,7 +1,7 @@
 import type { SqlExecutor } from '@acos/core-entitlements';
 import type { ServiceProfileFields } from '@acos/core-service-profile';
 
-import type { SearchRepository } from './repository';
+import type { ConsumeAiEscalationUnitResult, SearchRepository } from './repository';
 import type { SearchStatus, StoredSearch } from './types';
 
 // PostgreSQL implementation.
@@ -34,11 +34,14 @@ interface SearchRow {
   idempotency_key: string | null;
   created_at: Date;
   updated_at: Date;
+  completed_at: Date | null;
+  ai_escalation_units_consumed: number;
 }
 
 const COLUMNS = `id, user_id, service_profile_id, status, service, target_customer, geography,
                   min_project_value_paise, triggers, keywords, rationale, attempts, last_error,
-                  lease_owner, lease_expires_at, idempotency_key, created_at, updated_at`;
+                  lease_owner, lease_expires_at, idempotency_key, created_at, updated_at, completed_at,
+                  ai_escalation_units_consumed`;
 
 export function createPgSearchRepository(sql: SqlExecutor): SearchRepository {
   return {
@@ -202,7 +205,8 @@ export function createPgSearchRepository(sql: SqlExecutor): SearchRepository {
             SET status = 'COMPLETE',
                 lease_owner = NULL,
                 lease_expires_at = NULL,
-                updated_at = $3
+                updated_at = $3,
+                completed_at = $3
           WHERE id = $1 AND status = 'RUNNING' AND lease_owner = $2`,
         [id, workerId, now],
       );
@@ -236,6 +240,46 @@ export function createPgSearchRepository(sql: SqlExecutor): SearchRepository {
       const row = rows[0] as { status: 'PENDING' | 'FAILED' } | undefined;
       return row ? row.status : null;
     },
+
+    async consumeAiEscalationUnit({
+      id,
+      workerId,
+      now,
+      budget,
+    }: {
+      id: string;
+      workerId: string;
+      now: Date;
+      budget: number;
+    }): Promise<ConsumeAiEscalationUnitResult> {
+      const { rows } = await sql.query(
+        `UPDATE searches
+            SET ai_escalation_units_consumed = ai_escalation_units_consumed + 1,
+                updated_at = $4
+          WHERE id = $1 AND status = 'RUNNING' AND lease_owner = $2
+            AND ai_escalation_units_consumed < $3
+          RETURNING ai_escalation_units_consumed`,
+        [id, workerId, budget, now],
+      );
+      const row = rows[0] as { ai_escalation_units_consumed: number } | undefined;
+      if (row) return { outcome: 'admitted', consumed: row.ai_escalation_units_consumed };
+
+      // 0 rows written could mean "fenced" (lease lost) OR "exhausted"
+      // (budget already at the ceiling) — disambiguate with a read, the
+      // same way any other fenced write in this file leaves the caller to
+      // do when it needs to tell the two apart.
+      const { rows: current } = await sql.query(
+        `SELECT status, lease_owner, ai_escalation_units_consumed FROM searches WHERE id = $1`,
+        [id],
+      );
+      const row2 = current[0] as
+        | { status: SearchStatus; lease_owner: string | null; ai_escalation_units_consumed: number }
+        | undefined;
+      if (!row2 || row2.status !== 'RUNNING' || row2.lease_owner !== workerId) {
+        return { outcome: 'fenced' };
+      }
+      return { outcome: 'exhausted', consumed: row2.ai_escalation_units_consumed };
+    },
   };
 }
 
@@ -261,5 +305,7 @@ function mapRow(row: SearchRow): StoredSearch {
     idempotencyKey: row.idempotency_key,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
+    completedAt: row.completed_at ? new Date(row.completed_at) : null,
+    aiEscalationUnitsConsumed: row.ai_escalation_units_consumed,
   };
 }

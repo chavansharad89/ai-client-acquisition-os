@@ -24,17 +24,104 @@ describe('createGooglePlacesClient', () => {
       expect(String(url)).toBe('https://places.googleapis.com/v1/places:searchText');
       const headers = init?.headers as Record<string, string>;
       expect(headers['X-Goog-Api-Key']).toBe('test-key');
-      expect(headers['X-Goog-FieldMask']).toBe('places.displayName,places.websiteUri');
+      expect(headers['X-Goog-FieldMask']).toBe(
+        'places.id,places.displayName,places.websiteUri,places.businessStatus',
+      );
       expect(JSON.parse(init?.body as string)).toEqual({ textQuery: 'plumbers in Pune' });
       return jsonResponse(200, {
-        places: [{ displayName: { text: 'Acme Plumbing' }, websiteUri: 'https://acme.example.com' }],
+        places: [
+          {
+            id: 'ChIJabc123',
+            displayName: { text: 'Acme Plumbing' },
+            websiteUri: 'https://acme.example.com',
+            businessStatus: 'OPERATIONAL',
+          },
+        ],
       });
     });
 
     const client = createGooglePlacesClient({ apiKey: 'test-key', fetchImpl: fetchImpl as typeof fetch });
     const results = await client.searchText('plumbers in Pune');
 
-    expect(results).toEqual([{ name: 'Acme Plumbing', websiteUri: 'https://acme.example.com' }]);
+    expect(results).toEqual([
+      {
+        name: 'Acme Plumbing',
+        websiteUri: 'https://acme.example.com',
+        businessStatus: 'OPERATIONAL',
+        placeId: 'ChIJabc123',
+      },
+    ]);
+  });
+
+  // Global Entity Architecture (ENGINEERING_SPECIFICATION_FINAL.md Q1, D21/D22).
+  it('extracts placeId when present; normalizes a missing or malformed id to null', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(200, {
+        places: [
+          { id: 'ChIJxyz789', displayName: { text: 'Has Id Co' }, websiteUri: 'https://hasid.example.com' },
+          { displayName: { text: 'No Id Co' }, websiteUri: 'https://noid.example.com' },
+          { id: 12345, displayName: { text: 'Malformed Id Co' }, websiteUri: 'https://malformed.example.com' },
+        ],
+      }),
+    );
+    const client = createGooglePlacesClient({ apiKey: 'k', fetchImpl: fetchImpl as typeof fetch });
+
+    const results = await client.searchText('q');
+
+    expect(results[0]?.placeId).toBe('ChIJxyz789');
+    expect(results[1]?.placeId).toBeNull();
+    expect(results[2]?.placeId).toBeNull();
+  });
+
+  // Billing-tier regression test, mirroring the existing businessStatus
+  // precedent (D11): places.id must be present in the field mask without
+  // changing the request's billing tier (externally verified — `id` is
+  // Text Search Essentials/IDs-Only, strictly below the Enterprise tier
+  // `websiteUri` already incurs).
+  it('includes places.id in the field mask without introducing a second, higher-tier field request', async () => {
+    const fetchImpl = vi.fn(async (_url: string | URL, init?: RequestInit) => {
+      const headers = init?.headers as Record<string, string>;
+      const mask = headers['X-Goog-FieldMask'] ?? '';
+      expect(mask.split(',')).toEqual([
+        'places.id',
+        'places.displayName',
+        'places.websiteUri',
+        'places.businessStatus',
+      ]);
+      return jsonResponse(200, { places: [] });
+    });
+    const client = createGooglePlacesClient({ apiKey: 'k', fetchImpl: fetchImpl as typeof fetch });
+
+    await client.searchText('q');
+  });
+
+  // Phase 8 (CF-PHASE8-ENTITY-REALITY-ACTIVATION-PO-DEC-001, D11/D16).
+  it('extracts businessStatus when present, and normalizes a missing businessStatus to null', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(200, {
+        places: [
+          { displayName: { text: 'Closed Co' }, websiteUri: 'https://closed.example.com', businessStatus: 'CLOSED_PERMANENTLY' },
+          { displayName: { text: 'No Status Co' }, websiteUri: 'https://nostatus.example.com' },
+        ],
+      }),
+    );
+    const client = createGooglePlacesClient({ apiKey: 'k', fetchImpl: fetchImpl as typeof fetch });
+
+    const results = await client.searchText('q');
+
+    expect(results[0]?.businessStatus).toBe('CLOSED_PERMANENTLY');
+    expect(results[1]?.businessStatus).toBeNull();
+  });
+
+  it('normalizes a non-object place entry to a fully-null result, including placeId', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { places: [null] }));
+    const client = createGooglePlacesClient({ apiKey: 'k', fetchImpl: fetchImpl as typeof fetch });
+
+    const results = await client.searchText('q');
+
+    expect(results).toEqual([
+      { name: null, websiteUri: null, businessStatus: null, placeId: null },
+    ]);
   });
 
   it('returns an empty array for an empty places list', async () => {

@@ -56,6 +56,12 @@ afterEach(async () => {
     await current.db.drop().catch(() => undefined);
     current = null;
   }
+  // Only the activation-email tests below set these; cleared here so a
+  // later test in this file (which relies on EMAIL_PROVIDER being unset,
+  // for the console-sender fallback) never inherits them.
+  delete process.env.EMAIL_PROVIDER;
+  delete process.env.RESEND_API_KEY;
+  delete process.env.RESEND_FROM_EMAIL;
   vi.resetModules();
 });
 
@@ -106,8 +112,48 @@ async function freshRoute(label: string): Promise<Env> {
   const store = (await import('../../apps/web/src/server/webhookStore')) as {
     closeWebhookPool: () => Promise<void>;
   };
-  current = { db, close: store.closeWebhookPool };
+  const clientFinderDb = (await import('../../apps/web/src/server/db')) as {
+    closeClientFinderPool: () => Promise<void>;
+  };
+  current = {
+    db,
+    close: async () => {
+      // The subscription-activation path below reaches
+      // clientFinderRepositories(), which opens its own pool (apps/web/
+      // src/server/db.ts) separate from webhookStore's — both need
+      // closing or this file's temp databases cannot be dropped.
+      await store.closeWebhookPool();
+      await clientFinderDb.closeClientFinderPool();
+    },
+  };
   return { db, post: mod.POST };
+}
+
+async function seedClientFinderUser(env: Env, suffix: string): Promise<{ id: string; email: string }> {
+  const id = `user_${suffix}`;
+  const email = `user_${suffix}@example.test`;
+  await env.db.client.query(`INSERT INTO users (id, email) VALUES ($1, $2)`, [id, email]);
+  return { id, email };
+}
+
+function subscriptionChargedBody(opts: { razorpaySubscriptionId: string; paymentId: string; userId: string }): string {
+  return JSON.stringify({
+    event: 'subscription.charged',
+    payload: {
+      subscription: {
+        entity: { id: opts.razorpaySubscriptionId, status: 'active', notes: { userId: opts.userId } },
+      },
+      payment: {
+        entity: {
+          id: opts.paymentId,
+          order_id: `order_auto_${opts.paymentId}`,
+          amount: 149_900,
+          currency: 'INR',
+          status: 'captured',
+        },
+      },
+    },
+  });
 }
 
 async function seedOrder(env: Env, suffix: string): Promise<string> {
@@ -435,4 +481,118 @@ describe('POST /api/webhooks/razorpay — the real route handler', () => {
       meta_events: 0,
     });
   }, 60_000);
+
+  // ---------------------------- AUTH Phase 2 activation email dispatch ----
+  describe('subscription.charged — AUTH Phase 2 activation email dispatch', () => {
+    it('grants the subscription period and dispatches the activation email (console sender, no EMAIL_PROVIDER configured)', async () => {
+      const env = await freshRoute('route-activation-console');
+      const user = await seedClientFinderUser(env, 'ac1');
+      const raw = subscriptionChargedBody({
+        razorpaySubscriptionId: 'sub_ac1',
+        paymentId: 'pay_ac1',
+        userId: user.id,
+      });
+
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        const response = await env.post(webhookRequest(raw, sign(raw)));
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ status: 'processed' });
+
+        const { rows } = await env.db.client.query<{ user_id: string; duration_days: number }>(
+          'SELECT user_id, duration_days FROM subscription_periods WHERE razorpay_payment_id = $1',
+          ['pay_ac1'],
+        );
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ user_id: user.id, duration_days: 30 });
+
+        const { rows: tokens } = await env.db.client.query<{ user_id: string }>(
+          'SELECT user_id FROM activation_tokens WHERE user_id = $1',
+          [user.id],
+        );
+        expect(tokens).toHaveLength(1);
+
+        // ConsoleActivationEmailSender (no EMAIL_PROVIDER set, non-production)
+        // logged the delivery rather than silently doing nothing.
+        const delivery = logSpy.mock.calls
+          .map((call) => call[0])
+          .find((line) => typeof line === 'string' && line.includes('activation_email.console_delivery'));
+        expect(delivery).toBeDefined();
+        const parsed = JSON.parse(delivery as string) as { to: string; activationUrl: string };
+        expect(parsed.to).toBe(user.email);
+        expect(parsed.activationUrl).toContain('/activate/');
+      } finally {
+        logSpy.mockRestore();
+      }
+    }, 60_000);
+
+    it('a provider delivery failure is non-fatal: the webhook still processes and the failure is logged with product/recipient/provider/error, never a secret or the activation token/URL', async () => {
+      process.env.EMAIL_PROVIDER = 'resend';
+      process.env.RESEND_API_KEY = 'resend_test_key_not_real';
+      process.env.RESEND_FROM_EMAIL = 'sender@example.test';
+
+      const env = await freshRoute('route-activation-failure');
+      const user = await seedClientFinderUser(env, 'ac2');
+      const raw = subscriptionChargedBody({
+        razorpaySubscriptionId: 'sub_ac2',
+        paymentId: 'pay_ac2',
+        userId: user.id,
+      });
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn(
+        async () => new Response(JSON.stringify({ message: 'invalid from address' }), { status: 422 }),
+      ) as unknown as typeof fetch;
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      try {
+        const response = await env.post(webhookRequest(raw, sign(raw)));
+
+        // Non-fatal: the already-committed grant is unaffected by a mail
+        // provider outage, same contract as the existing DEC-014 claim-link
+        // block this mirrors.
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ status: 'processed' });
+
+        const { rows } = await env.db.client.query<{ user_id: string }>(
+          'SELECT user_id FROM subscription_periods WHERE razorpay_payment_id = $1',
+          ['pay_ac2'],
+        );
+        expect(rows).toHaveLength(1);
+
+        // The token WAS minted (issueActivationLink persists before it
+        // sends), but the delivery failure is what must be observable.
+        const { rows: tokens } = await env.db.client.query<{ user_id: string }>(
+          'SELECT user_id FROM activation_tokens WHERE user_id = $1',
+          [user.id],
+        );
+        expect(tokens).toHaveLength(1);
+
+        const failureLine = errorSpy.mock.calls
+          .map((call) => call[0])
+          .find((line) => typeof line === 'string' && line.includes('activation_email.delivery_failed'));
+        expect(failureLine).toBeDefined();
+        const parsed = JSON.parse(failureLine as string) as Record<string, unknown>;
+        expect(parsed).toMatchObject({
+          event: 'activation_email.delivery_failed',
+          product: 'ai_client_acquisition_1499_subscription',
+          recipient: user.email,
+          provider: 'resend',
+        });
+        expect(typeof parsed.error).toBe('string');
+        expect(String(parsed.error)).toContain('422');
+
+        // No secret, no activation token/URL anywhere in anything logged.
+        const everyLoggedString = errorSpy.mock.calls
+          .flat()
+          .filter((v) => typeof v === 'string')
+          .join('\n');
+        expect(everyLoggedString).not.toContain(process.env.RESEND_API_KEY);
+        expect(everyLoggedString).not.toContain('/activate/');
+      } finally {
+        globalThis.fetch = originalFetch;
+        errorSpy.mockRestore();
+      }
+    }, 60_000);
+  });
 });

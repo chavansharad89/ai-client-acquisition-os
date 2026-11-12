@@ -31,7 +31,10 @@ import { ADMIN_URL, createTempDatabase, serverReachable, type TempDatabase } fro
 
 const RAZORPAY_KEY_ID = 'rzp_test_integration';
 const STARTER = 'ai_income_99';
-const SYSTEM = 'ai_client_acquisition_1499';
+// Not the retired ai_client_acquisition_1499 (COMMERCIAL-PO-05/17) — this
+// suite is testing idempotency-key binding under concurrency, not SKU
+// retirement, so it uses an active ₹1,499 product id instead.
+const SYSTEM = 'ai_client_acquisition_1499_subscription';
 
 let reachable = false;
 const open: TempDatabase[] = [];
@@ -76,6 +79,9 @@ async function freshDeps(label: string): Promise<CreateOrderDeps & { calls: numb
         receipt: params.receipt,
         status: 'created',
       };
+    },
+    async fetchPayments() {
+      return [];
     },
   };
 

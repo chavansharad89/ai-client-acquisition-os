@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
+import { findPaymentByRazorpayPaymentId, insertRefundEvent } from './refundEvents';
+import type { OrderToReconcile } from './reconciliation';
 import type { WebhookRejection } from './webhook';
-import type { RedactionStore } from './webhookRetention';
 import type { WebhookTx } from './webhookHandler';
+import type { RedactionStore } from './webhookRetention';
 
 // PostgreSQL wiring for the webhook boundary.
 // -----------------------------------------------------------------------
@@ -177,7 +179,110 @@ function makeTx(sql: SqlClient): WebhookTx {
         [razorpayEventId, at],
       );
     },
+
+    async findPaymentByRazorpayPaymentId(razorpayPaymentId) {
+      return findPaymentByRazorpayPaymentId(sql, razorpayPaymentId);
+    },
+
+    async insertRefundEvent(input) {
+      return insertRefundEvent(sql, input);
+    },
+
+    async insertSubscriptionPeriod({
+      userId,
+      productSlug,
+      razorpaySubscriptionId,
+      razorpayPaymentId,
+      activationAt,
+      durationDays,
+    }) {
+      // ON CONFLICT (razorpay_payment_id) DO NOTHING against migration
+      // 0040's unique index -- the idempotency anchor, same dedupe idiom
+      // as insertWebhookEvent above, not a SELECT-then-INSERT.
+      const { rowCount } = await sql.query(
+        `INSERT INTO subscription_periods
+           (id, user_id, product_slug, razorpay_subscription_id, razorpay_payment_id,
+            activation_at, duration_days, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+         ON CONFLICT (razorpay_payment_id) DO NOTHING`,
+        [
+          randomUUID(),
+          userId,
+          productSlug,
+          razorpaySubscriptionId,
+          razorpayPaymentId,
+          activationAt,
+          durationDays,
+        ],
+      );
+      return (rowCount ?? 0) > 0;
+    },
+
+    async markSubscriptionPeriodRefundedByPaymentId(razorpayPaymentId, at) {
+      // COALESCE, not `WHERE refunded_at IS NULL`: the caller needs to
+      // know "does a subscription period exist for this payment at
+      // all" (to decide whether to fall through to the one-time-order
+      // refund flow), which is a DIFFERENT question from "was this the
+      // first refund webhook for it". Filtering on `refunded_at IS
+      // NULL` would make a SECOND delivery (e.g. refund.created then
+      // refund.processed for the same refund) match zero rows and look
+      // identical to "no such subscription period" — exactly the bug
+      // this comment replaced. COALESCE keeps the original refund
+      // timestamp and still reports the row as found.
+      const { rowCount } = await sql.query(
+        `UPDATE subscription_periods
+            SET refunded_at = COALESCE(refunded_at, $2), updated_at = now()
+          WHERE razorpay_payment_id = $1`,
+        [razorpayPaymentId, at],
+      );
+      return (rowCount ?? 0) > 0;
+    },
   };
+}
+
+/**
+ * Orders the reconciliation loop should ask Razorpay about: still
+ * PENDING/ATTEMPTED (no captured payment recorded) and old enough that a
+ * webhook had every reasonable chance to arrive already.
+ *
+ * `FOR UPDATE SKIP LOCKED` is deliberately NOT used here — unlike the
+ * search worker's claim queue, nothing here is "claimed" by a worker
+ * instance; re-checking the same order on two overlapping ticks is a
+ * harmless duplicate read, made safe by reconcileOrder's own idempotent
+ * writes (see reconciliation.ts's own doc comment).
+ */
+export async function findEligibleOrdersForReconciliation(
+  sql: SqlClient,
+  cutoff: Date,
+  limit: number,
+): Promise<OrderToReconcile[]> {
+  const { rows } = await sql.query(
+    `SELECT id, razorpay_order_id, customer_email, product_slug, amount_paise, currency, status
+       FROM orders
+      WHERE status IN ('PENDING', 'ATTEMPTED') AND created_at <= $1
+      ORDER BY created_at
+      LIMIT $2`,
+    [cutoff, limit],
+  );
+  return (
+    rows as {
+      id: string;
+      razorpay_order_id: string;
+      customer_email: string;
+      product_slug: string;
+      amount_paise: number;
+      currency: string;
+      status: string;
+    }[]
+  ).map((row) => ({
+    id: row.id,
+    razorpayOrderId: row.razorpay_order_id,
+    customerEmail: row.customer_email,
+    productSlug: row.product_slug,
+    amountPaise: Number(row.amount_paise),
+    currency: row.currency,
+    status: row.status,
+  }));
 }
 
 /**

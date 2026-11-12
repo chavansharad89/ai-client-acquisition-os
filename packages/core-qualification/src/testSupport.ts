@@ -1,7 +1,46 @@
 import type { StoredOpportunity } from '@acos/core-opportunity';
+import type { CategoryPlausibilityRepository, StoredCategoryPlausibilityDetermination } from '@acos/core-research';
 
 import type { QualificationRepository } from './repository';
 import type { QualificationEvaluation, StoredQualification } from './types';
+
+/**
+ * In-memory CategoryPlausibilityRepository, scoped down to what
+ * ./service.ts actually calls (`getCurrentByProspectId`,
+ * `isCategoryPlausibilityApplicableForProspectId`) — the other methods
+ * belong to @acos/core-research's own tests, not this package's.
+ *
+ * `notApplicableProspectIds` (CF-QUALIFICATION-WITHOUT-CATEGORY-
+ * PLAUSIBILITY-PO-DEC-001): defaults to none, so every existing call site
+ * that omits it keeps the pre-existing "always applicable" behavior
+ * unchanged — only a test that explicitly lists a prospectId there
+ * simulates CF-SEARCH-INPUT-SERVICE-GEOGRAPHY-ONLY-PO-DEC-002 D2's
+ * deliberate target-customer sentinel for that Prospect.
+ */
+export function fakeCategoryPlausibilityRepository(
+  seed: StoredCategoryPlausibilityDetermination[] = [],
+  notApplicableProspectIds: readonly string[] = [],
+): CategoryPlausibilityRepository {
+  const rows = [...seed];
+  const notApplicable = new Set(notApplicableProspectIds);
+  return {
+    async supersedePrevious() {
+      throw new Error('not used by these tests');
+    },
+    async save() {
+      throw new Error('not used by these tests');
+    },
+    async listBySearchAndProspect() {
+      throw new Error('not used by these tests');
+    },
+    async getCurrentByProspectId(_userId: string, prospectId: string) {
+      return rows.find((row) => row.prospectId === prospectId && row.supersededAt === null) ?? null;
+    },
+    async isCategoryPlausibilityApplicableForProspectId(_userId: string, prospectId: string) {
+      return !notApplicable.has(prospectId);
+    },
+  };
+}
 
 /**
  * In-memory QualificationRepository enforcing the same ownership-through-

@@ -150,7 +150,7 @@ describe('leadResearchSchema $defs/$ref deduplication', () => {
     ]);
   });
 
-  it('contains exactly two anyOf nodes and nine observation references', () => {
+  it('contains exactly three anyOf nodes and nine observation references', () => {
     const jsonSchema = zodToJsonSchema(leadResearchSchema, dedupOptions);
 
     let anyOfCount = 0;
@@ -185,8 +185,27 @@ describe('leadResearchSchema $defs/$ref deduplication', () => {
 
     walk(jsonSchema);
 
-    expect(anyOfCount).toBe(2);
+    // 2 from Observation's own nullable `value`/`basis` (counted once,
+    // inside the single emitted $def) + 1 from Path 2's
+    // categorySegmentSchema.rationale (nullable, inlined once as
+    // categoryPlausibility's array item type — not a $def, since it
+    // occurs only once in leadResearchSchema, unlike Observation's 9
+    // occurrences).
+    expect(anyOfCount).toBe(3);
     expect(refCount).toBe(9);
+  });
+
+  it('carries the F-1 segment confidence as a required integer, and never basis/classification (model-facing)', () => {
+    const jsonSchema = zodToJsonSchema(leadResearchSchema, dedupOptions) as {
+      properties: { categoryPlausibility: { items: { properties: Record<string, unknown>; required?: string[] } } };
+    };
+    const item = jsonSchema.properties.categoryPlausibility.items;
+
+    expect(Object.keys(item.properties)).toEqual(['fit', 'rationale', 'evidence', 'confidence']);
+    expect(item.properties.confidence).toMatchObject({ type: 'integer' });
+    expect(item.required).toContain('confidence');
+    expect(item.properties).not.toHaveProperty('basis');
+    expect(item.properties).not.toHaveProperty('classification');
   });
 
   it('does not emit Anthropic-incompatible maxItems or integer bounds', () => {

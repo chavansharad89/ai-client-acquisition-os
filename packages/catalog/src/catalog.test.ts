@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { InvalidProductIdError } from './errors';
 import { formatPaiseAsInr, paiseToWholeRupees } from './format';
-import { PRODUCT_CATALOG, PRODUCT_IDS, listProducts } from './products';
+import { isRetiredFromNewPurchases, PRODUCT_CATALOG, PRODUCT_IDS, listProducts } from './products';
 import type { Product, ProductId } from './types';
 import { getProduct, isValidProductId, resolveProduct } from './validate';
 
@@ -10,10 +10,11 @@ const EXPECTED_PRODUCT_IDS: ProductId[] = [
   'ai_income_99',
   'ai_freelancing_499',
   'ai_client_acquisition_1499',
+  'ai_client_acquisition_1499_subscription',
 ];
 
 describe('catalog completeness', () => {
-  it('contains exactly the three specified products — no more, no fewer', () => {
+  it('contains exactly the four specified products — no more, no fewer', () => {
     expect(PRODUCT_IDS.slice().sort()).toEqual(EXPECTED_PRODUCT_IDS.slice().sort());
     expect(Object.keys(PRODUCT_CATALOG).sort()).toEqual(EXPECTED_PRODUCT_IDS.slice().sort());
   });
@@ -24,10 +25,33 @@ describe('catalog completeness', () => {
     }
   });
 
-  it('listProducts() returns every product exactly once', () => {
+  it('listProducts() returns every CURRENTLY PURCHASABLE product exactly once, excluding the retired legacy SKU', () => {
     const listed = listProducts();
-    expect(listed).toHaveLength(EXPECTED_PRODUCT_IDS.length);
-    expect(listed.map((p) => p.id).sort()).toEqual(EXPECTED_PRODUCT_IDS.slice().sort());
+    const expectedPurchasable = EXPECTED_PRODUCT_IDS.filter(
+      (id) => id !== 'ai_client_acquisition_1499',
+    );
+    expect(listed).toHaveLength(expectedPurchasable.length);
+    expect(listed.map((p) => p.id).sort()).toEqual(expectedPurchasable.slice().sort());
+    expect(listed.map((p) => p.id)).not.toContain('ai_client_acquisition_1499');
+  });
+});
+
+describe('retirement from new purchases (COMMERCIAL-PO-05/17)', () => {
+  it('isRetiredFromNewPurchases flags only the legacy one-time SKU', () => {
+    expect(isRetiredFromNewPurchases('ai_client_acquisition_1499')).toBe(true);
+    expect(isRetiredFromNewPurchases('ai_income_99')).toBe(false);
+    expect(isRetiredFromNewPurchases('ai_freelancing_499')).toBe(false);
+    expect(isRetiredFromNewPurchases('ai_client_acquisition_1499_subscription')).toBe(false);
+  });
+
+  it('the retired id still resolves via trusted, already-known-id lookups (getProduct/resolveProduct)', () => {
+    // Historical orders/payments/entitlements/downloads/reconciliation/
+    // webhook-retry all depend on this remaining true — retirement only
+    // gates NEW purchases and public listings, never catalog resolution.
+    expect(getProduct('ai_client_acquisition_1499').id).toBe('ai_client_acquisition_1499');
+    expect(resolveProduct('ai_client_acquisition_1499').id).toBe('ai_client_acquisition_1499');
+    expect(PRODUCT_CATALOG.ai_client_acquisition_1499).toBeDefined();
+    expect(PRODUCT_IDS).toContain('ai_client_acquisition_1499');
   });
 });
 
@@ -114,6 +138,11 @@ describe('correct amounts', () => {
       metaValueInr: 1499,
       name: 'AI Client Acquisition System',
     },
+    ai_client_acquisition_1499_subscription: {
+      amountPaise: 149900,
+      metaValueInr: 1499,
+      name: 'AI Client Finder — 30 Days',
+    },
   };
 
   it.each(Object.entries(expected))('%s has the exact expected amount and name', (id, exp) => {
@@ -166,12 +195,12 @@ describe('no floating-point monetary calculations', () => {
     }
   });
 
-  it('summing all three product prices in paise matches the hand-computed integer total exactly', () => {
+  it('summing all four product prices in paise matches the hand-computed integer total exactly', () => {
     // Demonstrates that repeated integer addition across the catalog
     // introduces no drift — the kind of check that WOULD catch a bug if
     // amounts were ever stored as floats (e.g. 99.00) instead of integers.
     const total = PRODUCT_IDS.reduce((sum, id) => sum + PRODUCT_CATALOG[id].amountPaise, 0);
-    expect(total).toBe(9900 + 49900 + 149900);
+    expect(total).toBe(9900 + 49900 + 149900 + 149900);
     expect(Number.isInteger(total)).toBe(true);
   });
 
@@ -231,7 +260,7 @@ describe('immutability (client/caller can never mutate authoritative pricing)', 
         metaValueInr: 1,
       };
     }).toThrow(TypeError);
-    expect(PRODUCT_IDS).toHaveLength(3);
+    expect(PRODUCT_IDS).toHaveLength(4);
   });
 
   it('mutating an object returned from listProducts() does not affect the catalog', () => {

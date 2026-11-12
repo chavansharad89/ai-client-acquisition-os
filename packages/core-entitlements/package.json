@@ -13,9 +13,11 @@
   "dependencies": {
     "@acos/catalog": "workspace:*",
     "@acos/db": "workspace:*",
-    "@acos/shared-types": "workspace:*"
+    "@acos/shared-types": "workspace:*",
+    "nodemailer": "^10.0.15"
   },
   "devDependencies": {
+    "@types/nodemailer": "^8.0.2",
     "typescript": "^5.6.0",
     "vitest": "^2.0.0"
   }

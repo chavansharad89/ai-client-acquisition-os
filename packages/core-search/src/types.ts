@@ -43,4 +43,15 @@ export interface StoredSearch {
 
   createdAt: Date;
   updatedAt: Date;
+  /** Set exactly once, by completeClaimed() — distinct from updatedAt, which every transition touches. */
+  completedAt: Date | null;
+
+  /**
+   * Phase 5 (migration 0046): cumulative AI-escalation units spent across
+   * this Search's entire lifecycle — never reset by a retry, never
+   * decremented (a candidate-level AI failure still keeps its already-
+   * admitted unit). See ./escalationBudget.ts's AI_ESCALATION_BUDGET for
+   * the fixed ceiling this counts against.
+   */
+  aiEscalationUnitsConsumed: number;
 }
